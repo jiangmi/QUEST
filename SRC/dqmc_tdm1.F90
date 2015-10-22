@@ -1145,7 +1145,7 @@ contains
         tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
       enddo
       title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
-      if (index(title, " 1  1 128 0.0000 0.0000 0.0000") > 0) then
+      if (index(title, " 0.000   0.000   0.000") > 0) then
         call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
       endif
      ! write(OPT1,'(1x)')

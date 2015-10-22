@@ -103,14 +103,17 @@ module DQMC_Phy0
   integer, parameter :: P0_SAFSQ     = 12
   integer, parameter :: P0_SAF2      = 13
   integer, parameter :: P0_SAF2SQ    = 14
+  integer, parameter :: P0_CDW       = 15
+  integer, parameter :: P0_NNPROD    = 16
+  integer, parameter :: P0_NNSUM     = 17
 
-  integer, parameter :: P0_potential_energy    = 15
-  integer, parameter :: P0_hopping_energy    = 16
-  integer, parameter :: P0_double_occupancy    = 17
-  integer, parameter :: P0_magnetisation_squared    = 18
+  integer, parameter :: P0_potential_energy      = 18
+  integer, parameter :: P0_hopping_energy        = 19
+  integer, parameter :: P0_double_occupancy      = 20
+  integer, parameter :: P0_magnetisation_squared = 21
 
   integer, parameter :: P0_N_NO_SAF  = 10
-  integer, parameter :: P0_N         = 18
+  integer, parameter :: P0_N         = 21
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -133,6 +136,9 @@ module DQMC_Phy0
        "  Root Mean Square of XX AF : ", &
        "     ZZ AF structure factor : ", &
        "  Root Mean Square of ZZ AF : ", &
+       "    CDW AF structure factor : ", &
+       "Den*Den AF structure factor : ", &
+       "Den+Den AF structure factor : ", &
        "           Potential energy : ", &
        "             Hopping energy : ", &
        "           Double occupancy : ", &
@@ -233,11 +239,11 @@ contains
 
     P0%compSAF = S%checklist(STRUCT_PHASE)
     ! count total number of data
-    if (P0%compSAF) then
+!    if (P0%compSAF) then
        P0%nMeas = P0_N
-    else
-       p0%nMeas = P0_N_NO_SAF
-    end if
+!    else
+!       p0%nMeas = P0_N_NO_SAF
+!    end if
 
     ! Allocate storages for sign and properties
     n = P0%nmeas + P0%nClass * narrays
@@ -381,11 +387,11 @@ contains
     P0%meas(:, idx) = P0%meas(:, idx) * factor
     P0%sign(:, idx) = P0%sign(:, idx) * factor
 
-    if (P0%compSAF) then
+!    if (P0%compSAF) then
        ! The sqaure terms
        P0%meas(P0_SAFSQ, idx) = sqrt(abs(P0%meas(P0_SAFSQ, idx)))
        P0%meas(P0_SAF2SQ, idx) = sqrt(abs(P0%meas(P0_SAF2SQ, idx)))
-    end if
+!    end if
 
     ! This list terms
     n = P0%nClass
@@ -695,6 +701,12 @@ contains
     integer, pointer  :: r(:) 
     integer, pointer  :: A(:) 
 
+    ! to get relative vector between sites, used for determine phase for computing S_AF in plane
+    ! for bilayer cases, only include z=0 component 
+    real(wp) :: phase
+    real(wp) :: seperate(3)
+    character(label_len)   :: label
+
     ! Auxiliary variable for chi_thermal and C_v
     real(wp) :: Cbar, Nbar, Tbar, un
     real(wp) :: h_up(n, n), h_dn(n, n) 
@@ -934,11 +946,11 @@ contains
     !=====================!
     ! Autocorelation term.!
     !=====================!
-    if (P0%compSAF) then
+!    if (P0%compSAF) then
        P0%meas(P0_SAF, tmp)  = TWO*n-P0%meas(P0_NUP, tmp)-&
             P0%meas(P0_NDN, tmp)
        P0%meas(P0_SAF2,tmp)  = P0%meas(P0_SAF, tmp)
-    end if
+!    end if
 
     do i = 1,n
        do j = 1,n
@@ -960,22 +972,47 @@ contains
           P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var3
           P0%Pair(k,tmp)  = P0%Pair(k,tmp) + G_up(i,j) * G_dn(i,j)
           
-          if (P0%compSAF) then
-             var1 = S%P(i)*S%P(j)
-             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + var1 * var2
-             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + var1 * var3
+!          if (P0%compSAF) then
+!             var1 = S%P(i)*S%P(j)
+          label = S%clabel(k)
+          read(label(12:19),*) seperate(1)
+          read(label(20:27),*) seperate(2)
+          read(label(28:35),*) seperate(3)
+         ! write(*,*) seperate(1), seperate(2), seperate(3)     
+          if (abs(seperate(3))<0.0001) then                                      ! z=0, within the same plane
+             if ( mod(int(abs(seperate(1)))+int(abs(seperate(2))),2) == 0) then  ! (-1)**(x+y)=1
+                phase = 1.0
+             else
+                phase = -1.0
+             endif  
+          !   write(*,*) seperate(1), seperate(2), seperate(3), int(seperate(1))+int(seperate(2)), &
+             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + phase * var2
+             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + phase * var3
+
+             ! CDW related quantities also in plane
+             ! <n_i*n_j>
+             P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + &
+                   phase* (P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
+             ! <n_i+n_j>
+             P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + phase* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
           end if
        end do
-       ! special case for (i,i)
+       ! special case for (i,i) due to different Wick contraction possibilities 
        k = S%D(i,i)
        var1 =  G_up(i,i) + G_dn(i,i)
        P0%Den0(k, tmp)   = P0%Den0(k, tmp)   + var1
        P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var1
        P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
+
+       P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + var1
+       P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + var1
+       P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do
     
     P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
     P0%meas(P0_SFER2,  tmp) = sum(P0%SpinZZ(:,tmp))
+
+    P0%meas(P0_CDW, tmp) = P0%meas(P0_NNPROD, tmp) - P0%meas(P0_NNSUM, tmp)*P0%meas(P0_DENSITY,tmp)
     
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n
@@ -989,12 +1026,11 @@ contains
        P0%Den1  (i, tmp) = P0%Den1  (i, tmp) / S%F(i)
        P0%Pair(i, tmp)   = P0%Pair(i, tmp) / S%F(i) * HALF
     end do
-    
 
-    if (P0%compSAF) then
+!    if (P0%compSAF) then
        P0%meas(P0_SAFSQ, tmp) = P0%meas(P0_SAF, tmp) * P0%meas(P0_SAF, tmp)
        P0%meas(P0_SAF2SQ,tmp) = P0%meas(P0_SAF2,tmp) * P0%meas(P0_SAF2,tmp)
-    end if
+!    end if
 
     ! Accumulate result to P0(:, idx)
     sgn = sgnup * sgndn

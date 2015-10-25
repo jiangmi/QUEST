@@ -701,12 +701,6 @@ contains
     integer, pointer  :: r(:) 
     integer, pointer  :: A(:) 
 
-    ! to get relative vector between sites, used for determine phase for computing S_AF in plane
-    ! for bilayer cases, only include z=0 component 
-    real(wp) :: phase
-    real(wp) :: seperate(3)
-    character(label_len)   :: label
-
     ! Auxiliary variable for chi_thermal and C_v
     real(wp) :: Cbar, Nbar, Tbar, un
     real(wp) :: h_up(n, n), h_dn(n, n) 
@@ -974,28 +968,16 @@ contains
           
 !          if (P0%compSAF) then
 !             var1 = S%P(i)*S%P(j)
-          label = S%clabel(k)
-          read(label(12:19),*) seperate(1)
-          read(label(20:27),*) seperate(2)
-          read(label(28:35),*) seperate(3)
-         ! write(*,*) seperate(1), seperate(2), seperate(3)     
-          if (abs(seperate(3))<0.0001) then                                      ! z=0, within the same plane
-             if ( mod(int(abs(seperate(1)))+int(abs(seperate(2))),2) == 0) then  ! (-1)**(x+y)=1
-                phase = 1.0
-             else
-                phase = -1.0
-             endif  
-          !   write(*,*) seperate(1), seperate(2), seperate(3), int(seperate(1))+int(seperate(2)), &
-             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + phase * var2
-             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + phase * var3
+             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + S%AFphase(k) * var2
+             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + S%AFphase(k) * var3
 
              ! CDW related quantities also in plane
              ! <n_i*n_j>
              P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + &
-                   phase* (P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
-             ! <n_i+n_j>
-             P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + phase* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
-          end if
+                   S%AFphase(k)* (P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
+             ! <n_i+n_j>, seems not necessary for staggered potential and/or other projects
+           !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
+!          end if
        end do
        ! special case for (i,i) due to different Wick contraction possibilities 
        k = S%D(i,i)
@@ -1012,7 +994,7 @@ contains
     P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
     P0%meas(P0_SFER2,  tmp) = sum(P0%SpinZZ(:,tmp))
 
-    P0%meas(P0_CDW, tmp) = P0%meas(P0_NNPROD, tmp) - P0%meas(P0_NNSUM, tmp)*P0%meas(P0_DENSITY,tmp)
+    P0%meas(P0_CDW, tmp) = P0%meas(P0_NNPROD, tmp) !- P0%meas(P0_NNSUM, tmp)*P0%meas(P0_DENSITY,tmp)
     
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n

@@ -90,6 +90,9 @@ module DQMC_STRUCT
      integer, pointer  :: gf_phase(:,:) 
      integer, pointer  :: chi_phase(:,:) 
                               
+     ! decide (-1)^x+y for computing S_AF and S_CDW in plane
+     ! for bilayer cases, only include z=0 component
+     integer, pointer  :: AFphase(:)
 
      integer           :: n_b           ! number of neighbors types
      type(CCS)         :: B             ! Neighborhood matrix

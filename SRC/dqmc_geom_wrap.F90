@@ -149,6 +149,11 @@ module DQMC_GEOM_WRAP
     real(wp), pointer  :: tdnvalue(:) => null()
     integer, pointer   :: tmp(:,:) => null()
 
+    ! to get relative vector between sites, used for determine phase for computing S_AF in plane
+    ! for bilayer cases, only include z=0 component
+    real(wp) :: xyz(3)
+    character(label_len) :: label 
+
     ! ... Executable ...
     S%checklist=.false.
   
@@ -179,6 +184,7 @@ module DQMC_GEOM_WRAP
     allocate(S%D(n,n))
     allocate(S%F(S%nClass))
     allocate(S%clabel(S%nClass))
+    allocate(S%AFphase(S%nClass))
 
     S%D(1:n,1:n) =  gwrap%Lattice%myclass(0: n - 1, 0: n - 1)
     S%F(:)       =  gwrap%Lattice%class_size(:)
@@ -186,6 +192,24 @@ module DQMC_GEOM_WRAP
     do ic = 1, S%nClass       
       !write(S%clabel(ic), '(2(i3), 3(f8.4))') (int(clab(ic, j)), j = 4, 5), (clab(ic, j), j = 1, 3)       
       write(S%clabel(ic),'(2(i3),i5,3(f8.3))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
+
+      ! decide (-1)^x+y for computing S_AF and S_CDW in plane
+      ! for bilayer cases, only include z=0 component
+      label = S%clabel(ic)
+      read(label(12:19),*) xyz(1)
+      read(label(20:27),*) xyz(2)
+      read(label(28:35),*) xyz(3)
+
+      if (abs(xyz(3))<0.0001) then                                ! z=0, within the same plane
+        if ( mod(int(abs(xyz(1)))+int(abs(xyz(2))),2) == 0) then  ! (-1)**(x+y)=1
+          S%AFphase(ic) = 1
+        else
+          S%AFphase(ic) = -1
+        endif
+        write(*,*) xyz(1),xyz(2),xyz(3),S%AFphase(ic)
+      else
+        S%AFphase(ic) = 0
+      endif
     enddo
 
     !store GF phase

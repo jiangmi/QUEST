@@ -206,7 +206,7 @@ module DQMC_GEOM_WRAP
         else
           S%AFphase(ic) = -1
         endif
-        write(*,*) xyz(1),xyz(2),xyz(3),S%AFphase(ic)
+       ! write(*,*) xyz(1),xyz(2),xyz(3),S%AFphase(ic)
       else
         S%AFphase(ic) = 0
       endif

@@ -85,9 +85,9 @@ module DQMC_TDM1
 
      logical  :: compute = .false.
  
-     ! input file specifies if computing conductivity
-     integer  :: flagcond  = 0
- 
+     ! input file specifies if computing different correlation functions
+     integer  :: flags(NTDMARRAY) 
+
      real(wp) :: dtau
      real(wp), pointer :: sgn(:)
      type(tdmarray), pointer :: properties(:)
@@ -105,7 +105,6 @@ module DQMC_TDM1
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
 
      ! 08/15/2015
-     ! adapted from dqmc_T1ilt.F90 rt, lf, up, dn 
      ! used for conductivity, d-wave paring sus etc.
      integer, ALLOCATABLE     :: rt(:), lf(:), up(:), dn(:)
      complex*16, ALLOCATABLE  :: hopup(:,:), hopdn(:,:)
@@ -116,7 +115,7 @@ contains
 
  !--------------------------------------------------------------------!
   
-  subroutine DQMC_TDM1_Init(L, dtau, T1, nBin, S, Gwrap, flagcond)
+  subroutine DQMC_TDM1_Init(L, dtau, T1, nBin, S, Gwrap, flags)
     use DQMC_Geom_Wrap
     !
     ! Purpose
@@ -129,7 +128,7 @@ contains
     type(TDM1), intent(inout) :: T1      ! time dependent measurement
     integer, intent(in)       :: L       ! No of time slice
     integer, intent(in)       :: nBin    ! No of Bins
-    integer, intent(in)       :: flagcond
+    integer, intent(in)       :: flags(NTDMARRAY)
     real(wp), intent(in)      :: dtau
     type(Struct), intent(in)  :: S
     type(GeomWrap), intent(in):: Gwrap
@@ -149,37 +148,41 @@ contains
     T1%idx    =  1
 
     T1%compute  = .true.
-    T1%flagcond = flagcond
- 
+    T1%flags    = flags
+
     ! Allocate storages
     allocate(T1%sgn(nBin+2))
     ! initialize values
     T1%sgn   = ZERO
 
     call  DQMC_TDM1_InitFTw(T1)
-    if (T1%flagcond == 0) then
-       ntdm = ntdm - 1
-    endif
-    allocate(T1%properties(ntdm))
+    ntdm = sum(T1%flags)         ! how many quantities to compute
+!    write(*,*) "# of tdm quantities:", ntdm
+    allocate(T1%properties(NTDMARRAY))
 
-    do i = 1, ntdm
-       call DQMC_TDM1_InitProp(T1, S, Gwrap, i)
+    do i = 1, NTDMARRAY
+       if (T1%flags(i)==1) then
+         call DQMC_TDM1_InitProp(T1, S, Gwrap, i)
+       endif
     enddo
 
-    allocate(T1%GtupAve(0:T1%L-1,T1%err))
-    allocate(T1%GtdnAve(0:T1%L-1,T1%err))
+    if (T1%flags(IGFUP) == 1) then
+      allocate(T1%GtupAve(0:T1%L-1,T1%err))
+      T1%GtupAve = 0.0_wp
+    endif
+    if (T1%flags(IGFDN) == 1) then
+      allocate(T1%GtdnAve(0:T1%L-1,T1%err))
+      T1%GtdnAve = 0.0_wp
+    endif
 
     allocate(T1%ChiXX(T1%err))
     allocate(T1%ChiZZ(T1%err))
 
-    T1%GtupAve = 0.0_wp
-    T1%GtdnAve = 0.0_wp
-
     T1%ChiXX = 0.0_wp
     T1%ChiZZ = 0.0_wp
    
-    ! IMPORTANT: the indices of Gtau(1:nsites) and T1ilt(0:nsites-1) are different
-    ! Note difference from rt etc. in dqmc_T1ilt.F90
+    ! IMPORTANT: the indices of Gtau(1:nsites) and hamilt(0:nsites-1) are different
+    ! Note difference from rt etc. in dqmc_hamilt.F90
     allocate(T1%rt(1:S%nSite))
     allocate(T1%lf(1:S%nSite))
     allocate(T1%up(1:S%nSite))
@@ -309,7 +312,6 @@ contains
 
        case(ICOND)
 
-       if (T1%flagcond == 1) then
           nk = Gwrap%GammaLattice%nclass_k
           nclass = 1
           np     = Gwrap%lattice%natom
@@ -332,7 +334,6 @@ contains
         ! used in meas for average, for conductivity, renormalized by lattice size
           allocate(T1%properties(iprop)%F(nclass))
           T1%properties(iprop)%F(1) = S%nSite*2   ! *2 is for averaging x and y directions
-       endif
      end select
 
      T1%properties(iprop)%values  = 0.0_wp
@@ -359,13 +360,13 @@ contains
     ! ... Executable ...
 
     if (.not.T1%compute) return
-    do i = 1, ntdm
-       deallocate(T1%properties(i)%values)
-       nullify(T1%properties(i)%D)
-       nullify(T1%properties(i)%F)
-       nullify(T1%properties(i)%ftk)
-       nullify(T1%properties(i)%ftw)
-       if (i < ntdm) then
+    do i = 1, NTDMARRAY
+       if (T1%flags(i)==1) then
+         deallocate(T1%properties(i)%values)
+         nullify(T1%properties(i)%D)
+         nullify(T1%properties(i)%F)
+         nullify(T1%properties(i)%ftk)
+         nullify(T1%properties(i)%ftw)
          deallocate(T1%properties(i)%valuesk)
        endif
     enddo
@@ -374,8 +375,12 @@ contains
     deallocate(T1%ftwfer)
     deallocate(T1%properties)
 
-    deallocate(T1%GtupAve)
-    deallocate(T1%GtdnAve)
+    if (T1%flags(IGFUP) == 1) then
+      deallocate(T1%GtupAve)
+    endif
+    if (T1%flags(IGFDN) == 1) then
+      deallocate(T1%GtdnAve)
+    endif
 
     deallocate(T1%rt)
     deallocate(T1%lf)
@@ -478,15 +483,18 @@ contains
     endif
 
     sgn = tau%sgnup * tau%sgndn
-    do iprop = 1, ntdm
-       values => T1%properties(iprop)%values
-       do it = 0, L-1
-          do i = 1, T1%properties(iprop)%nClass
-             factor = sgn/(T1%properties(iprop)%F(i)*cnt)
-             values(i,it,T1%idx)   = values(i,it,T1%idx)   + factor*values(i,it,T1%tmp)
+
+    do iprop = 1, NTDMARRAY
+       if (T1%flags(iprop)==1) then       
+          values => T1%properties(iprop)%values
+          do it = 0, L-1
+            do i = 1, T1%properties(iprop)%nClass
+              factor = sgn/(T1%properties(iprop)%F(i)*cnt)
+              values(i,it,T1%idx)   = values(i,it,T1%idx)   + factor*values(i,it,T1%tmp)
+            end do
           end do
-       end do
-       values(:,:,T1%tmp)   = ZERO
+          values(:,:,T1%tmp)   = ZERO
+       endif
     enddo
 
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
@@ -552,6 +560,7 @@ contains
        ! In this product case, switch the spatial sites instead and average by 2
        ! below *0.5_wp is for averaging over switching sites i,j
 
+     if (T1%flags(IGFUN) == 1) then
        value1  => T1%properties(IGFUN)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IGFUN)%values(:, dt2, T1%tmp)
        do i = 1, T1%properties(IGFUN)%n
@@ -562,29 +571,35 @@ contains
              value2(k)  = value2(k) - factor*(up0t(i,j) + dn0t(i,j))
           end do
        end do
+     endif
 
-!       value1  => T1%properties(IGFUP)%values(:, dt1, T1%tmp)
-!       value2  => T1%properties(IGFUP)%values(:, dt2, T1%tmp)
-!       do i = 1, T1%properties(IGFUP)%n
-!          do j = 1, T1%properties(IGFUP)%n
-!             ! k is the distance index of site i and site j
-!             k = T1%properties(IGFUP)%D(i,j)
-!             value1(k)  = value1(k) + 2*factor*upt0(i,j)
-!             value2(k)  = value2(k) - 2*factor*up0t(i,j)
-!          end do
-!       end do
+     if (T1%flags(IGFUP) == 1) then
+       value1  => T1%properties(IGFUP)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(IGFUP)%values(:, dt2, T1%tmp)
+       do i = 1, T1%properties(IGFUP)%n
+          do j = 1, T1%properties(IGFUP)%n
+             ! k is the distance index of site i and site j
+             k = T1%properties(IGFUP)%D(i,j)
+             value1(k)  = value1(k) + 2*factor*upt0(i,j)
+             value2(k)  = value2(k) - 2*factor*up0t(i,j)
+          end do
+       end do
+      endif
 
-!       value1  => T1%properties(IGFDN)%values(:, dt1, T1%tmp)
-!       value2  => T1%properties(IGFDN)%values(:, dt2, T1%tmp)
-!       do i = 1, T1%properties(IGFDN)%n
-!          do j = 1, T1%properties(IGFDN)%n
-!             ! k is the distance index of site i and site j
-!             k = T1%properties(IGFDN)%D(i,j)
-!             value1(k)  = value1(k) + 2*factor*dnt0(i,j)
-!             value2(k)  = value2(k) - 2*factor*dn0t(i,j)
-!          end do
-!       end do
+     if (T1%flags(IGFDN) == 1) then
+       value1  => T1%properties(IGFDN)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(IGFDN)%values(:, dt2, T1%tmp)
+       do i = 1, T1%properties(IGFDN)%n
+          do j = 1, T1%properties(IGFDN)%n
+             ! k is the distance index of site i and site j
+             k = T1%properties(IGFDN)%D(i,j)
+             value1(k)  = value1(k) + 2*factor*dnt0(i,j)
+             value2(k)  = value2(k) - 2*factor*dn0t(i,j)
+          end do
+       end do
+     endif
 
+     if (T1%flags(ISPXX) == 1) then
        value1  => T1%properties(ISPXX)%values(:, dt1, T1%tmp)
        value2  => T1%properties(ISPXX)%values(:, dt2, T1%tmp)
        do i = 1,  T1%properties(ISPXX)%n
@@ -598,48 +613,55 @@ contains
                   + up0t(j,i)*dnt0(i,j))/2
           end do
        end do
+     endif
 
-!       value1  => T1%properties(ISPZZ)%values(:, dt1, T1%tmp)
-!       value2  => T1%properties(ISPZZ)%values(:, dt2, T1%tmp)
-!       do i = 1, T1%properties(ISPZZ)%n
-!          do j = 1, T1%properties(ISPZZ)%n
-             ! k is the distance index of site i and site j
-!             k = T1%properties(ISPZZ)%D(i,j)
-!             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
-!               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)-dntt(i,i))*(up00(j,j)-dn00(j,j)) )*0.5_wp
-!             value2(k)  = value2(k) - (up0t(i,j)*upt0(j,i) &
-!               + dn0t(i,j)*dnt0(j,i) - (uptt(j,j)-dntt(j,j))*(up00(i,i)-dn00(i,i)) )*0.5_wp
-!          end do
-!       end do
+     if (T1%flags(ISPZZ) == 1) then
+       value1  => T1%properties(ISPZZ)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(ISPZZ)%values(:, dt2, T1%tmp)
+       do i = 1, T1%properties(ISPZZ)%n
+          do j = 1, T1%properties(ISPZZ)%n
+            ! k is the distance index of site i and site j
+             k = T1%properties(ISPZZ)%D(i,j)
+             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
+               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)-dntt(i,i))*(up00(j,j)-dn00(j,j)) )*0.5_wp
+             value2(k)  = value2(k) - (up0t(i,j)*upt0(j,i) &
+               + dn0t(i,j)*dnt0(j,i) - (uptt(j,j)-dntt(j,j))*(up00(i,i)-dn00(i,i)) )*0.5_wp
+          end do
+       end do
+     endif
 
-!       value1  => T1%properties(IDENS)%values(:, dt1, T1%tmp)
-!       value2  => T1%properties(IDENS)%values(:, dt2, T1%tmp)
-!       do i = 1, T1%properties(IDENS)%n
-!          do j = 1, T1%properties(IDENS)%n
-             ! k is the distance index of site i and site j
-!             k = T1%properties(IDENS)%D(i,j)
-!             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
-!               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)+dntt(i,i))*(up00(j,j)+dn00(j,j)) )*0.5_wp
-!             value2(k)  = value2(k) - (up0t(i,j)*upt0(j,i) &
-!               + dn0t(i,j)*dnt0(j,i) - (uptt(j,j)+dntt(j,j))*(up00(i,i)+dn00(i,i)) )*0.5_wp
-!          end do
-!       end do
+     if (T1%flags(IDENS) == 1) then
+       value1  => T1%properties(IDENS)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(IDENS)%values(:, dt2, T1%tmp)
+       do i = 1, T1%properties(IDENS)%n
+          do j = 1, T1%properties(IDENS)%n
+            ! k is the distance index of site i and site j
+             k = T1%properties(IDENS)%D(i,j)
+             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
+               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)+dntt(i,i))*(up00(j,j)+dn00(j,j)) )*0.5_wp
+             value2(k)  = value2(k) - (up0t(i,j)*upt0(j,i) &
+               + dn0t(i,j)*dnt0(j,i) - (uptt(j,j)+dntt(j,j))*(up00(i,i)+dn00(i,i)) )*0.5_wp
+          end do
+       end do
+     endif
 
-!       value1  => T1%properties(IPAIR)%values(:, dt1, T1%tmp)
-!       value2  => T1%properties(IPAIR)%values(:, dt2, T1%tmp)
-!       do i = 1,  T1%properties(IPAIR)%n
-!          do j = 1,  T1%properties(IPAIR)%n
+     if (T1%flags(IPAIR) == 1) then
+       value1  => T1%properties(IPAIR)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(IPAIR)%values(:, dt2, T1%tmp)
+       do i = 1,  T1%properties(IPAIR)%n
+          do j = 1,  T1%properties(IPAIR)%n
              ! someone decided there were two equivalent terms and 
              ! is averaging them for smaller error bars-  Eg if you wanted
              ! <A(t)A(0)> and you knew there was time reversal symmetry you
              ! might use 0.5* { <A(t)A(0) + A(0)A(t) }
-!             k = T1%properties(IPAIR)%D(i,j)
-!             value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j)*0.5_wp 
-!             value2(k)  = value2(k) + upt0(j,i)*dnt0(j,i)*0.5_wp
-!          end do
-!       end do
+             k = T1%properties(IPAIR)%D(i,j)
+             value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j)*0.5_wp 
+             value2(k)  = value2(k) + upt0(j,i)*dnt0(j,i)*0.5_wp
+          end do
+       end do
+     endif
 
-     if (T1%flagcond == 1) then
+     if (T1%flags(ICOND) == 1) then
        value1  => T1%properties(ICOND)%values(:, dt1, T1%tmp)
        value2  => T1%properties(ICOND)%values(:, dt2, T1%tmp)
 
@@ -765,6 +787,7 @@ contains
 
     else
 
+     if (T1%flags(IGFUN) == 1) then
        value1  => T1%properties(IGFUN)%values(:, dt1, T1%tmp)
        do i = 1, T1%properties(IGFUN)%n
           do j = 1, T1%properties(IGFUN)%n
@@ -773,25 +796,31 @@ contains
              value1(k)  = value1(k) + factor*(upt0(i,j) + dnt0(i,j))
           end do
        end do
+     endif
 
-!       value1  => T1%properties(IGFUP)%values(:, dt1, T1%tmp)
-!       do i = 1, T1%properties(IGFUP)%n
-!          do j = 1, T1%properties(IGFUP)%n
+     if (T1%flags(IGFUP) == 1) then
+       value1  => T1%properties(IGFUP)%values(:, dt1, T1%tmp)
+       do i = 1, T1%properties(IGFUP)%n
+          do j = 1, T1%properties(IGFUP)%n
+            ! k is the distance index of site i and site j
+             k = T1%properties(IGFUP)%D(i,j)
+             value1(k)  = value1(k) + 2*factor*upt0(i,j)
+          end do
+       end do
+     endif
+
+     if (T1%flags(IGFDN) == 1) then
+       value1  => T1%properties(IGFDN)%values(:, dt1, T1%tmp)
+       do i = 1, T1%properties(IGFDN)%n
+          do j = 1, T1%properties(IGFDN)%n
              ! k is the distance index of site i and site j
-!             k = T1%properties(IGFUP)%D(i,j)
-!             value1(k)  = value1(k) + 2*factor*upt0(i,j)
-!          end do
-!       end do
+             k = T1%properties(IGFDN)%D(i,j)
+             value1(k)  = value1(k) + 2*factor*dnt0(i,j)
+          end do
+       end do
+     endif
 
-!       value1  => T1%properties(IGFDN)%values(:, dt1, T1%tmp)
-!       do i = 1, T1%properties(IGFDN)%n
-!          do j = 1, T1%properties(IGFDN)%n
-             ! k is the distance index of site i and site j
-!             k = T1%properties(IGFDN)%D(i,j)
-!             value1(k)  = value1(k) + 2*factor*dnt0(i,j)
-!          end do
-!       end do
-
+     if (T1%flags(ISPXX) == 1) then
        value1  => T1%properties(ISPXX)%values(:, dt1, T1%tmp)
        do i = 1,  T1%properties(ISPXX)%n
           do j = 1,  T1%properties(ISPXX)%n
@@ -801,37 +830,44 @@ contains
                   + up0t(i,j)*dnt0(j,i))
           end do
        end do
+     endif
 
-!       value1  => T1%properties(ISPZZ)%values(:, dt1, T1%tmp)
-!       do i = 1, T1%properties(ISPZZ)%n
-!          do j = 1, T1%properties(ISPZZ)%n
+     if (T1%flags(ISPZZ) == 1) then
+       value1  => T1%properties(ISPZZ)%values(:, dt1, T1%tmp)
+       do i = 1, T1%properties(ISPZZ)%n
+          do j = 1, T1%properties(ISPZZ)%n
              ! k is the distance index of site i and site j
-!             k = T1%properties(ISPZZ)%D(i,j)
-!             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
-!               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)-dntt(i,i))*(up00(j,j)-dn00(j,j)) )
-!          end do
-!       end do
+             k = T1%properties(ISPZZ)%D(i,j)
+             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
+               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)-dntt(i,i))*(up00(j,j)-dn00(j,j)) )
+          end do
+       end do
+     endif
 
-!       value1  => T1%properties(IDENS)%values(:, dt1, T1%tmp)
-!       do i = 1, T1%properties(IDENS)%n
-!          do j = 1, T1%properties(IDENS)%n
+     if (T1%flags(IDENS) == 1) then
+       value1  => T1%properties(IDENS)%values(:, dt1, T1%tmp)
+       do i = 1, T1%properties(IDENS)%n
+          do j = 1, T1%properties(IDENS)%n
              ! k is the distance index of site i and site j
-!             k = T1%properties(IDENS)%D(i,j)
-!             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
-!               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)+dntt(i,i))*(up00(j,j)+dn00(j,j)) )
-!          end do
-!       end do
+             k = T1%properties(IDENS)%D(i,j)
+             value1(k)  = value1(k) - (up0t(j,i)*upt0(i,j) &
+               + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)+dntt(i,i))*(up00(j,j)+dn00(j,j)) )
+          end do
+       end do
+     endif
 
-!       value1  => T1%properties(IPAIR)%values(:, dt1, T1%tmp)
-!       do i = 1,  T1%properties(IPAIR)%n
-!          do j = 1,  T1%properties(IPAIR)%n
+     if (T1%flags(IPAIR) == 1) then
+       value1  => T1%properties(IPAIR)%values(:, dt1, T1%tmp)
+       do i = 1,  T1%properties(IPAIR)%n
+          do j = 1,  T1%properties(IPAIR)%n
              ! k is the distance index of site i and site j
-!             k = T1%properties(IPAIR)%D(i,j)
-!             value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
-!          end do
-!       end do
+             k = T1%properties(IPAIR)%D(i,j)
+             value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
+          end do
+       end do
+     endif
 
-     if (T1%flagcond == 1) then
+     if (T1%flags(ICOND) == 1) then
        value1  => T1%properties(ICOND)%values(:, dt1, T1%tmp)
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
@@ -920,24 +956,32 @@ contains
     factor = ONE/T1%cnt
 
     ! Compute average on Green's function
-    do i = 1, ntdm
-       nl = T1%properties(i)%nClass * T1%L
-       call dscal(nl, factor, T1%properties(i)%values(:,0,idx), 1)
+    do i = 1, NTDMARRAY
+       if (T1%flags(i)==1) then
+         nl = T1%properties(i)%nClass * T1%L
+         call dscal(nl, factor, T1%properties(i)%values(:,0,idx), 1)
+       endif
     enddo
 
     ! get the sum of all local G(tau) for total N(w)
-    do j = 0, T1%L-1
-       do i = 1, T1%properties(IGFUP)%n
-          k = T1%properties(IGFUP)%D(i,i)
-             T1%GtupAve(j, T1%idx) = T1%GtupAve(j, T1%idx) &
-                 + T1%properties(IGFUP)%values(k,j,idx) / T1%properties(IGFUP)%n
-       end do
-       do i = 1, T1%properties(IGFDN)%n
-          k = T1%properties(IGFDN)%D(i,i)
-             T1%GtdnAve(j, T1%idx) = T1%GtdnAve(j, T1%idx) &
-                 + T1%properties(IGFDN)%values(k,j,idx) / T1%properties(IGFDN)%n
-       end do
-    end do
+    if (T1%flags(IGFUP) == 1) then
+      do j = 0, T1%L-1
+         do i = 1, T1%properties(IGFUP)%n
+            k = T1%properties(IGFUP)%D(i,i)
+               T1%GtupAve(j, T1%idx) = T1%GtupAve(j, T1%idx) &
+                   + T1%properties(IGFUP)%values(k,j,idx) / T1%properties(IGFUP)%n
+         end do
+      enddo
+    endif
+    if (T1%flags(IGFDN) == 1) then
+      do j = 0, T1%L-1
+         do i = 1, T1%properties(IGFDN)%n
+            k = T1%properties(IGFDN)%D(i,i)
+               T1%GtdnAve(j, T1%idx) = T1%GtdnAve(j, T1%idx) &
+                   + T1%properties(IGFDN)%values(k,j,idx) / T1%properties(IGFDN)%n
+         end do
+      end do
+    endif
 
     T1%sgn(idx) = T1%sgn(idx)*factor
     T1%cnt = 0
@@ -978,28 +1022,35 @@ contains
        call DQMC_JackKnife(n, T1%sgn(avg), T1%sgn(err), data , &
             y, sgn, sum_sgn)
 
-       do iprop = 1, ntdm
-          do i = 1, T1%properties(iprop)%nClass
+       do iprop = 1, NTDMARRAY
+         if (T1%flags(iprop)==1) then
+           do i = 1, T1%properties(iprop)%nClass
              do j = 0, T1%L-1
                 data =  T1%properties(iprop)%values(i, j, 1:n)
                 call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
                 T1%properties(iprop)%values(i, j, avg) = average
                 T1%properties(iprop)%values(i, j, err) = error
              enddo
-          end do
+           end do
+         endif
        enddo
 
-       do j = 0, T1%L-1
-          data =  T1%GtupAve(j, 1:n)
-          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-          T1%GtupAve(j, avg) = average
-          T1%GtupAve(j, err) = error
-          data =  T1%GtdnAve(j, 1:n)
-          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-          T1%GtdnAve(j, avg) = average
-          T1%GtdnAve(j, err) = error
-       enddo
-
+       if (T1%flags(IGFUP) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%GtupAve(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%GtupAve(j, avg) = average
+           T1%GtupAve(j, err) = error
+         enddo
+       endif
+       if (T1%flags(IGFDN) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%GtdnAve(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%GtdnAve(j, avg) = average
+           T1%GtdnAve(j, err) = error
+         enddo
+       endif
     else
 
        mpi_err = 0
@@ -1011,44 +1062,54 @@ contains
              mpi_sum, mpi_comm_world, mpi_err)
 
           !Average properties
-          do iprop = 1, ntdm
-             binptr => T1%properties(iprop)%values(:,:,1)
-             aveptr => T1%properties(iprop)%value(:,:,avg)
-             n = T1%properties(iprop)%nClass * T1%L
-             call mpi_allreduce(binptr, aveptr, n, mpi_double, &
-                mpi_sum, mpi_comm_world, mpi_err)
+          do iprop = 1, NTDMARRAY
+            if (T1%flags(iprop)==1) then
+              binptr => T1%properties(iprop)%values(:,:,1)
+              aveptr => T1%properties(iprop)%value(:,:,avg)
+              n = T1%properties(iprop)%nClass * T1%L
+              call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+                 mpi_sum, mpi_comm_world, mpi_err)
+            endif
           enddo
 
           !Compute average over n-1 processors
-          do iprop = 1, ntdm
-             binptr => T1%properties(iprop)%values(:,:,1)
-             aveptr => T1%properties(iprop)%values(:,:,avg)
-             binptr = (aveptr - binptr) / dble(nproc - 1)
+          do iprop = 1, NTDMARRAY
+            if (T1%flags(iprop)==1) then
+              binptr => T1%properties(iprop)%values(:,:,1)
+              aveptr => T1%properties(iprop)%values(:,:,avg)
+              binptr = (aveptr - binptr) / dble(nproc - 1)
+            endif
           enddo
           T1%sgn(1)   = (T1%sgn(avg) - T1%sgn(1)) / dble(nproc - 1)
 
           !Store average amongst all processors
-          do iprop = 1, ntdm
-             aveptr => T1%properties(iprop)%values(:,:,avg)
-             aveptr =  aveptr / T1%sgn(avg) 
+          do iprop = 1, NTDMARRAY
+            if (T1%flags(iprop)==1) then
+              aveptr => T1%properties(iprop)%values(:,:,avg)
+              aveptr =  aveptr / T1%sgn(avg) 
+            endif
           enddo
           T1%sgn(:,avg)     = T1%sgn(:,avg) / dble(nproc)
 
           !Store jackknife in the processor bin
-          do iprop = 1, ntdm
-             binptr => T1%properties(iprop)%values(:,:,1)
-             binptr =  binptr / T1%sgn(1) 
+          do iprop = 1, NTDMARRAY
+            if (T1%flags(iprop)==1) then
+              binptr => T1%properties(iprop)%values(:,:,1)
+              binptr =  binptr / T1%sgn(1) 
+            endif
           enddo
 
           !Compute error
-          do iprop = 1, ntdm
-             binptr => T1%properties(iprop)%values(:,:,1)
-             errptr => T1%properties(iprop)%values(:,:,err)
-             n = T1%properties(iprop)%nClass * T1%L
-             call mpi_allreduce(binptr**2, errptr, n, mpi_double, &
-                 mpi_sum, mpi_comm_world, mpi_err)
-             errptr = errptr / dble(nproc) - aveptr**2 
-             errptr = sqrt(errptr * dble(nproc-1))
+          do iprop = 1, NTDMARRAY
+            if (T1%flags(iprop)==1) then
+              binptr => T1%properties(iprop)%values(:,:,1)
+              errptr => T1%properties(iprop)%values(:,:,err)
+              n = T1%properties(iprop)%nClass * T1%L
+              call mpi_allreduce(binptr**2, errptr, n, mpi_double, &
+                  mpi_sum, mpi_comm_world, mpi_err)
+              errptr = errptr / dble(nproc) - aveptr**2 
+              errptr = sqrt(errptr * dble(nproc-1))
+            endif
           enddo
 
 #      endif
@@ -1086,15 +1147,17 @@ contains
        write(label(j),'(f10.5)') (j-1)*T1%dtau
     enddo
 
-    do iprop = 1, ntdm
-       do i = 1, T1%properties(iprop)%nclass
+    do iprop = 1, NTDMARRAY
+      if (T1%flags(iprop)==1) then
+        do i = 1, T1%properties(iprop)%nclass
           do j = 0, T1%L-1
              tmp(j+1, 1:2) = T1%properties(iprop)%values(i, j, T1%avg:T1%err)
           enddo
           title=pname(iprop)//" "//trim(adjustl(T1%properties(iprop)%clabel(i)))
           call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
           write(OPT,'(1x)')
-       enddo
+        enddo
+      endif
     enddo
 
   end subroutine DQMC_TDM1_Print
@@ -1140,16 +1203,18 @@ contains
 !    call DQMC_Print_Array(0, T1%L, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
 
     ! Print local G(tau)'s
-    do i = 1, T1%properties(IGFUN)%nclass
-      do j = 0, T1%L-1
-        tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
-      enddo
-      title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
-      if (index(title, " 0.000   0.000   0.000") > 0) then
-        call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
-      endif
+    if (T1%flags(IGFUN) == 1) then
+      do i = 1, T1%properties(IGFUN)%nclass
+        do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
+        enddo
+        title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
+        if (index(title, " 0.000   0.000   0.000") > 0) then
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+        endif
      ! write(OPT1,'(1x)')
-    enddo
+      enddo
+    endif
 
 !    do i = 1, T1%properties(IGFDN)%nclass
 !      do j = 0, T1%L-1
@@ -1192,21 +1257,35 @@ contains
 
     if (qmc_sim%rank .ne. 0) return
 
-    do j = 1, nn
-       write(label(j),*) trim(adjustl(T1%properties(ISPXX)%clabel(j)))
-    enddo
-
-    do iprop = ISPXX, IDENS
+    if (T1%flags(ISPXX) == 1) then
+      do j = 1, nn
+         write(label(j),*) trim(adjustl(T1%properties(ISPXX)%clabel(j)))
+      enddo
       do i = 1, nn
          ! sum over all tau's components 
-         tmp(i, 1) = sum(T1%properties(iprop)%values(i, 0:T1%L-1, T1%avg))
+         tmp(i, 1) = sum(T1%properties(ISPXX)%values(i, 0:T1%L-1, T1%avg))
          ! Note that tmp(i,2) is in fact wrong (it is sum of error)
-         tmp(i, 2) = sum(T1%properties(iprop)%values(i, 0:T1%L-1, T1%err))
+         tmp(i, 2) = sum(T1%properties(ISPXX)%values(i, 0:T1%L-1, T1%err))
       enddo
-      title = pname(iprop)
+      title = pname(ISPXX)
       call DQMC_Print_RealArray(0, nn, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
       write(OPT,'(1x)')
-    enddo
+    endif
+
+    if (T1%flags(ISPZZ) == 1) then
+      do j = 1, nn
+         write(label(j),*) trim(adjustl(T1%properties(ISPZZ)%clabel(j)))
+      enddo
+      do i = 1, nn
+         ! sum over all tau's components 
+         tmp(i, 1) = sum(T1%properties(ISPZZ)%values(i, 0:T1%L-1, T1%avg))
+         ! Note that tmp(i,2) is in fact wrong (it is sum of error)
+         tmp(i, 2) = sum(T1%properties(ISPZZ)%values(i, 0:T1%L-1, T1%err))
+      enddo
+      title = pname(ISPZZ)
+      call DQMC_Print_RealArray(0, nn, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+      write(OPT,'(1x)')
+    endif
 
   end subroutine DQMC_TDM1_Chi_Print
 
@@ -1227,31 +1306,31 @@ contains
     if (.not.T1%compute) return
  
     !Loop over properties to Fourier transform
-    do ip = 1, ntdm
+    do ip = 1, NTDMARRAY
+       if (T1%flags(ip)==1) then
+         if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
-       if (.not.associated(T1%properties(ip)%valuesk)) cycle
+         ! Aliases
+         n        =  T1%properties(ip)%n
+         nclass   =  T1%properties(ip)%nclass
+         np       =  T1%properties(ip)%np
+         nk       =  T1%properties(ip)%nk
+         class    => T1%properties(ip)%D
+         wgtftk   => T1%properties(ip)%ftk
+         phase    => T1%properties(ip)%phase
 
-       ! Aliases
-       n        =  T1%properties(ip)%n
-       nclass   =  T1%properties(ip)%nclass
-       np       =  T1%properties(ip)%np
-       nk       =  T1%properties(ip)%nk
-       class    => T1%properties(ip)%D
-       wgtftk   => T1%properties(ip)%ftk
-       phase    => T1%properties(ip)%phase
+         !Fourier transform each bin and average
+         do ibin = T1%avg, 1, -1
 
-       !Fourier transform each bin and average
-       do ibin = T1%avg, 1, -1
+            ! More aliases
+            do it = 0, T1%L-1
+               value  =>  T1%properties(ip)%values(:,it,ibin)
+               valuet =>  T1%properties(ip)%valuesk(:,it,ibin)
+               call dqmc_getFTk(value, n, nclass, class, np, nk, wgtftk, phase, valuet)
+            enddo
 
-          ! More aliases
-          do it = 0, T1%L-1
-             value  =>  T1%properties(ip)%values(:,it,ibin)
-             valuet =>  T1%properties(ip)%valuesk(:,it,ibin)
-             call dqmc_getFTk(value, n, nclass, class, np, nk, wgtftk, phase, valuet)
-          enddo
-
-       enddo ! Loop over bins
-
+         enddo ! Loop over bins
+      endif
     enddo ! Loop over properties
 
   end subroutine DQMC_TDM1_GetKFT
@@ -1275,8 +1354,8 @@ contains
 
     if (nproc .eq. 1) then
 
-       do ip = 1, ntdm
-
+      do ip = 1, NTDMARRAY
+        if (T1%flags(ip)==1) then
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
           do it = 0, T1%L-1
@@ -1296,13 +1375,13 @@ contains
              error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
   
           enddo
-
-       enddo ! Loop over properties
+        endif
+      enddo ! Loop over properties
 
     else
 
-       do ip = 1, ntdm
-
+      do ip = 1, NTDMARRAY
+        if (T1%flags(ip)==1) then
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
     
           n = T1%properties(ip)%nk * T1%properties(ip)%np
@@ -1321,8 +1400,8 @@ contains
           enddo
 
           deallocate(temp)
-
-       enddo ! Loop over properties
+        endif
+      enddo ! Loop over properties
 
     endif
 
@@ -1360,25 +1439,27 @@ contains
        label(j) = adjustl(label(j))
     enddo
 
-    do iprop = 1, ntdm
-       if (.not.associated(T1%properties(iprop)%valuesk)) cycle
-       np = T1%properties(iprop)%np
-       npp = (np*(np+1))/2
-       do k = 1, T1%properties(iprop)%nk
-          i = (k-1)*npp
-          do ip = 1, np
-             do jp = ip, np
-                i = i + 1
-                do j = 0, T1%L-1
-                   tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(i, j, T1%avg:T1%err)
-                enddo
-                write(title,'(A,i3,A,i3,A,i3,A)') 'k=',k,'   pair=',ip,',',jp
-                title=pname(iprop)//" "//trim(adjustl(title))
-                call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-                write(OPT,'(1x)')
-             enddo
-          enddo
-       enddo
+    do iprop = 1, NTDMARRAY
+       if (T1%flags(iprop)==1) then
+         if (.not.associated(T1%properties(iprop)%valuesk)) cycle
+         np = T1%properties(iprop)%np
+         npp = (np*(np+1))/2
+         do k = 1, T1%properties(iprop)%nk
+            i = (k-1)*npp
+            do ip = 1, np
+               do jp = ip, np
+                  i = i + 1
+                  do j = 0, T1%L-1
+                     tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(i, j, T1%avg:T1%err)
+                  enddo
+                  write(title,'(A,i3,A,i3,A,i3,A)') 'k=',k,'   pair=',ip,',',jp
+                  title=pname(iprop)//" "//trim(adjustl(title))
+                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+                  write(OPT,'(1x)')
+               enddo
+            enddo
+         enddo
+      endif
     enddo
 
   end subroutine DQMC_TDM1_PrintKFT

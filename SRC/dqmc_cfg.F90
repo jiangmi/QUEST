@@ -77,7 +77,7 @@ module DQMC_Cfg
        &  "t_up   ", &    ! parameter for kinetic energy                         
        &  "tausk  ", &    ! frequence of unequal time measurement                
        &  "tdm    ", &    ! compute time dependent measurement
-       &  "flagcond  "/)  ! compute conductivity
+       &  "flags  "/)     ! if to compute tdm quantities
 
   ! default values
   character(len=*), parameter :: PARAM_DVAL(N_Param) =  &
@@ -121,7 +121,7 @@ module DQMC_Cfg
        &  "1.0     ", &    ! t_dn      
        &  "10      ", &    ! tausk  
        &  "0       ", &    ! tdm
-       &  "0       "/)     ! flagcond 
+       &  "1"/)            ! flags
  
   ! parameter type
   integer, parameter :: PARAM_TYPE(N_Param) = &
@@ -165,7 +165,7 @@ module DQMC_Cfg
        &  TYPE_REAL,    &    ! t_dn      
        &  TYPE_INTEGER, &    ! tausk  
        &  TYPE_INTEGER, &    ! tdm
-       &  TYPE_INTEGER/)     ! flagcond
+       &  TYPE_INTEGER/)     ! flags
 
   ! is array parameter
   logical, parameter :: PARAM_ARRAY(N_Param) = &
@@ -209,7 +209,7 @@ module DQMC_Cfg
        &  .true. ,&           ! t_dn
        &  .false.,&           ! tausk  
        &  .false.,&           ! tdm
-       &  .false./)           ! flagcond
+       &  .true./)            ! flags
 
   !
   ! Data Type
@@ -697,6 +697,9 @@ contains
                         curr%ptype .eq. TYPE_INTEGER) then
                       j = 1
                       pos = scan(val, COMMA, .false.)
+
+                      ! input file values are through fortran scan each line of input
+                      ! search for "," for values before it, e.g. val(1:pos-1)
                       
                       ! For more than one t
                       do while(pos .gt. 0)
@@ -708,7 +711,7 @@ contains
                       
                       ! the last one
                       read(val,*) tmp(j)
-                      
+
                       ! copy to new allocated PR
                       if (curr%ptype .eq. TYPE_REAL) then
                          allocate(curr%rptr(j))
@@ -1095,6 +1098,16 @@ contains
           end if
           allocate(value(n))
           value(1:n) = cfg%record(id)%iptr(1:n)
+
+          ! some possible errors
+          if (id==41) then
+             if (n/=8) then
+                call DQMC_Error("There should be 8 tdm flags, check input !",0)
+             endif
+             if (value(1)==0) then
+                call DQMC_Error("GFUN(tau) has to be computed in tdm !",0)
+             endif
+          endif
        end if
     else
        call DQMC_Error("cannot find parameter "//name, 0)

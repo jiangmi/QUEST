@@ -1,7 +1,7 @@
 program dqmc_ggeom
 
-  ! 8/16/2015:
-  ! add flagcond for specifying in input file if to compute conductivity 
+  ! 10/25/2015:
+  ! add flags for specifying in input file if to compute tdm quantities 
 
   use dqmc_cfg
   use dqmc_geom_wrap
@@ -20,7 +20,6 @@ program dqmc_ggeom
   character(len=slen) :: gfile
   logical             :: tformat
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
-  integer             :: flagcond
   integer             :: nBin, nIter  
   character(len=50)   :: ofile  
   integer             :: OPT
@@ -29,6 +28,8 @@ program dqmc_ggeom
   integer             :: FLD_UNIT, TDM_UNIT,&
                          OPT1 !,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT8,OPT9,OPT10,OPT11
   real(wp)            :: randn(1)
+  integer, pointer    :: flags(:)      ! 8 possible tdm1 quantities
+  integer             :: nflag
 
   call cpu_time(t1)  
 
@@ -66,10 +67,11 @@ program dqmc_ggeom
 
   ! Initialize time dependent properties if comp_tdm > 0
   call CFG_Get(cfg, "tdm", comp_tdm)
-  call CFG_Get(cfg, "flagcond", flagcond)
   if (comp_tdm > 0) then
+     ! If to compute 8 possible tdm1 quantities
+     call CFG_Get(cfg, "flags", nflag, flags)
      call DQMC_Gtau_Init(Hub, tau)
-     call DQMC_TDM1_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flagcond) 
+     call DQMC_TDM1_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags) 
   endif
 
   ! Warmup sweep

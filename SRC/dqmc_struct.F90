@@ -3,6 +3,8 @@ module DQMC_STRUCT
 
   use DQMC_UTIL
   use DQMC_CFG
+  use DQMC_MPI
+
   implicit none 
 
   ! 
@@ -376,7 +378,9 @@ contains
       pos=index(str,'#HAMILT')
       if(pos .ne. 0)then
        tableFormat=.false.
-       write(*,'(A)') ' Detected Geometry Free Format.'
+       if (qmc_sim%rank == qmc_sim%aggr_root) then
+         write(*,'(A)') ' Detected Geometry Free Format.'
+       endif
        exit
       endif
      else

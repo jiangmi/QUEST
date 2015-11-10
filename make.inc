@@ -43,16 +43,21 @@ CXXLIB = -lstdc++ #-lrt
 # -------------------------
 #MKLPATH = $(MKLROOT)/lib/intel64
 
-LAPACKLIB = -L$(MKLPATH) -mkl:sequential -lpthread
+LAPACKLIB = -L$(MKLPATH) -mkl:sequential -lpthread 
 
 # DQMC library
 # ------------
 DQMCLIB    = libdqmc.a
 
+# SPRNG library
+# ------------
+SPRNGLIB   = libsprng.a 
+
+MPILIB = libmpichf90.la
+
 # Library linking
 # ---------------
-LIB        = $(CXXLIB) $(LAPACKLIB) # $(CUDALIB) $(MAGMALIB) 
-
+LIB        = $(CXXLIB) $(LAPACKLIB) #$(SPRNGLIB) $MPILIB # $(CUDALIB) $(MAGMALIB) 
 
 # Archiver and flags
 # ------------------
@@ -68,6 +73,6 @@ RANLIB     = ranlib
 #    -D_OpenBC : use open boundary condition
 #
 
-PRG_FLAGS = -D_CKB #-DDQMC_ASQRD  # -DDQMC_PROFILE -DDQMC_CUDA -D_CKBP -D_SXX -D_QMC_MPI
+PRG_FLAGS = -D_CKB -D_QMC_MPI #-DDQMC_ASQRD  # -DDQMC_PROFILE -DDQMC_CUDA -D_CKBP -D_SXX
 
 FLAGS = $(FC_FLAGS) $(PRG_FLAGS)

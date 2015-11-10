@@ -1009,6 +1009,10 @@ contains
     real(wp)  :: sum_sgn, sgn(T1%nBin), y(T1%nBin), data(T1%nBin)
     real(wp)  :: average, error
 
+#   ifdef _QMC_MPI
+      real(wp), pointer :: binptr(:,:), aveptr(:,:), errptr(:,:)
+#   endif
+
     if (.not.T1%compute) return
     ! ... Executable ...
     nproc  = qmc_sim%size
@@ -1057,58 +1061,65 @@ contains
 
 #      ifdef _QMC_MPI
           
-          !Average sign
+          ! comments below similar to dqmc_phy0.F90
+
+          ! note for MPI, each processor has only ONE bin          
+          ! The process below for computing err is JackKnife similar to non-MPI case
+          ! See also DQMC_SignJackKnife_Real in dqmc_util.F90
+
+          !    y_i = (sum(x)-x_i)/sgn_i
+          !    The JackKnife variance of X with sign is defined as 
+          !     
+          !          n-1  
+          !    sqrt(----- *sum(y_i-avg_y)^2))
+          !           n
+          ! 
+          !    where avg_y = sum(y)/n
+          
           call mpi_allreduce(T1%sgn(1), T1%sgn(avg), 1, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
           !Average properties
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
-              binptr => T1%properties(iprop)%values(:,:,1)
-              aveptr => T1%properties(iprop)%value(:,:,avg)
-              n = T1%properties(iprop)%nClass * T1%L
-              call mpi_allreduce(binptr, aveptr, n, mpi_double, &
-                 mpi_sum, mpi_comm_world, mpi_err)
+                binptr => T1%properties(iprop)%values(:,:,1)
+                aveptr => T1%properties(iprop)%values(:,:,avg)
+                n = T1%properties(iprop)%nClass * T1%L
+                call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+                   mpi_sum, mpi_comm_world, mpi_err)
             endif
           enddo
 
-          !Compute average over n-1 processors
-          do iprop = 1, NTDMARRAY
-            if (T1%flags(iprop)==1) then
-              binptr => T1%properties(iprop)%values(:,:,1)
-              aveptr => T1%properties(iprop)%values(:,:,avg)
-              binptr = (aveptr - binptr) / dble(nproc - 1)
-            endif
-          enddo
+          ! Compute y_i
           T1%sgn(1)   = (T1%sgn(avg) - T1%sgn(1)) / dble(nproc - 1)
-
-          !Store average amongst all processors
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
-              aveptr => T1%properties(iprop)%values(:,:,avg)
-              aveptr =  aveptr / T1%sgn(avg) 
-            endif
-          enddo
-          T1%sgn(:,avg)     = T1%sgn(:,avg) / dble(nproc)
-
-          !Store jackknife in the processor bin
-          do iprop = 1, NTDMARRAY
-            if (T1%flags(iprop)==1) then
-              binptr => T1%properties(iprop)%values(:,:,1)
-              binptr =  binptr / T1%sgn(1) 
+                binptr => T1%properties(iprop)%values(:,:,1)
+                aveptr => T1%properties(iprop)%values(:,:,avg)
+                binptr = (aveptr - binptr) / dble(nproc - 1)
+                binptr =  binptr / T1%sgn(1)
             endif
           enddo
 
-          !Compute error
+          ! Compute avg = sum_x/sum_sgn
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
-              binptr => T1%properties(iprop)%values(:,:,1)
-              errptr => T1%properties(iprop)%values(:,:,err)
-              n = T1%properties(iprop)%nClass * T1%L
-              call mpi_allreduce(binptr**2, errptr, n, mpi_double, &
-                  mpi_sum, mpi_comm_world, mpi_err)
-              errptr = errptr / dble(nproc) - aveptr**2 
-              errptr = sqrt(errptr * dble(nproc-1))
+                aveptr => T1%properties(iprop)%values(:,:,avg)
+                aveptr =  aveptr / T1%sgn(avg) 
+            endif
+          enddo
+          T1%sgn(avg)  = T1%sgn(avg) / dble(nproc)
+
+          ! Compute error: sum(y_i-avg_y)^2
+          do iprop = 1, NTDMARRAY
+            if (T1%flags(iprop)==1) then
+                binptr => T1%properties(iprop)%values(:,:,1)
+                aveptr => T1%properties(iprop)%values(:,:,avg)
+                errptr => T1%properties(iprop)%values(:,:,err)
+                n = T1%properties(iprop)%nClass * T1%L
+                call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+                errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
             endif
           enddo
 

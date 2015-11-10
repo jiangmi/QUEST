@@ -9,6 +9,7 @@ module DQMC_Hubbard
   use DQMC_SEQB
   use DQMC_GFUN
   use DQMC_STRUCT
+  use DQMC_MPI
   
   implicit none 
   ! 
@@ -91,7 +92,7 @@ module DQMC_Hubbard
      real(wp), pointer :: V_dn(:,:)   !
      
      ! Parameters for random number
-     integer  :: idum                 ! random seed for ran2
+     integer  :: idum                 ! random seed for ran2, quantity outputed in .out file
      integer  :: seed(4)              ! random seed for ran1
 
      ! Auxiliary variables
@@ -169,8 +170,8 @@ contains
     ! Arguments
     ! =========
     !
-    type(config), intent(inout)  :: cfg
-    type(Hubbard), intent(inout) :: Hub                   ! Hubbard model
+    type(config), intent(inout)    :: cfg
+    type(Hubbard), intent(inout)   :: Hub                   ! Hubbard model
 
     ! ... Local Variables ...
     integer :: n_t, n_U, n_mu, L, HSF, nWarm, nPass
@@ -296,11 +297,14 @@ contains
     use IFPORT, only : getpid
 #endif
 #   ifdef _QMC_MPI
+! this part has not been fully fixed, MPI and sprng have some problems
+! set different seeds for processes manually as below using normal lapack function
+! instead of sprng()
 #      define SIMPLE_SPRNG
 #      define USE_MPI
 #      include "sprng_f.h"
 #   endif
-    type(Hubbard), intent(inout) :: Hub             ! Hubbard model
+    type(Hubbard),   intent(inout)  :: Hub             ! Hubbard model
     real(wp), intent(in)  :: U(:), t_up(:), t_dn(:) 
     real(wp), intent(in)  :: mu_up(:), mu_dn(:), dtau  ! Parameters
     integer,  intent(in)  :: L, n_t, n_U, n_mu
@@ -414,13 +418,32 @@ contains
     end if
 
     ! LAPACK random variable generation
-    Hub%seed = Hub%idum * (/1,2,3,4/)
-    Hub%seed = mod(abs(Hub%seed), 4095)
-    if (mod(Hub%seed(4),2) == 0) then
-       Hub%seed(4) = Hub%seed(4) + 1
-    end if
+    ! seed in input file is Hub%idum, not real random seed used
+    ! the reason for the following usage of 4095 and dimension = 4
+    ! is from DLARNV Lapack function used in ran0 of dqmc_util.F90
+    ! see http://www.netlib.org/lapack/explore-3.1.1-html/dlarnv.f.html
+
+# ifdef _QMC_MPI
+     ! set different seeds for processes manually by * (sim%rank+1) instead of sprng()
+     ! so that using the same input seed leads to the same results each run even same parameters
+     Hub%seed = Hub%idum * (/1,2,3,4/) * (qmc_sim%rank+1)
+     Hub%seed = mod(abs(Hub%seed), 4095)
+     if (mod(Hub%seed(4),2) == 0) then
+        Hub%seed(4) = Hub%seed(4) + 1
+     end if
+# else
+     Hub%seed = Hub%idum * (/1,2,3,4/)
+     Hub%seed = mod(abs(Hub%seed), 4095)
+     if (mod(Hub%seed(4),2) == 0) then
+        Hub%seed(4) = Hub%seed(4) + 1
+     end if
+# endif
+
+    ! see www.sprng.org
 #   ifdef _QMC_MPI
        junkPtr = init_sprng(SPRNG_LCG, Hub%seed(4), SPRNG_DEFAULT)
+       write(*,*) "dqmc_hubbard.F90: qmc_sim%rank", qmc_sim%rank,"seed(4)", Hub%seed(4)
+      ! write(*,*) "SPRNG seed",junkPtr
 #   endif
 
     ! Initialize auxiliary variables
@@ -476,16 +499,19 @@ contains
        end if
     end if
 
-    ! generate HSF randomly
+    ! generate HSF randomly, this is normal case, input HSF = -1
     if (HSF == HSF_RANDOM_GEN) then
        ilb = 1
 
-       ! discrete case
+       ! discrete case, this is normal case, if input has no HSFtype, then its default value HSF_DISC=0
        if (HSFtype == HSF_DISC) then
           allocate(Hub%HSF(n,L))
           Hub%HSF = 1
           do i = 1, Hub%L   
-             call ran0(n, Hub%WS%R5, Hub%seed)
+             ! use sprng() return array Hub%WS%R5(n) in util.F90:
+             ! MPI version of ran0 does not really use seed, instead use sprng():
+             ! see how to manually set seed(1:4) before
+             call ran0(n, Hub%WS%R5, Hub%seed) 
              where(Hub%WS%R5 > HALF) Hub%HSF(:,i) = -1
           end do
        else
@@ -547,7 +573,7 @@ contains
        call DQMC_GetG(ilb, Hub%G_dn, Hub%SB_dn)
     end if
 
-    ! Initialize measurements
+    
     temp = Hub%dtau * Hub%L
     call DQMC_Phy0_Init(Hub%P0, Hub%S, temp, nBin, Hub%WS)
     call DQMC_Phy2_Init(Hub%P2, nBin, Hub%S, Hub%WS, Hub%meas2)
@@ -2161,7 +2187,7 @@ contains
     !    The values of exp(nu) and exp(-nu) are stored in a lookup 
     !    table explook.  The decision of wheather V(i,j) is exp(nu) 
     !    or exp(-nu) is given by the list hub, which is a list 
-    !    or random +1 and -1. Matrix V for spin up and down have
+    !    or random +1 and -1. For +U, Matrix V for spin up and down have
     !    opposite selection decision.
     ! 
     !

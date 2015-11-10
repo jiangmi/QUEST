@@ -4,6 +4,7 @@ use DQMC_GEOM_PARAM
 use DQMC_LATT
 use DQMC_RECLATT
 use DQMC_Cfg
+use DQMC_MPI
 
 implicit none
 
@@ -284,11 +285,13 @@ contains
 
     enddo
 
-        ! for debug hamilt%rt, lf, up, dn, print them out
-        write(*,*) "print out rt, lf, up, dn neighbors:"
-        do is = 0, nsites-1
-          write(*,*) is, "neighbors:", hamilt%rt(is), hamilt%lf(is), hamilt%up(is), hamilt%dn(is)
-        enddo
+    ! for debug hamilt%rt, lf, up, dn, print them out
+    if (qmc_sim%rank == qmc_sim%aggr_root) then
+       write(*,*) "print out rt, lf, up, dn neighbors:"
+       do is = 0, nsites-1
+         write(*,*) is, "neighbors:", hamilt%rt(is), hamilt%lf(is), hamilt%up(is), hamilt%dn(is)
+       enddo
+    endif
 
         ! for debug hamilt%hopup, print them out
 !        write(*,*) "print out hamilt%hopup:"
@@ -357,11 +360,15 @@ contains
            if (abs(hamilt%hopup(is,js)).gt.1d-9 .and. is/=js) then
               tnneig(is) = tnneig(is) + 1
               tneig(is,tnneig(is)) = js
-              write(*,*) is, "neighbor from subroutine find_neighbors: ", js
+              if (qmc_sim%rank == qmc_sim%aggr_root) then
+                write(*,*) is, "neighbor from subroutine find_neighbors: ", js
+              endif
            elseif (abs(hamilt%hopdn(is,js)).gt.1d-9 .and. is/=js) then
               tnneig(is) = tnneig(is) + 1
               tneig(is,tnneig(is)) = js
-              write(*,*) is, "neighbor from subroutine find_neighbors: ", js
+              if (qmc_sim%rank == qmc_sim%aggr_root) then
+                write(*,*) is, "neighbor from subroutine find_neighbors: ", js
+              endif
            endif  
            if (abs(hamilt%Uv(is,js)).gt.1d-9) then
               Unneig(is) = Unneig(is) + 1

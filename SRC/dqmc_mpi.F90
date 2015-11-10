@@ -71,11 +71,13 @@ contains
 
     sim%level = level
     
+    ! in ggeom.F90, use level=1, only ONE thread
     if (level .eq. 1) then
        ! Get MPI parameters
 #   ifdef _QMC_MPI
        call MPI_COMM_RANK(MPI_COMM_WORLD, sim%rank, ierr)
        call MPI_COMM_SIZE(MPI_COMM_WORLD, sim%size, ierr)
+       write(*,*) "MPI size = ", sim%size, "MPI rank = ", sim%rank
 #   else
        sim%rank = 0
        sim%size = 1

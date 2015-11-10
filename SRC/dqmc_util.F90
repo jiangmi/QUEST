@@ -389,9 +389,9 @@ contains
     !    where y_i = (sum(x)-x_i)/sgn_i
     !    The JackKnife variance of X with sign is defined as 
     !
-    !     n-1 
-    !    ----- sqrt(sum(y_i-avg_y)^2)
-    !      n
+    !          n-1
+    !    sqrt(----- *sum(y_i-avg_y)^2))
+    !           n
     !
     !    where avg_y = sum(y)/n
     !
@@ -449,9 +449,9 @@ contains
     !    where y_i = (sum(x)-x_i)/sgn_i
     !    The JackKnife variance of X with sign is defined as 
     !
-    !     n-1 
-    !    ----- sqrt(sum(y_i-avg_y)^2)
-    !      n
+    !          n-1 
+    !    sqrt(----- *sum(y_i-avg_y)^2))
+    !           n
     !
     !    where avg_y = sum(y)/n
     !
@@ -514,9 +514,9 @@ contains
     !    where y_i = (sum(x)-x_i)/(n-1)
     !    The JackKnife variance of X is defined as 
     !
-    !     n-1 
-    !    ----- sqrt(sum(y_i-avg_y)^2)
-    !      n
+    !          n-1
+    !    sqrt(----- *sum(y_i-avg_y)^2))
+    !           n
     !
     !    where avg_y = sum(y)/n, which equals to avg_x
     !    
@@ -547,7 +547,7 @@ contains
     sgn    = (sum_x-x(1:n))
     sum_sgn= sum_x
 
-    ! compute y (Jackkife sample)
+    ! compute y (Jackknife sample)
     y    = sgn/(n-1)
 
     ! avg_y = avg_x 
@@ -576,9 +576,9 @@ contains
     !    where y_i = (sum(x)-x_i)/(n-1)
     !    The JackKnife variance of X is defined as 
     !
-    !     n-1 
-    !    ----- sqrt(sum(y_i-avg_y)^2)
-    !      n
+    !          n-1
+    !    sqrt(----- *sum(y_i-avg_y)^2))
+    !           n
     !
     !    where avg_y = sum(y)/n, which equals to avg_x
     !    
@@ -813,9 +813,16 @@ contains
     
     i = seed(1) !Avoid warning
 
-    do i=1,n
-       var(i) = sprng()
-    enddo
+    ! original code for MPI case, commment it out 
+    ! to use the same Lapack function as non-MPI case
+    ! sprng has some unknown problem
+
+!    do i=1,n
+!       var(i) = sprng()
+!    enddo
+
+    var(1:n) = ZERO
+    call dlarnv(DLARNV_UNI_0_1, seed, n, var)
 
   end subroutine ran0
 

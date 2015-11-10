@@ -11,7 +11,7 @@ program dqmc_ggeom
 
   implicit none
 
-  real                :: t1, t2
+  real                :: t1, t2, t3, t4, t5
   type(config)        :: cfg
   type(Hubbard)       :: Hub
   type(GeomWrap)      :: Gwrap
@@ -22,14 +22,14 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter  
   character(len=50)   :: ofile  
-  integer             :: OPT
+  integer             :: OPT,OPT1 !,OPT2,OPT3,OPT4
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
-  integer             :: FLD_UNIT, TDM_UNIT,&
-                         OPT1 !,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT8,OPT9,OPT10,OPT11
+  integer             :: FLD_UNIT, TDM_UNIT
   real(wp)            :: randn(1)
   integer, pointer    :: flags(:)      ! 8 possible tdm1 quantities
   integer             :: nflag
+  character(len=1)    :: ranklabel
 
   call cpu_time(t1)  
 
@@ -53,16 +53,17 @@ program dqmc_ggeom
 
   call DQMC_open_file(adjustl(trim(ofile))//'.geometry','unknown', symmetries_output_file_unit)
   !Determines type of geometry file
-  call DQMC_Geom_Read_Def(Hub%S, gfile, tformat)
+  call DQMC_Geom_Read_Def(Hub%S, gfile, tformat)   ! dqmc_struct.F90, not really used since tableformat=false
   if (.not.tformat) then
+     ! In dqmc_geom_wrap.F90:
      !If free format fill gwrap
      call DQMC_Geom_Fill(Gwrap, gfile, cfg, symmetries_output_file_unit)
      !Transfer info in Hub%S
      call DQMC_Geom_Init(Gwrap,Hub%S,cfg)
   endif
-  call DQMC_Geom_Print(Hub%S, symmetries_output_file_unit)
+  call DQMC_Geom_Print(Hub%S, symmetries_output_file_unit) ! dqmc_struct.F90
 
-  ! Initialize the rest data
+  ! Initialize the rest data (including seed for MPI processes), dqmc_hubbard.F90
   call DQMC_Hub_Config(Hub, cfg)
 
   ! Initialize time dependent properties if comp_tdm > 0
@@ -74,12 +75,42 @@ program dqmc_ggeom
      call DQMC_TDM1_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags) 
   endif
 
+  call cpu_time(t2)
+
+  if (qmc_sim%rank == qmc_sim%aggr_root) then
+    call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
+
+    write(*,*) "Initialization time:",  t2-t1, "(second)"
+    write(*,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
+    write(*,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
+    write(*,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
+    write(OPT,*) "Initialization time:",  t2-t1, "(second)"
+    write(OPT,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
+    write(OPT,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
+    write(OPT,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
+  endif
+
   ! Warmup sweep
   do i = 1, Hub%nWarm
-     if (mod(i, 10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
-     call DQMC_Hub_Sweep(Hub, NO_MEAS0)
+     if (qmc_sim%rank == qmc_sim%aggr_root) then
+       if (mod(i, 10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
+     endif
+     call DQMC_Hub_Sweep(Hub, NO_MEAS0)   ! NO_MEAS0 = -1, parameter defined in dqmc_hubbard.F90
      call DQMC_Hub_Sweep2(Hub, Hub%nTry)  ! sweep2 is for global move update
   end do
+
+  call cpu_time(t3)
+  if (qmc_sim%rank == qmc_sim%aggr_root) then
+    write(*,*) "Warmup time:",  t3-t2, "(second)"
+    write(*,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
+    write(*,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
+    write(*,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
+
+    write(OPT,*) "Warmup time:",  t3-t2, "(second)"
+    write(OPT,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
+    write(OPT,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
+    write(OPT,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
+  endif
 
   ! We divide all the measurement into nBin,
   ! each having nPass/nBin pass.
@@ -110,7 +141,9 @@ program dqmc_ggeom
               call DQMC_Hub_Meas(Hub, slice)
            endif
 
-           write(*,*)"Meas #",(i-1)*nIter + j
+           if (qmc_sim%rank == qmc_sim%aggr_root) then
+             write(*,*)"Meas #",(i-1)*nIter + j
+           endif
            !Write fields 
            !if (nhist > 0) call DQMC_Hub_Output_HSF(Hub, .false., slice, HSF_output_file_unit)
         end do
@@ -131,7 +164,7 @@ program dqmc_ggeom
      end do
   endif
 
-  !Read configurations from file if no sweep was perfomed
+  !Read HSF configurations from file if no sweep was perfomed
   if (Hub%nWarm + Hub%nPass == 0) then
      Hub%nMeas = -1
      call DQMC_count_records(Hub%npass, FLD_UNIT)
@@ -153,6 +186,7 @@ program dqmc_ggeom
               call DQMC_Hub_Meas(Hub, slice)
            endif
         enddo
+
         call DQMC_Phy0_Avg(Hub%P0)
         call DQMC_TDM1_Avg(tm)
 
@@ -174,20 +208,37 @@ program dqmc_ggeom
      call DQMC_Phy2_GetErr(Hub%P2)
   end if
 
-  ! Prepare output file
-  call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
-  if (comp_tdm > 0) then
-     call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
+  call cpu_time(t4)
+  if (qmc_sim%rank == qmc_sim%aggr_root) then
+    write(*,*) "Meas time:",  t4-t3, "(second)"
+    write(*,*) "Meas time:",  (t4-t3)/60, "(minutes)"
+    write(*,*) "Meas time:",  (t4-t3)/3600, "(hours)"
+    write(*,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
+
+    write(OPT,*) "Meas time:",  t4-t3, "(second)"
+    write(OPT,*) "Meas time:",  (t4-t3)/60, "(minutes)"
+    write(OPT,*) "Meas time:",  (t4-t3)/3600, "(hours)"
+    write(OPT,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
+    write(OPT,*) " "
   endif
 
-  ! Print computed results
-  call DQMC_Hub_OutputParam(Hub, OPT)
-  call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
-  call DQMC_TDM1_Print(tm, TDM_UNIT)
+  ! Prepare output file
+ if (qmc_sim%rank == qmc_sim%aggr_root) then
+   if (comp_tdm > 0) then
+      call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
+   endif
 
-  ! G(tau) local
-  call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
-  call DQMC_TDM1_Print1(tm, OPT1)
+   ! Print computed results
+   call DQMC_Hub_OutputParam(Hub, OPT)
+   call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
+   call DQMC_TDM1_Print(tm, TDM_UNIT)
+
+   ! G(tau) local
+   if (comp_tdm > 0) then
+     call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
+     call DQMC_TDM1_Print1(tm, OPT1)
+   endif
+ endif
 
   !Aliases for Fourier transform
   na  =  Gwrap%lattice%natom
@@ -233,23 +284,21 @@ program dqmc_ggeom
   call DQMC_Hub_Free(Hub)
   call DQMC_Config_Free(cfg)
   
-  call cpu_time(t2)
+  call cpu_time(t5)
+
+  if (qmc_sim%rank == qmc_sim%aggr_root) then
+    write(*,*) "Total time:",  t5-t1, "(second)"
+    write(*,*) "Total time:",  (t5-t1)/60, "(minutes)"
+    write(*,*) "Total time:",  (t5-t1)/3600, "(hours)"
+    write(*,*) "Total time:",  (t5-t1)/3600/24, "(days)"
+
+    write(OPT,*) "Total time:",  t5-t1, "(second)"
+    write(OPT,*) "Total time:",  (t5-t1)/60, "(minutes)"
+    write(OPT,*) "Total time:",  (t5-t1)/3600, "(hours)"
+    write(OPT,*) "Total time:",  (t5-t1)/3600/24, "(days)"
+  endif
+
   call DQMC_MPI_Final(qmc_sim)
-  write(STDOUT,*) "Running time:",  t2-t1, "(second)"
-  write(STDOUT,*) "Running time:",  (t2-t1)/60, "(minutes)"
-  write(STDOUT,*) "Running time:",  (t2-t1)/3600, "(hours)"
-  write(STDOUT,*) "Running time:",  (t2-t1)/3600/24, "(days)"
-
-  write(Hub%OUT_UNIT,*) "Running time:",  t2-t1, "(second)"
-  write(Hub%OUT_UNIT,*) "Running time:",  (t2-t1)/60, "(minutes)"
-  write(Hub%OUT_UNIT,*) "Running time:",  (t2-t1)/3600, "(hours)"
-  write(Hub%OUT_UNIT,*) "Running time:",  (t2-t1)/3600/24, "(days)"
-
-  write(OPT,*) "Running time:",  t2-t1, "(second)"
-  write(OPT,*) "Running time:",  (t2-t1)/60, "(minutes)"
-  write(OPT,*) "Running time:",  (t2-t1)/3600, "(hours)"
-  write(OPT,*) "Running time:",  (t2-t1)/3600/24, "(days)"
-
 
   close(symmetries_output_file_unit)
 

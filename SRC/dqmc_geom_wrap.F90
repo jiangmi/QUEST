@@ -7,6 +7,7 @@ module DQMC_GEOM_WRAP
   use DQMC_BONDS
   use DQMC_Cfg
   use DQMC_STRUCT
+
   implicit none
 
 

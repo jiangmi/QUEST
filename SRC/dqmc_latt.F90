@@ -2,6 +2,7 @@ module DQMC_LATT
 
 use DQMC_GEOM_PARAM
 use DQMC_UTIL
+use DQMC_MPI
 
 implicit none
 
@@ -146,22 +147,24 @@ subroutine init_lattice(lattice)
  lattice%initialized=.true.
  
  !write to stdout
- write(*,*)'================================================================'
- write(*,*)'Basic real space geometry info'
- write(*,*)
- write(*,*)'Crystal atomic basis'
- write(*,'(i3,3f14.7)')(j, lattice%xat(1:rdim,j),j=0,natom-1)
- write(*,*)
- write(*,*)'Basis cell vectors'
- write(*,'(3f14.7)')((ac(i,j),i=1,rdim),j=1,rdim)
- write(*,*)
- write(*,'(/,A)')' Supercell vectors (fractionary unit)'
- write(*,'(3i5)')((sc(i,j),i=1,rdim),j=1,rdim)
- write(*,*)
- write(*,*)'Super-Lattice vectors (cartesian)'
- write(*,'(3f14.7)')((scc(i,j),i=1,rdim),j=1,rdim)
- write(*,*)
- write(*,*)'================================================================'
+ if (qmc_sim%rank == qmc_sim%aggr_root) then
+   write(*,*)'================================================================'
+   write(*,*)'Basic real space geometry info'
+   write(*,*)
+   write(*,*)'Crystal atomic basis'
+   write(*,'(i3,3f14.7)')(j, lattice%xat(1:rdim,j),j=0,natom-1)
+   write(*,*)
+   write(*,*)'Basis cell vectors'
+   write(*,'(3f14.7)')((ac(i,j),i=1,rdim),j=1,rdim)
+   write(*,*)
+   write(*,'(/,A)')' Supercell vectors (fractionary unit)'
+   write(*,'(3i5)')((sc(i,j),i=1,rdim),j=1,rdim)
+   write(*,*)
+   write(*,*)'Super-Lattice vectors (cartesian)'
+   write(*,'(3f14.7)')((scc(i,j),i=1,rdim),j=1,rdim)
+   write(*,*)
+   write(*,*)'================================================================'
+ endif
  
 end subroutine init_lattice
 
@@ -259,16 +262,18 @@ subroutine construct_lattice(lattice)
  enddo
 
  !Printing out
-  write(*,*)'Real space lattice'
-  write(*,*)
-  write(*,*)'Number of orbitals in primitive cell: ',natom
-  write(*,*)'Total number of orbitals:             ',nsites
-  write(*,*)'index  label   type       X           Y         Z   '
-  do iat=0,nsites-1
-   icount=mod(iat,natom)
-   write(*,'(i3,1x,A,1x,i3,3f14.5)')iat,lattice%olabel(icount),icount,(cartpos(j,iat),j=1,3)
-  enddo
-  write(*,*)'================================================================'
+ if (qmc_sim%rank == qmc_sim%aggr_root) then
+   write(*,*)'Real space lattice'
+   write(*,*)
+   write(*,*)'Number of orbitals in primitive cell: ',natom
+   write(*,*)'Total number of orbitals:             ',nsites
+   write(*,*)'index  label   type       X           Y         Z   '
+   do iat=0,nsites-1
+    icount=mod(iat,natom)
+    write(*,'(i3,1x,A,1x,i3,3f14.5)')iat,lattice%olabel(icount),icount,(cartpos(j,iat),j=1,3)
+   enddo
+   write(*,*)'================================================================'
+ endif
 
  lattice%pos => pos
  lattice%cartpos => cartpos

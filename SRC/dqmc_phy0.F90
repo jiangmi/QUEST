@@ -232,6 +232,7 @@ contains
     P0%n       = S%nsite
     P0%beta    = beta
 
+    ! if using MPI, nBin is set to 1 in DQMC_Hub_Config
     P0%avg     = nBin + 1
     P0%err     = nBin + 2
     P0%cnt     = 0
@@ -240,12 +241,13 @@ contains
     P0%compSAF = S%checklist(STRUCT_PHASE)
     ! count total number of data
 !    if (P0%compSAF) then
-       P0%nMeas = P0_N
+       P0%nmeas = P0_N    ! # of scalar variables
 !    else
 !       p0%nMeas = P0_N_NO_SAF
 !    end if
 
     ! Allocate storages for sign and properties
+    ! narrays is # of array variables, e.g. Gfun, SPXX
     n = P0%nmeas + P0%nClass * narrays
     allocate(P0%sign(3, P0%err))  
     allocate(P0%AllProp(n, P0%err))
@@ -440,12 +442,13 @@ contains
 
     ! ... Executable ...
 
-    if (qmc_sim%rank /= 0) return
+   if (qmc_sim%rank /= 0) return
 
     nClass = P0%nClass
     avg    = P0%avg
     err    = P0%err
 
+   
     ! Scalar terms
     call DQMC_Print_RealArray(0, 3, "Sign of equal time measurements:", &
          P0_SIGN_STR, P0%sign(:,avg:avg), P0%sign(:,err:err), OPT)
@@ -540,7 +543,7 @@ contains
           call DQMC_SignJackKnife(n, P0%G_fun(i, avg), P0%G_fun(i, err), &
                data, y, sgn, sum_sgn)
        end do
-       
+ 
        ! Up Green function
        do i = 1, P0%nClass
           data =  P0%Gf_up(i, 1:n)
@@ -615,47 +618,55 @@ contains
        mpi_err = 0
 
 #      ifdef _QMC_MPI
-          
+         
+          ! note for MPI, each processor has only ONE bin          
+          ! The process below for computing err is JackKnife similar to non-MPI case
+          ! See also DQMC_SignJackKnife_Real in dqmc_util.F90
+
+          !    y_i = (sum(x)-x_i)/sgn_i
+          !    The JackKnife variance of X with sign is defined as 
+          !    
+          !          n-1  
+          !    sqrt(----- *sum(y_i-avg_y)^2))
+          !           n
+          ! 
+          !    where avg_y = sum(y)/n
+ 
           n = size(P0%AllProp,1)
 
           !Set bin to 1 and fill the average spin
           P0%AveSpin(:,1) = ( P0%SpinZZ(:,1) + 2.d0*P0%SpinXX(:,1) ) / 3.d0
 
-          !Average sign
+          ! Average sign
           call mpi_allreduce(P0%sign(:,1), P0%sign(:,avg), 3, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
-          !Average properties
+          ! Compute y_i: y = (sum_x-x(1:n))/sgn(1:n) in DQMC_SignJackKnife_Real
           call mpi_allreduce(P0%AllProp(:,1), P0%AllProp(:,avg), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
-          !Compute average over n-1 processors
           P0%AllProp(:,1) = (P0%AllProp(:,avg) - P0%AllProp(:,1)) / dble(nproc - 1)
           P0%sign(:,1)    = (P0%sign(:,avg) - P0%sign(:,1)) / dble(nproc - 1)
+          P0%AllProp(:,1)   = P0%AllProp(:,1) / P0%sign(P0_SGN,1)
 
-          !Store average amongst all processors
+          ! similar to avg = sum_x/sum_sgn step in DQMC_SignJackKnife_Real
+          ! both divided by dble(nproc), below two lines cannot switch 
           P0%AllProp(:,avg) = P0%AllProp(:,avg) / P0%sign(P0_SGN,avg) 
           P0%sign(:,avg)    = P0%sign(:,avg) / dble(nproc)
 
-          !Store jackknife in the processor bin
-          P0%AllProp(:,1)   = P0%AllProp(:,1) / P0%sign(P0_SGN,1) 
-
-          !Compute proper chi_thermal and C_v
+          !i Compute proper chi_thermal and C_v
           P0%meas(P0_CHIT,1:avg) = P0%meas(P0_CHIT,1:avg) - P0%n * P0%beta**2 * P0%meas(P0_ENERGY,1:avg) &
              * P0%meas(P0_DENSITY,1:avg)
           P0%meas(P0_CV,1:avg) = P0%meas(P0_CV,1:avg) - P0%n * (P0%beta * P0%meas(P0_ENERGY,1:avg))**2
 
-          !Compute error
-          call mpi_allreduce(P0%AllProp(:,1)**2, P0%AllProp(:,err), n, mpi_double, &
+          ! Compute error: sum(y_i-avg_y)^2
+          call mpi_allreduce((P0%AllProp(:,1)-P0%AllProp(:,avg))**2, P0%AllProp(:,err), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
-          P0%AllProp(:,err) = P0%AllProp(:,err) / dble(nproc) - P0%AllProp(:,avg)**2 
-          P0%AllProp(:,err) = sqrt(P0%AllProp(:,err) * dble(nproc-1))
+          P0%AllProp(:,err) = sqrt(P0%AllProp(:,err) * dble(nproc-1)/dble(nproc))
 
-          !Compute error for sign
-          call mpi_allreduce(P0%sign(:,1)**2, P0%sign(:,err), 3, mpi_double, &
+          call mpi_allreduce((P0%sign(:,1)-P0%sign(:,avg))**2, P0%sign(:,err), 3, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
-          P0%sign(:,err) = P0%sign(:,err) / dble(nproc) - P0%sign(:,avg)**2 
-          P0%sign(:,err) = sqrt(P0%sign(:,err) * dble(nproc-1))
+          P0%sign(:,err) = sqrt(P0%sign(:,err) * dble(nproc-1)/dble(nproc))
 
           P0%meas(P0_CHIT,avg) = P0%meas(P0_CHIT,avg) - P0%n * P0%beta**2 * P0%meas(P0_ENERGY,avg) &
              * P0%meas(P0_DENSITY,avg)
@@ -664,8 +675,8 @@ contains
 
 #      endif
 
-    endif
- 
+  endif
+
   end subroutine DQMC_Phy0_GetErr
 
   !--------------------------------------------------------------------!

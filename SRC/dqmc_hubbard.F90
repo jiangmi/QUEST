@@ -207,13 +207,13 @@ contains
     call CFG_Get(cfg, "seed",    seed)
     call CFG_Get(cfg, "nwrap",   nWrap)
     call CFG_Get(cfg, "north",   nOrth)
-    call CFG_Get(cfg, "gamma",   gamma)
-    call CFG_Get(cfg, "accept",  accept)
-    call CFG_Get(cfg, "reject",  reject)
+!    call CFG_Get(cfg, "gamma",   gamma)
+!    call CFG_Get(cfg, "accept",  accept)
+!    call CFG_Get(cfg, "reject",  reject)
     call CFG_Get(cfg, "HSFtype", HSFtype)
-    call CFG_Get(cfg, "delta1",  delta1)
-    call CFG_Get(cfg, "delta2",  delta2)
-    call CFG_Get(cfg, "ssxx",    ssxx)
+!    call CFG_Get(cfg, "delta1",  delta1)
+!    call CFG_Get(cfg, "delta2",  delta2)
+!    call CFG_Get(cfg, "ssxx",    ssxx)
     call CFG_Get(cfg, "fixwrap", fixw)
     call CFG_Get(cfg, "tausk",   ntausk)
 
@@ -441,15 +441,15 @@ contains
 
     ! see www.sprng.org
 #   ifdef _QMC_MPI
-       junkPtr = init_sprng(SPRNG_LCG, Hub%seed(4), SPRNG_DEFAULT)
-       write(*,*) "dqmc_hubbard.F90: qmc_sim%rank", qmc_sim%rank,"seed(4)", Hub%seed(4)
+      ! junkPtr = init_sprng(SPRNG_LCG, Hub%seed(4), SPRNG_DEFAULT)
+       write(*,*) "dqmc_hubbard.F90: qmc_sim%rank =", qmc_sim%rank,",  seed(4) =", Hub%seed(4)
       ! write(*,*) "SPRNG seed",junkPtr
 #   endif
 
     ! Initialize auxiliary variables
-    Hub%gamma   = gamma
-    Hub%nAccept = accept
-    Hub%nReject = reject
+!    Hub%gamma   = gamma
+!    Hub%nAccept = accept
+!    Hub%nReject = reject
 
     ! Initialize working space 
     call DQMC_WSpace_Allocate(n, Hub%S%n_b, Hub%WS)
@@ -906,6 +906,8 @@ contains
        else
           write(FMT, "('(a30,f19.6,(',I3,'(f12.6)))')") Hub%n_mu-1
        end if
+
+       ! FMT_STRINT = (a30, i12) defined in util.F90
        write(OPT,FMT)         "                      mu_up : ", Hub%mu_up
        write(OPT,FMT)         "                      mu_dn : ", Hub%mu_dn
        write(OPT,FMT_STRINT)  "             Time slice - L : ", Hub%L
@@ -913,7 +915,7 @@ contains
        write(OPT,FMT_STRDBL)  "                       dtau : ", Hub%dtau
        write(OPT,FMT_STRDBL)  "                       beta : ", Hub%dtau*Hub%L
        write(OPT,FMT_STRINT)  "     Number of warmup sweep : ", Hub%nWarm
-       write(OPT,FMT_STRINT)  "Number of measurement sweep : ", Hub%nPass
+       write(OPT,'(a30,i12,a10,i3)')  "Number of measurement sweep : ", Hub%nPass, "  * MPI = ", qmc_sim%size
        write(OPT,FMT_STRINT)  "   Frequency of measurement : ", Hub%nMeas
        write(OPT,FMT_STRINT)  "                Random seed : ", Hub%idum
        write(OPT,FMT_STRINT)  " Frequency of recomputing G : ", Hub%G_up%nWrap
@@ -1257,8 +1259,10 @@ contains
     !===========================!
     ! Step 4: Adjust parameters !
     !===========================!
+    ! DQMC_CHECK_ITER=10000 defined at beginning
     if(Hub%naccept+Hub%nreject > DQMC_CHECK_ITER) then
        accrat = dble(Hub%naccept)/dble(Hub%naccept+Hub%nreject)
+       ! if out of (0.48,0.52):
        if(accrat > DQMC_ACC_UP .or. accrat .lt. DQMC_ACC_LO)then
           Hub%gamma = Hub%gamma + (accrat - HALF)
           Hub%gamma = dmax1(ZERO,Hub%gamma)
@@ -2099,7 +2103,7 @@ contains
      call DQMC_Gfun_Free(G_up_local)
      call DQMC_Gfun_Free(G_dn_local)
 
-  end subroutine 
+  end subroutine DQMC_Hub_FullMeas 
 
   !-------------------------------------------------------------------!
 

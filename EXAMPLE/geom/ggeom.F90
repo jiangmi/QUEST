@@ -11,6 +11,9 @@ program dqmc_ggeom
 
   implicit none
 
+  integer :: values(8)
+  character(3) :: mons(12)
+
   real                :: t1, t2, t3, t4, t5
   type(config)        :: cfg
   type(Hubbard)       :: Hub
@@ -20,7 +23,7 @@ program dqmc_ggeom
   character(len=slen) :: gfile
   logical             :: tformat
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
-  integer             :: nBin, nIter  
+  integer             :: nBin, nIter, ierr  
   character(len=50)   :: ofile  
   integer             :: OPT,OPT1 !,OPT2,OPT3,OPT4
   !integer             :: HSF_output_file_unit
@@ -77,8 +80,16 @@ program dqmc_ggeom
 
   call cpu_time(t2)
 
+  ! print date/time info into output
   if (qmc_sim%rank == qmc_sim%aggr_root) then
+    mons = ['Jan','Feb','Mar','Apr','May','Jun',&
+            'Jul','Aug','Sep','Oct','Nov','Dec']
+    call date_and_time(VALUES=values)
     call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
+    write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
+               "STARTING JOB: ", mons(values(2)), " ", values(3), "  ", &
+               values(5), ":", values(6), ":", values(7), "  ", values(1)
+    write(OPT,*) "============================================================================"
 
     write(*,*) "Initialization time:",  t2-t1, "(second)"
     write(*,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
@@ -219,10 +230,10 @@ program dqmc_ggeom
     write(OPT,*) "Meas time:",  (t4-t3)/60, "(minutes)"
     write(OPT,*) "Meas time:",  (t4-t3)/3600, "(hours)"
     write(OPT,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
-    write(OPT,*) " "
+    write(OPT,*) "============================================================================"
   endif
 
-  ! Prepare output file
+ ! Print results at root:
  if (qmc_sim%rank == qmc_sim%aggr_root) then
    if (comp_tdm > 0) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)

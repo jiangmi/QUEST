@@ -1208,18 +1208,21 @@ contains
 
     if (nproc > 1) then
 
-       !Compute errorbars avgraging over processors
+       ! 11/20/2015: note here for MPI run
+       ! binned values() (only 1 bin) are not for MC, which has been
+       ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+       ! avg value is already averaged over proc
+       ! see DQMC_TDM1_GetKFT
+       ! only need to compute error
+
 #      ifdef _QMC_MPI
-          call mpi_allreduce(P0%AllPropEigVal(:,1)**2, P0%AllPropEigVal(:,err), n, mpi_double, &
+          call mpi_allreduce((P0%AllPropEigVal(:,1)-P0%AllPropEigVal(:,avg))**2, P0%AllPropEigVal(:,err), n, mpi_double, &
              mpi_sum, mpi_comm_world, i)
-          call mpi_allreduce(P0%AllPropFT(:,1)**2, P0%AllPropFT(:,err), m, mpi_double, &
+          call mpi_allreduce((P0%AllPropFT(:,1)-P0%AllPropFT(:,avg))**2, P0%AllPropFT(:,err), m, mpi_double, &
              mpi_sum, mpi_comm_world, i)
 #      endif
-       P0%AllPropEigVal(:,err) = P0%AllPropEigVal(:,err) / dble(nproc) - P0%AllPropEigVal(:,avg)**2 
-       P0%AllPropEigVal(:,err) = sqrt(P0%AllPropEigVal(:,err) * dble(nproc-1))
-
-       P0%AllPropFT(:,err) = P0%AllPropFT(:,err) / dble(nproc) - P0%AllPropFT(:,avg)**2 
-       P0%AllPropFT(:,err) = sqrt(P0%AllPropFT(:,err) * dble(nproc-1))
+       P0%AllPropEigVal(:,err) = sqrt(P0%AllPropEigVal(:,err) * dble(nproc-1)/dble(nproc))
+       P0%AllPropFT(:,err) = sqrt(P0%AllPropFT(:,err) * dble(nproc-1)/dble(nproc))
 
     else
 

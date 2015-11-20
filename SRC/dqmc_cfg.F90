@@ -33,9 +33,19 @@ module DQMC_Cfg
   integer, parameter :: TYPE_STRING  = 3 
 
   ! default parameters
-  integer, parameter :: N_Param = 41
+  integer, parameter :: N_Param = 44
 
   ! name of parameters
+  ! HSF parameter in dqmc_hubbard.F90
+!  integer, parameter:: HSF_OUTPUT_UNIT = 28
+!  integer, parameter:: HSF_INPUT_UNIT  = 27
+!  integer, parameter:: HSF_RANDOM_GEN  = -1 ! generate HS fields randomly
+!  integer, parameter:: HSF_FROM_FILE   =  1 ! load HS fields from file
+!  integer, parameter:: HSF_RESTORE     =  2 ! load HS field and RNG state from file
+!  integer, parameter:: HSF_FROM_MEMORY =  0
+!  integer, parameter:: HSF_DISC  =  0
+!  integer, parameter:: HSF_CONT  =  1
+
   character(len=*), parameter :: PARAM_NAME(N_Param) =  &
        &(/"HSF    ", &    ! methods of how HSF are generated                     
        &  "HSFin  ", &    ! File name of HSF input, if HSF = HSF_FROM_FILE       
@@ -77,7 +87,10 @@ module DQMC_Cfg
        &  "t_up   ", &    ! parameter for kinetic energy                         
        &  "tausk  ", &    ! frequence of unequal time measurement                
        &  "tdm    ", &    ! compute time dependent measurement
-       &  "flags  "/)     ! if to compute tdm quantities
+       &  "flags  ", &    ! if to compute tdm quantities
+       &  "ntry2  ", &    ! global move in warmup, can differ from ntry in meas
+       &  "FTphy0 ", &    ! if to compute FT for phy0  
+       &  "FTtdm  "/)     ! if to compute FT for tdm
 
   ! default values
   character(len=*), parameter :: PARAM_DVAL(N_Param) =  &
@@ -121,7 +134,10 @@ module DQMC_Cfg
        &  "1.0     ", &    ! t_dn      
        &  "10      ", &    ! tausk  
        &  "0       ", &    ! tdm
-       &  "1"/)            ! flags
+       &  "1       ", &    ! flags
+       &  "0       ", &    ! global warm
+       &  "0       ", &    ! FTphy0
+       &  "0"/)            ! FTtdm
  
   ! parameter type
   integer, parameter :: PARAM_TYPE(N_Param) = &
@@ -165,7 +181,10 @@ module DQMC_Cfg
        &  TYPE_REAL,    &    ! t_dn      
        &  TYPE_INTEGER, &    ! tausk  
        &  TYPE_INTEGER, &    ! tdm
-       &  TYPE_INTEGER/)     ! flags
+       &  TYPE_INTEGER, &    ! flags
+       &  TYPE_INTEGER, &    ! global warm
+       &  TYPE_INTEGER, &    ! FTphy0
+       &  TYPE_INTEGER/)     ! FTtdm
 
   ! is array parameter
   logical, parameter :: PARAM_ARRAY(N_Param) = &
@@ -209,7 +228,10 @@ module DQMC_Cfg
        &  .true. ,&           ! t_dn
        &  .false.,&           ! tausk  
        &  .false.,&           ! tdm
-       &  .true./)            ! flags
+       &  .true. ,&           ! flags
+       &  .false.,&           ! globalwarm
+       &  .false.,&           ! FTphy0
+       &  .false./)           ! FTtdm
 
   !
   ! Data Type

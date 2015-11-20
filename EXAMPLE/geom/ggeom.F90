@@ -32,7 +32,7 @@ program dqmc_ggeom
   real(wp)            :: randn(1)
   integer, pointer    :: flags(:)      ! 8 possible tdm1 quantities
   integer             :: nflag
-  character(len=1)    :: ranklabel
+  integer             :: ntry2, FTphy0, FTtdm
 
   call cpu_time(t1)  
 
@@ -50,6 +50,13 @@ program dqmc_ggeom
 
   !Save whether to use refinement for G used in measurements.
   call CFG_Get(cfg, "nhist", nhist)
+
+  !Get some input variables
+  call CFG_Get(cfg, "ntry2" , ntry2)
+  call CFG_Get(cfg, "tdm"   , comp_tdm)
+  call CFG_Get(cfg, "FTphy0", FTphy0)
+  call CFG_Get(cfg, "FTtdm" , FTtdm)
+
   !if (nhist > 0) then
   !   call DQMC_open_file(adjustl(trim(ofile))//'.HSF.stream','unknown', HSF_output_file_unit)
   !endif
@@ -70,7 +77,6 @@ program dqmc_ggeom
   call DQMC_Hub_Config(Hub, cfg)
 
   ! Initialize time dependent properties if comp_tdm > 0
-  call CFG_Get(cfg, "tdm", comp_tdm)
   if (comp_tdm > 0) then
      ! If to compute 8 possible tdm1 quantities
      call CFG_Get(cfg, "flags", nflag, flags)
@@ -82,23 +88,13 @@ program dqmc_ggeom
 
   ! print date/time info into output
   if (qmc_sim%rank == qmc_sim%aggr_root) then
-    mons = ['Jan','Feb','Mar','Apr','May','Jun',&
-            'Jul','Aug','Sep','Oct','Nov','Dec']
+    mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     call date_and_time(VALUES=values)
-    call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
-    write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
-               "STARTING JOB: ", mons(values(2)), " ", values(3), "  ", &
-               values(5), ":", values(6), ":", values(7), "  ", values(1)
-    write(OPT,*) "============================================================================"
 
     write(*,*) "Initialization time:",  t2-t1, "(second)"
     write(*,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
     write(*,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
     write(*,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
-    write(OPT,*) "Initialization time:",  t2-t1, "(second)"
-    write(OPT,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
-    write(OPT,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
-    write(OPT,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
   endif
 
   ! Warmup sweep
@@ -107,7 +103,7 @@ program dqmc_ggeom
        if (mod(i, 10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
      endif
      call DQMC_Hub_Sweep(Hub, NO_MEAS0)   ! NO_MEAS0 = -1, parameter defined in dqmc_hubbard.F90
-     call DQMC_Hub_Sweep2(Hub, Hub%nTry)  ! sweep2 is for global move update
+     call DQMC_Hub_Sweep2(Hub, ntry2)  ! sweep2 is for global move update
   end do
 
   call cpu_time(t3)
@@ -116,20 +112,15 @@ program dqmc_ggeom
     write(*,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
     write(*,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
     write(*,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
-
-    write(OPT,*) "Warmup time:",  t3-t2, "(second)"
-    write(OPT,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
-    write(OPT,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
-    write(OPT,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
   endif
 
-  ! We divide all the measurement into nBin,
-  ! each having nPass/nBin pass.
+  ! We divide all the measurement into nBin, each having nPass/nBin pass
   nBin   = Hub%P0%nBin
   nIter  = Hub%nPass / Hub%tausk / nBin
   if (nIter > 0) then
      do i = 1, nBin
         do j = 1, nIter
+           ! only measure once every tausk warmup steps
            do k = 1, Hub%tausk
               call DQMC_Hub_Sweep(Hub, NO_MEAS0)
               call DQMC_Hub_Sweep2(Hub, Hub%nTry)
@@ -163,7 +154,6 @@ program dqmc_ggeom
         call DQMC_Phy0_Avg(Hub%P0)
         call DQMC_tdm1_Avg(tm)
 
-  
         if (Hub%meas2) then
            if(Hub%P2%diagonalize)then
              call DQMC_Phy2_Avg(Hub%P2, Hub%S)
@@ -173,7 +163,7 @@ program dqmc_ggeom
         end if
 
      end do
-  endif
+  endif  ! for if nIter  = Hub%nPass/Hub%tausk/nBin > 0
 
   !Read HSF configurations from file if no sweep was perfomed
   if (Hub%nWarm + Hub%nPass == 0) then
@@ -210,7 +200,7 @@ program dqmc_ggeom
         end if
 
      enddo
-  endif
+  endif ! for if (Hub%nWarm + Hub%nPass == 0)
 
   !Compute average and error
   call DQMC_Phy0_GetErr(Hub%P0)
@@ -225,70 +215,80 @@ program dqmc_ggeom
     write(*,*) "Meas time:",  (t4-t3)/60, "(minutes)"
     write(*,*) "Meas time:",  (t4-t3)/3600, "(hours)"
     write(*,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
+  endif
 
+ ! ============================================================================================
+ ! Print results at root:
+ if (qmc_sim%rank == qmc_sim%aggr_root) then
+    call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
+    write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
+               "STARTING JOB: ", mons(values(2)), " ", values(3), "  ", &
+               values(5), ":", values(6), ":", values(7), "  ", values(1)
+    write(OPT,*) "============================================================================"
+    write(OPT,*) "Initialization time:",  t2-t1, "(second)"
+    write(OPT,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
+    write(OPT,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
+    write(OPT,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
+    write(OPT,*) "-------------------------------------------------"
+    write(OPT,*) "Warmup time:",  t3-t2, "(second)"
+    write(OPT,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
+    write(OPT,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
+    write(OPT,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
+    write(OPT,*) "-------------------------------------------------"
     write(OPT,*) "Meas time:",  t4-t3, "(second)"
     write(OPT,*) "Meas time:",  (t4-t3)/60, "(minutes)"
     write(OPT,*) "Meas time:",  (t4-t3)/3600, "(hours)"
     write(OPT,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
     write(OPT,*) "============================================================================"
-  endif
 
- ! Print results at root:
- if (qmc_sim%rank == qmc_sim%aggr_root) then
-   if (comp_tdm > 0) then
-      call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
-   endif
-
-   ! Print computed results
+   !Print P0 results
    call DQMC_Hub_OutputParam(Hub, OPT)
    call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
-   call DQMC_TDM1_Print(tm, TDM_UNIT)
 
-   ! G(tau) local
+   !Print tdm and G(tau) local
    if (comp_tdm > 0) then
+     call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
+     call DQMC_TDM1_Print(tm, TDM_UNIT)
      call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
      call DQMC_TDM1_Print1(tm, OPT1)
    endif
- endif
+ endif ! end if (qmc_sim%rank == qmc_sim%aggr_root)
 
-  !Aliases for Fourier transform
-  na  =  Gwrap%lattice%natom
-  nt  =  Gwrap%lattice%ncell
-  nkt =  Gwrap%RecipLattice%nclass_k
-  nkg =  Gwrap%GammaLattice%nclass_k
- 
-  !Print info on k-points and construct clabel
-!  call DQMC_Print_HeaderFT(Gwrap, OPT, .true.)
-!  call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)
-
+! ==============  Fourier transform ============================================
   !Compute Fourier transform
-!  call DQMC_phy0_GetFT(Hub%P0, Hub%S%D, Hub%S%gf_phase, Gwrap%RecipLattice%FourierC, &
-!       Gwrap%GammaLattice%FourierC, nkt, nkg, na, nt)
-!  call DQMC_Phy0_GetErrFt(Hub%P0)
-!  call DQMC_Phy0_PrintFT(Hub%P0, na, nkt, nkg, OPT)
+  !Direct access to binned data; no need to be in the loop above
+  if (FTphy0 > 0) then
+    !Aliases for Fourier transform
+    na  =  Gwrap%lattice%natom
+    nt  =  Gwrap%lattice%ncell
+    nkt =  Gwrap%RecipLattice%nclass_k
+    nkg =  Gwrap%GammaLattice%nclass_k
 
-  !Compute Fourier transform and error for TDM's
-!  call DQMC_TDM1_GetKFT(tm)
-!  call DQMC_TDM1_GetErrKFT(tm)
-!  call DQMC_TDM1_PrintKFT(tm, TDM_UNIT)
+    call DQMC_phy0_GetFT(Hub%P0, Hub%S%D, Hub%S%gf_phase, Gwrap%RecipLattice%FourierC, &
+                         Gwrap%GammaLattice%FourierC, nkt, nkg, na, nt)
+    call DQMC_Phy0_GetErrFT(Hub%P0)
+  endif
 
-  !Compute and print the self-energy
-!  call DQMC_TDM1_SelfEnergy(tm, tau, TDM_UNIT)
+  !In DQMC_TDM1_GetKFT determines if comp_tdm>0
+  if (FTtdm > 0)  then
+    call DQMC_TDM1_GetKFT(tm)
+    call DQMC_TDM1_GetErrKFT(tm)
+    call DQMC_TDM1_SelfEnergy(tm, tau)
+  endif
 
-!  if(Hub%P2%compute)then
-!     if(Hub%P2%diagonalize)then
-        !Obtain waves from diagonalization
-!        call DQMC_Phy2_GetIrrep(Hub%P2, Hub%S)
-        !Get error for waves
-!        call DQMC_Phy2_GetErrIrrep(Hub%P2, Hub%P0%G_fun, Hub%S)
-        !Analyze symmetry of pairing modes
-!        call DQMC_Phy2_WaveSymm(Hub%S,Hub%P2,Gwrap%SymmOp)
-        !Print Pairing info
-!        call dqmc_phy2_PrintSymm(Hub%S, Hub%P2, OPT)
-!     else
-!        call dqmc_phy2_print(Hub%P2, Hub%S%wlabel, OPT)
-!     endif
-!  endif
+  !Printing: determine if qmc_sim%rank==0 in subroutines
+  if (FTphy0 > 0) then
+     !Print info on k-points and construct clabel, in dqmc_geom_wrap.F90
+     call DQMC_Print_HeaderFT(Gwrap, OPT, .true.)   ! k grid for Green function
+     call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)  ! k grid for spin/charge correlation
+     call DQMC_Phy0_PrintFT(Hub%P0, na, nkt, nkg, OPT)
+  endif
+  if (FTtdm > 0) then
+     call DQMC_TDM1_PrintKFT(tm, TDM_UNIT)
+     call DQMC_TDM1_Print_SelfEnergy(tm, TDM_UNIT)
+  endif
+
+! =========== End Fourier transform ============================================
 
   ! Clean up the used storage
   call DQMC_TDM1_Free(tm)

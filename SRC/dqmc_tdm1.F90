@@ -78,7 +78,7 @@ module DQMC_TDM1
      integer  :: nbin
      integer  :: avg
      integer  :: err
-     integer  :: idx
+     integer  :: idx    !label bin
 
      integer  :: tmp
      integer  :: cnt
@@ -108,6 +108,11 @@ module DQMC_TDM1
      ! used for conductivity, d-wave paring sus etc.
      integer, ALLOCATABLE     :: rt(:), lf(:), up(:), dn(:)
      complex*16, ALLOCATABLE  :: hopup(:,:), hopdn(:,:)
+
+     ! 11/19/2015
+     ! used for self-energy, (natom, natom, L, nk, 3)
+     ! natom for unit cell, nk for cluster(cell) K values, 3 for G, Gup, Gdn
+     complex(wp), pointer :: SEavg(:,:,:,:,:), SEerr(:,:,:,:,:)
 
   end type TDM1
   
@@ -490,6 +495,8 @@ contains
           do it = 0, L-1
             do i = 1, T1%properties(iprop)%nClass
               factor = sgn/(T1%properties(iprop)%F(i)*cnt)
+
+              !Gather results in a particular bin:
               values(i,it,T1%idx)   = values(i,it,T1%idx)   + factor*values(i,it,T1%tmp)
             end do
           end do
@@ -1090,7 +1097,9 @@ contains
             endif
           enddo
 
-          ! Compute y_i
+          ! Compute y_i, note original binned values are updated from MC
+          ! non-MPI would not update binned values
+          ! as DQMC_SignJackKnife does not change data
           T1%sgn(1)   = (T1%sgn(avg) - T1%sgn(1)) / dble(nproc - 1)
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
@@ -1113,6 +1122,7 @@ contains
           ! Compute error: sum(y_i-avg_y)^2
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
+                !note here binned values are updated from MC
                 binptr => T1%properties(iprop)%values(:,:,1)
                 aveptr => T1%properties(iprop)%values(:,:,avg)
                 errptr => T1%properties(iprop)%values(:,:,err)
@@ -1306,18 +1316,18 @@ contains
 
     type(tdm1), intent(inout) :: T1
 
-    integer :: ip, it, n, nclass, np, nk, ibin
-    integer, pointer :: class(:,:)
+    integer              :: ip, it, n, nclass, np, nk, ibin
+    integer,     pointer :: class(:,:)
     complex(wp), pointer :: wgtftk(:,:)
-    integer, pointer :: phase(:,:)
+    integer,     pointer :: phase(:,:)
 
-    real(wp), pointer :: value(:)
-    complex(wp), pointer :: valuet(:)
+    real(wp)   , pointer :: value(:)
+    complex(wp), pointer :: valuek(:)
 
     if (.not.T1%compute) return
  
     !Loop over properties to Fourier transform
-    do ip = 1, NTDMARRAY
+    do ip = 1, NTDMARRAY-1  ! -1 for exclusion of conductivity for FT
        if (T1%flags(ip)==1) then
          if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
@@ -1331,15 +1341,24 @@ contains
          phase    => T1%properties(ip)%phase
 
          !Fourier transform each bin and average
+         !For MPI run, nbin=1 so T1%avg=T1%nBin+1 = 2
          do ibin = T1%avg, 1, -1
 
             ! More aliases
             do it = 0, T1%L-1
+               ! 11/20/2015: note here for MPI run
+               ! binned values() (only 1 bin) are not for MC, which has been
+               ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+               ! avg value is already averaged over proc
+               ! see DQMC_TDM1_GetErr
                value  =>  T1%properties(ip)%values(:,it,ibin)
-               valuet =>  T1%properties(ip)%valuesk(:,it,ibin)
-               call dqmc_getFTk(value, n, nclass, class, np, nk, wgtftk, phase, valuet)
-            enddo
+               valuek =>  T1%properties(ip)%valuesk(:,it,ibin)
 
+               ! In util.F90:
+               !Note valuesk has dimension (nk,npp), where npp=np(np+1)/2
+               !npp will obtained in dqmc_GetFTk
+               call dqmc_GetFTk(value, n, nclass, class, np, nk, wgtftk, phase, valuek)
+            enddo
          enddo ! Loop over bins
       endif
     enddo ! Loop over properties
@@ -1365,54 +1384,65 @@ contains
 
     if (nproc .eq. 1) then
 
-      do ip = 1, NTDMARRAY
+      do ip = 1, NTDMARRAY-1 ! -1 for exclusion of conductivity for FT
         if (T1%flags(ip)==1) then
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
           do it = 0, T1%L-1
 
+             !Note that valuesk(avg) is known from DQMC_TDM1_GetKFT
+             !in which FT from values(avg), here do not use JackKnife for simplicity
+             !But valuesk(err) is unknown
              average  => T1%properties(ip)%valuesk(:,it,T1%avg)
              error    => T1%properties(ip)%valuesk(:,it,T1%err)
 
-             !Fourier transform each bin and average
              do i = 1, T1%nbin
-
                 binval => T1%properties(ip)%valuesk(:,it,i)
                 error  = error  +  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+             enddo 
 
-             enddo ! Loop over bins
-
-             error  = (T1%nbin-1)*error/T1%nbin
+             error  = error* dble(T1%nbin-1)/dble(T1%nbin)
              error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-  
           enddo
         endif
-      enddo ! Loop over properties
+      enddo 
 
     else
 
-      do ip = 1, NTDMARRAY
+#  ifdef _QMC_MPI
+               ! 11/20/2015: note here for MPI run
+               ! binned values() (only 1 bin) are not for MC, which has been
+               ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+               ! avg value is already averaged over proc
+               ! see DQMC_TDM1_GetKFT
+
+      do ip = 1, NTDMARRAY-1
         if (T1%flags(ip)==1) then
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
     
-          n = T1%properties(ip)%nk * T1%properties(ip)%np
+          n = T1%properties(ip)%nk * T1%properties(ip)%np*(T1%properties(ip)%np+1)/2
           allocate(temp(n))
           
           do it = 0, T1%L-1
+             !Note that avg value is already averaged over proc in DQMC_TDM1_GetKFT
+             !and binval is JackKnifed among proc
              average  => T1%properties(ip)%valuesk(:,it,T1%avg)
-             error    => T1%properties(ip)%valuesk(:,it,T1%err)
              binval   => T1%properties(ip)%valuesk(:,it,1)
-             temp     =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-#            ifdef _QMC_MPI
-             call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-#            endif
-             error  = (nproc-1)*error/nproc
+
+             !Compute error: sum(y_i-avg_y)^2
+             error  => T1%properties(ip)%valuesk(:,it,T1%err)
+             temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+             call mpi_allreduce(temp, error, n, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+             error  = error*dble(nproc-1)/dble(nproc)
              error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
           enddo
 
           deallocate(temp)
         endif
       enddo ! Loop over properties
+
+#  endif
 
     endif
 
@@ -1450,7 +1480,7 @@ contains
        label(j) = adjustl(label(j))
     enddo
 
-    do iprop = 1, NTDMARRAY
+    do iprop = 1, NTDMARRAY-1 ! -1 for exclusion of conductivity for FT
        if (T1%flags(iprop)==1) then
          if (.not.associated(T1%properties(iprop)%valuesk)) cycle
          np = T1%properties(iprop)%np
@@ -1463,8 +1493,9 @@ contains
                   do j = 0, T1%L-1
                      tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(i, j, T1%avg:T1%err)
                   enddo
-                  write(title,'(A,i3,A,i3,A,i3,A)') 'k=',k,'   pair=',ip,',',jp
+                  write(title,'(A,i3,A,i3,A,i3,A)') 'k=',k,'   cell_site_pair=',ip-1,',',jp-1
                   title=pname(iprop)//" "//trim(adjustl(title))
+                  !In util.F90, call DQMC_Print_Array for complex array
                   call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
                   write(OPT,'(1x)')
                enddo
@@ -1477,33 +1508,30 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_SelfEnergy(T1, tau, OPT)
+  subroutine DQMC_TDM1_SelfEnergy(T1, tau)
 
     use DQMC_MPI
 
-    type(TDM1), intent(in)    :: T1
+    type(TDM1), intent(inout) :: T1
     type(gtau), intent(inout) :: tau
-    integer, intent(in)       :: OPT
 
     real(wp),    allocatable  :: g0tau(:,:), tdmg0(:,:)
     complex(wp), allocatable  :: tdmg0k(:,:), tdmgk(:,:)
     complex(wp), allocatable  :: tdmg0kw(:,:,:), tdmgkw(:,:,:)
-    complex(wp), allocatable  :: avgSE(:,:,:), errSE(:,:,:), binSE(:,:,:)
+    complex(wp), pointer      :: avgSE(:,:,:), errSE(:,:,:)
+    complex(wp), allocatable  :: binSE(:,:,:)
 
-    integer :: i, j, k, h, m
+    integer :: i, j, k, h, m, nproc
     integer :: L, n, nclass, np, nk, npp
     integer,     pointer :: class(:,:), ph(:,:)
     complex(wp), pointer :: ftk(:,:), ftw(:,:)
 
-    complex(wp)          :: tmp(T1%L,2)
-    character(len=10)    :: label(T1%L)
-    character(len=50)    :: title
-
     integer, parameter  :: gflist(3) = (/IGFUN, IGFUP, IGFDN/)
     integer, parameter  :: splist(3) = (/  0, TAU_UP, TAU_DN/)
-    real(wp), parameter :: pi = 3.1415926535898
 
     if (.not.T1%compute) return
+
+    nproc = qmc_sim%size
 
     L      =  T1%L
     n      =  T1%properties(IGFUN)%n
@@ -1517,11 +1545,6 @@ contains
 
     npp = np*(np+1)/2
 
-    do j = 1, L
-       write(label(j),'(f10.5)') (2*j-1)*pi/(T1%dtau*L)
-       label(j) = adjustl(label(j))
-    enddo
-
     !non-interacting green's function
     allocate(g0tau(n,n))
     allocate(tdmg0(nclass,0:L-1))
@@ -1534,13 +1557,15 @@ contains
     allocate(tdmg0kw(np,np,0:L-1))
     allocate(tdmgkw(np,np,0:L-1))
 
-    !self energy
-    allocate(avgSE(np,np,0:L-1))
-    allocate(errSE(np,np,0:L-1))
+    !self energy: (natom, natom, L, nk, 3)
+    ! natom for unit cell, nk for cluster(cell) K values, 3 for G, Gup, Gdn
+    allocate(T1%SEavg(np,np,0:L-1,nk,3))
+    allocate(T1%SEerr(np,np,0:L-1,nk,3))
     allocate(binSE(np,np,0:L-1))
 
     do h = 1, 3
 
+      if (T1%flags(gflist(h))==1) then
        ! Get G for the non-interacting system
        tdmg0 = 0.0_wp
        do m = 0, L-1
@@ -1561,8 +1586,11 @@ contains
           call dqmc_getFTk(tdmg0(:,m), n, nclass, class, np, nk, ftk, ph, tdmg0k(:,m))
        enddo
 
-       do k = 1, nk
- 
+       do k = 1, nk 
+
+          avgSE => T1%SEavg(:,:,0:L-1,k,h)
+          errSE => T1%SEerr(:,:,0:L-1,k,h)
+
           i = (k-1) * npp + 1
           j = k * npp
 
@@ -1571,59 +1599,59 @@ contains
           call convert_to_iwn(tdmgk, tdmg0kw)
           call invertG(tdmg0kw)
 
-          ! Transform G from tau to iwn for average
+          ! Transform G from tau to iwn for average, note for MPI, only ONE bin
+
           tdmgk = T1%properties(gflist(h))%valuesk(i:j,0:L-1,T1%avg)
           call convert_to_iwn(tdmgk, tdmgkw)
           call invertG(tdmgkw)
 
           !Compute average self-energy
+          !For MPI, avgSE is already averaged over proc
           avgSE = tdmg0kw - tdmgkw
+ 
+          if (nproc .eq. 1) then
 
-          errSE = ZERO
-          do m = 0, T1%nbin-1
+            do m = 1, T1%nbin
+               ! Transform G from tau to iwn for bin "m"
+               tdmgk = T1%properties(gflist(h))%valuesk(i:j,0:L-1,m)
+               call convert_to_iwn(tdmgk, tdmgkw)
+               call invertG(tdmgkw)
 
-             ! Transform G from tau to iwn for bin "m"
-             tdmgk = T1%properties(gflist(h))%valuesk(i:j,0:L-1,m+1)
-             call convert_to_iwn(tdmgk, tdmgkw)
-             call invertG(tdmgkw)
+               ! Compute self-energy for bin
+               binSE = tdmg0kw - tdmgkw
+               errSE = ZERO
+               errSE = errSE + cmplx((real(binSE-avgSE))**2,(aimag(binSE-avgSE))**2)
+            enddo 
 
-             ! Compute self-energy for bin
-             binSE = tdmg0kw - tdmgkw
-             if (qmc_sim%size .eq. 1) &
-                errSE = errSE + cmplx((real(binSE-avgSE))**2,(aimag(binSE-avgSE))**2)
-  
-          enddo 
+            errSE = cmplx(sqrt(real(errSE)),sqrt(aimag(errSE))) * sqrt(dble(T1%nbin-1)/dble(T1%nbin))
 
-          if (qmc_sim%size .gt. 1) then
+          else
 
-             m = qmc_sim%size
-             ! Reuse tdmgkw for temporary storage
-             tdmgkw =  cmplx((real(binSE-avgSE))**2,(aimag(binSE-avgSE))**2)
-#            ifdef _QMC_MPI
-             call mpi_allreduce(tdmgkw, errSE, n, mpi_double_complex, mpi_sum, mpi_comm_world, i)
-#            endif
+#  ifdef _QMC_MPI
+            ! 11/20/2015: note here for MPI run
+            ! binned values() (only 1 bin) are not for MC, which has been
+            ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+            ! avg value is already averaged over proc
+            ! see DQMC_TDM1_GetKFT
 
+            m = np*np*L
+
+            ! Compute self-energy for bin for each proc
+            tdmgk = T1%properties(gflist(h))%valuesk(i:j,0:L-1,1)
+            call convert_to_iwn(tdmgk, tdmgkw)
+            call invertG(tdmgkw)
+            binSE = tdmg0kw - tdmgkw
+
+            !Compute error: sum(y_i-avg_y)^2
+            tdmgkw =  cmplx((real(binSE-avgSE))**2,(aimag(binSE-avgSE))**2)
+            call mpi_allreduce(tdmgkw, errSE, m, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+            errSE = cmplx(sqrt(real(errSE)),sqrt(aimag(errSE))) * sqrt(dble(nproc-1)/dble(nproc))
+# endif
           endif
-
-          errSE = cmplx(sqrt(real(errSE)),sqrt(aimag(errSE))) * sqrt(dble(m-1)/m)
-
-          ! Take care of printing
-          if (qmc_sim%rank .eq. 0) then
-             do i = 1, np
-                do j = 1, np
-                   tmp(1:L,1) = avgSE(i,j,0:L-1)
-                   tmp(1:L,2) = errSE(i,j,0:L-1)
-                   write(title,'(A,i3)') trim(pname(gflist(h)))//" SelfEn k=", k
-                   write(title,'(A,i3,A,i3)') trim(adjustl(title))//'   pair=',i,',',j
-                   call DQMC_Print_Array(0, L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-                   write(OPT,'(1x)')
-                enddo
-             enddo
-          endif
-
-       enddo
-
-    enddo
+       enddo ! end loop k
+     endif   ! end if flags=1
+    enddo    ! end loop h
 
     contains
 
@@ -1671,5 +1699,50 @@ contains
   end subroutine DQMC_TDM1_SelfEnergy
 
   !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM1_Print_SelfEnergy(T1, OPT)
+
+    use DQMC_MPI
+
+    type(TDM1), intent(in)    :: T1
+    integer, intent(in)       :: OPT
+
+    character(len=10)    :: label(T1%L)
+    character(len=50)    :: title
+
+    complex(wp)          :: tmp(T1%L,2)
+    integer, parameter  :: gflist(3) = (/IGFUN, IGFUP, IGFDN/)
+    real(wp), parameter :: pi = 3.1415926535898
+
+    integer             :: i, j, h, k
+
+    if (.not.T1%compute) return
+
+    if (qmc_sim%rank .ne. 0) return
+
+    !Fermionic Matsubara frequency w_n = (2n+1)*pi/beta
+    do j = 1, T1%L
+       write(label(j),'(f10.5)') (2*j-1)*pi/(T1%dtau*T1%L)
+       label(j) = adjustl(label(j))
+    enddo
+
+    do h = 1, 3
+      if (T1%flags(gflist(h))==1) then
+        do k = 1, T1%properties(IGFUN)%nk
+          do i = 1, T1%properties(IGFUN)%np
+             do j = 1, T1%properties(IGFUN)%np
+                tmp(1:T1%L,1) = T1%SEavg(i,j,0:T1%L,k,h)
+                tmp(1:T1%L,2) = T1%SEerr(i,j,0:T1%L,k,h)
+                write(title,'(A,i3)') trim(pname(gflist(h)))//" SelfEn k=", k
+                write(title,'(A,i3,A,i3)') trim(adjustl(title))//'   cell_site_pair=',i-1,',',j-1  ! site index starts from 0
+                call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+                write(OPT,'(1x)')
+             enddo
+          enddo
+        enddo
+      endif
+    enddo
+
+  end subroutine DQMC_TDM1_Print_SelfEnergy
 
 end module DQMC_TDM1

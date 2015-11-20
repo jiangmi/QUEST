@@ -1154,7 +1154,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine dqmc_getFTk(value, n, nclass, class, na, nk, ft_wgt, phase, valuek)
+  subroutine dqmc_GetFTk(value, n, nclass, class, na, nk, ft_wgt, phase, valuek)
 
      real(wp),    intent(in)  :: value(nclass)
      integer,     intent(in)  :: n

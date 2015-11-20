@@ -198,6 +198,7 @@ contains
 
     ! integer parameters
     call CFG_Get(cfg, "HSF",     HSF)
+    call CFG_Get(cfg, "HSFtype", HSFtype)
     call CFG_Get(cfg, "L",       L)
     call CFG_Get(cfg, "nwarm",   nWarm)
     call CFG_Get(cfg, "npass",   nPass)
@@ -210,7 +211,6 @@ contains
 !    call CFG_Get(cfg, "gamma",   gamma)
 !    call CFG_Get(cfg, "accept",  accept)
 !    call CFG_Get(cfg, "reject",  reject)
-    call CFG_Get(cfg, "HSFtype", HSFtype)
 !    call CFG_Get(cfg, "delta1",  delta1)
 !    call CFG_Get(cfg, "delta2",  delta2)
 !    call CFG_Get(cfg, "ssxx",    ssxx)
@@ -231,7 +231,7 @@ contains
 
     !Change nbin to 1 if we are using more than 1 CPU.
     !Results collected on each CPU will be used as bins.
-    if (qmc_sim%aggr_size > 1) then
+    if (qmc_sim%size > 1) then
        nBin = 1
        call CFG_set(cfg, "nbin",  nBin)
     endif
@@ -253,7 +253,7 @@ contains
        HSF = HSF_RANDOM_GEN
     end if
     
-    ! open output file
+    ! open HSF output file if input file sets HSFout
     Hub%outputHSF =DQMC_Config_isSet(cfg, "HSFout")
     if (Hub%outputHSF) then
        call CFG_Get(cfg, "HSFout", HSF_opt)
@@ -634,7 +634,9 @@ contains
     ! =======
     !    This subrotine outputs Hubbard-Stratonovich Field to a
     !    output file OPT.
-    !
+    !    Might be called by DQMC_Hub_OutputParam, 
+    !    which use restore=.true. and slice=0
+
     ! Arguments
     ! =========
     !
@@ -946,6 +948,7 @@ contains
     if (Hub%outputHSF) then
        inquire(UNIT=HSF_OUTPUT_UNIT, EXIST=lex)
        if (lex) then
+          ! at beginning: slice = 0, restore = .true.
           call DQMC_Hub_Output_HSF(Hub, restore, slice, HSF_OUTPUT_UNIT)
        else
           if (qmc_sim%rank == qmc_sim%aggr_root) &
@@ -1242,7 +1245,7 @@ contains
           call DQMC_ApplyUpdate(Hub%G_dn, forced = .true.)
        end if
 
-    end do
+    end do ! m = 1, L
 
 #   ifdef _QMC_MPI
        send_cnt(1) = accept_cnt

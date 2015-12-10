@@ -50,7 +50,7 @@ module DQMC_TDM1
   end type tdmarray
 
   ! Index of the array varaiables
-  integer, parameter  :: NTDMARRAY = 8 
+  integer, parameter  :: NTDMARRAY = 10 
   integer, parameter  :: IGFUN = 1
   integer, parameter  :: IGFUP = 2
   integer, parameter  :: IGFDN = 3
@@ -59,19 +59,23 @@ module DQMC_TDM1
   integer, parameter  :: IDENS = 6
   integer, parameter  :: IPAIR = 7
   integer, parameter  :: ICOND = 8
+  integer, parameter  :: ICONDup = 9
+  integer, parameter  :: ICONDdn = 10
   integer             :: ntdm = NTDMARRAY ! if needed, decrease it for not cond, d-wave sus etc.
 
   ! Index of the array varaiables
-  character(len=12), parameter :: &
+  character(len=9), parameter :: &
             pname(NTDMARRAY) = (/ &
-                  "Gfun        ", &
-                  "Gfun up     ", &
-                  "Gfun dn     ", &
-                  "SxSx        ", &
-                  "SzSz        ", &
-                  "Den-Den     ", &
-                  "S-wave      ", &
-                  "Conductivity" /)
+                  "Gfun     ", &
+                  "Gfun up  ", &
+                  "Gfun dn  ", &
+                  "SxSx     ", &
+                  "SzSz     ", &
+                  "Den-Den  ", &
+                  "S-wave   ", &
+                  "Cond     ", &
+                  "Cond_up  ", &
+                  "Cond_dn  " /)
 
   type TDM1
      integer  :: L
@@ -315,7 +319,7 @@ contains
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valuesk(nk*npp,0:T1%L-1,T1%err))
 
-       case(ICOND)
+       case(ICOND, ICONDup, ICONDdn)
 
           nk = Gwrap%GammaLattice%nclass_k
           nclass = 1
@@ -669,14 +673,19 @@ contains
      endif
 
      if (T1%flags(ICOND) == 1) then
-       value1  => T1%properties(ICOND)%values(:, dt1, T1%tmp)
-       value2  => T1%properties(ICOND)%values(:, dt2, T1%tmp)
-
        ! J-J correlation is not following Simone's trick of link correlation here
        ! here use standard definition <sum_ij jx(i,tau)*jx(j,0)>
        ! Only for q=0 component
        ! IMPORTANT: the indices of Gtau(1:nsites) and T1ilt(0:nsites-1) are different 
        ! e.g. T1%hopup(i-1,T1%rt(i-1))
+
+       ! Dec.9, 2015
+       ! It is interesting to compute spin-dependent conductivity
+       ! See RTS email Oct.20, 2013 for further projects
+
+       ! First compute cond from spin up
+       value1  => T1%properties(ICONDup)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(ICONDup)%values(:, dt2, T1%tmp)
 
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
@@ -684,6 +693,7 @@ contains
             b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
             c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
             d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+
             ! up*up terms (note two ways for contraction!)           
             value1(1) = value1(1) - a* &
                         (-upt0(i,T1%rt(j))*up0t(j,T1%rt(i)) - upt0(T1%rt(i),j)*up0t(T1%rt(j),i) &
@@ -691,26 +701,19 @@ contains
             value1(1) = value1(1) - a* &
                         ( uptt(i,T1%rt(i))*up00(j,T1%rt(j)) - uptt(T1%rt(i),i)*up00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*up00(T1%rt(j),j) + uptt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
-            ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
-                        (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
-                         +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))*0.5_wp
-            value1(1) = value1(1) - b* &
-                        ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
             ! up*dn terms
             value1(1) = value1(1) - c* &
                         ( uptt(i,T1%rt(i))*dn00(j,T1%rt(j)) + uptt(T1%rt(i),i)*dn00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*dn00(T1%rt(j),j) - uptt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
-            ! dn*up terms
-            value1(1) = value1(1) - d* &
-                        ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
 
+            ! Below assuming isotropic system
+            ! for averaging over x and y directions
+            ! for anisotropic systems, need to modify this part
             a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
             b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
             c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
             d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+
             ! up*up terms (note two ways for contraction!)
             value1(1) = value1(1) - a* &
                         (-upt0(i,T1%up(j))*up0t(j,T1%up(i)) - upt0(T1%up(i),j)*up0t(T1%up(j),i) &
@@ -718,21 +721,10 @@ contains
             value1(1) = value1(1) - a* &
                         ( uptt(i,T1%up(i))*up00(j,T1%up(j)) - uptt(T1%up(i),i)*up00(T1%up(j),j) &
                          -uptt(i,T1%up(i))*up00(T1%up(j),j) + uptt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
-            ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
-                        (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
-                         +dnt0(i,j)*dn0t(T1%up(j),T1%up(i)) + dnt0(T1%up(i),T1%up(j))*dn0t(j,i))*0.5_wp
-            value1(1) = value1(1) - b* &
-                        ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
-                         -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
             ! up*dn terms
             value1(1) = value1(1) - c* &
                         ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
                          -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
-            ! dn*up terms
-            value1(1) = value1(1) - d* &
-                        ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
-                         -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
   
             ! value2: see the rules at the beginning of routine
             a = T1%hopup(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
@@ -746,21 +738,10 @@ contains
             value2(1) = value2(1) - a* &
                         ( uptt(j,T1%rt(j))*up00(i,T1%rt(i)) - uptt(T1%rt(j),j)*up00(T1%rt(i),i) &
                          -uptt(j,T1%rt(j))*up00(T1%rt(i),i) + uptt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
-            ! dn*dn terms (note two ways for contraction!)
-            value2(1) = value2(1) - b* &
-                        (-dnt0(j,T1%rt(i))*dn0t(i,T1%rt(j)) - dnt0(T1%rt(j),i)*dn0t(T1%rt(i),j) &
-                         +dnt0(j,i)*dn0t(T1%rt(i),T1%rt(j)) + dnt0(T1%rt(j),T1%rt(i))*dn0t(i,j))*0.5_wp
-            value2(1) = value2(1) - b* &
-                        ( dntt(j,T1%rt(j))*dn00(i,T1%rt(i)) - dntt(T1%rt(j),j)*dn00(T1%rt(i),i) &
-                         -dntt(j,T1%rt(j))*dn00(T1%rt(i),i) + dntt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
             ! up*dn terms
             value2(1) = value2(1) - c* &
                         ( uptt(j,T1%rt(j))*dn00(i,T1%rt(i)) + uptt(T1%rt(j),j)*dn00(T1%rt(i),i) &
                          -uptt(j,T1%rt(j))*dn00(T1%rt(i),i) - uptt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
-            ! dn*up terms
-            value2(1) = value2(1) - d* &
-                        ( dntt(j,T1%rt(j))*up00(i,T1%rt(i)) + dntt(T1%rt(j),j)*up00(T1%rt(i),i) &
-                         -dntt(j,T1%rt(j))*up00(T1%rt(i),i) - dntt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
 
             a = T1%hopup(j,T1%up(j))*T1%hopup(i,T1%up(i))
             b = T1%hopdn(j,T1%up(j))*T1%hopdn(i,T1%up(i))
@@ -773,6 +754,80 @@ contains
             value2(1) = value2(1) - a* &
                         ( uptt(j,T1%up(j))*up00(i,T1%up(i)) - uptt(T1%up(j),j)*up00(T1%up(i),i) &
                          -uptt(j,T1%up(j))*up00(T1%up(i),i) + uptt(T1%up(j),j)*up00(i,T1%up(i)))*0.5_wp
+            ! up*dn terms
+            value2(1) = value2(1) - c* &
+                        ( uptt(j,T1%up(j))*dn00(i,T1%up(i)) + uptt(T1%up(j),j)*dn00(T1%up(i),i) &
+                         -uptt(j,T1%up(j))*dn00(T1%up(i),i) - uptt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
+          end do
+       end do
+
+      ! Compute cond for down spin
+       value1  => T1%properties(ICONDdn)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(ICONDdn)%values(:, dt2, T1%tmp)
+
+       do i = 1,  T1%properties(ICOND)%n
+          do j = 1,  T1%properties(ICOND)%n
+            a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+            b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
+            c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
+            d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+
+            ! dn*dn terms (note two ways for contraction!)
+            value1(1) = value1(1) - b* &
+                        (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
+                         +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))*0.5_wp
+            value1(1) = value1(1) - b* &
+                        ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
+                         -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
+            ! dn*up terms
+            value1(1) = value1(1) - d* &
+                        ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
+                         -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
+
+            ! Below assuming isotropic system
+            ! for averaging over x and y directions
+            ! for anisotropic systems, need to modify this part
+            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
+            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
+            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
+            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+
+            ! dn*dn terms (note two ways for contraction!)
+            value1(1) = value1(1) - b* &
+                        (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
+                         +dnt0(i,j)*dn0t(T1%up(j),T1%up(i)) + dnt0(T1%up(i),T1%up(j))*dn0t(j,i))*0.5_wp
+            value1(1) = value1(1) - b* &
+                        ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
+                         -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
+            ! dn*up terms
+            value1(1) = value1(1) - d* &
+                        ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
+                         -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
+
+            ! value2: see the rules at the beginning of routine
+            a = T1%hopup(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
+            b = T1%hopdn(j,T1%rt(j))*T1%hopdn(i,T1%rt(i))
+            c = T1%hopup(j,T1%rt(j))*T1%hopdn(i,T1%rt(i))
+            d = T1%hopdn(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
+
+            ! dn*dn terms (note two ways for contraction!)
+            value2(1) = value2(1) - b* &
+                        (-dnt0(j,T1%rt(i))*dn0t(i,T1%rt(j)) - dnt0(T1%rt(j),i)*dn0t(T1%rt(i),j) &
+                         +dnt0(j,i)*dn0t(T1%rt(i),T1%rt(j)) + dnt0(T1%rt(j),T1%rt(i))*dn0t(i,j))*0.5_wp
+            value2(1) = value2(1) - b* &
+                        ( dntt(j,T1%rt(j))*dn00(i,T1%rt(i)) - dntt(T1%rt(j),j)*dn00(T1%rt(i),i) &
+                         -dntt(j,T1%rt(j))*dn00(T1%rt(i),i) + dntt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
+            ! dn*up terms
+            value2(1) = value2(1) - d* &
+                        ( dntt(j,T1%rt(j))*up00(i,T1%rt(i)) + dntt(T1%rt(j),j)*up00(T1%rt(i),i) &
+                         -dntt(j,T1%rt(j))*up00(T1%rt(i),i) - dntt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
+
+            ! for averaging over x and y directions
+            a = T1%hopup(j,T1%up(j))*T1%hopup(i,T1%up(i))
+            b = T1%hopdn(j,T1%up(j))*T1%hopdn(i,T1%up(i))
+            c = T1%hopup(j,T1%up(j))*T1%hopdn(i,T1%up(i))
+            d = T1%hopdn(j,T1%up(j))*T1%hopup(i,T1%up(i))
+
             ! dn*dn terms (note two ways for contraction!)
             value2(1) = value2(1) - b* &
                         (-dnt0(j,T1%up(i))*dn0t(i,T1%up(j)) - dnt0(T1%up(j),i)*dn0t(T1%up(i),j) &
@@ -780,16 +835,17 @@ contains
             value2(1) = value2(1) - b* &
                         ( dntt(j,T1%up(j))*dn00(i,T1%up(i)) - dntt(T1%up(j),j)*dn00(T1%up(i),i) &
                          -dntt(j,T1%up(j))*dn00(T1%up(i),i) + dntt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
-            ! up*dn terms
-            value2(1) = value2(1) - c* &
-                        ( uptt(j,T1%up(j))*dn00(i,T1%up(i)) + uptt(T1%up(j),j)*dn00(T1%up(i),i) &
-                         -uptt(j,T1%up(j))*dn00(T1%up(i),i) - uptt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
             ! dn*up terms
             value2(1) = value2(1) - d* &
                         ( dntt(j,T1%up(j))*up00(i,T1%up(i)) + dntt(T1%up(j),j)*up00(T1%up(i),i) &
                          -dntt(j,T1%up(j))*up00(T1%up(i),i) - dntt(T1%up(j),j)*up00(i,T1%up(i)))*0.5_wp
           end do
        end do
+
+       ! sum for conventional total conductivity
+       T1%properties(ICOND)%values(:,dt1,T1%tmp) = T1%properties(ICONDup)%values(:,dt1,T1%tmp) + T1%properties(ICONDdn)%values(:,dt1,T1%tmp)
+       T1%properties(ICOND)%values(:,dt2,T1%tmp) = T1%properties(ICONDup)%values(:,dt2,T1%tmp) + T1%properties(ICONDdn)%values(:,dt2,T1%tmp)
+
      endif
 
     else
@@ -875,7 +931,10 @@ contains
      endif
 
      if (T1%flags(ICOND) == 1) then
-       value1  => T1%properties(ICOND)%values(:, dt1, T1%tmp)
+       
+       ! First compute cond from spin up
+       value1  => T1%properties(ICONDup)%values(:, dt1, T1%tmp)
+
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
             a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
@@ -889,21 +948,10 @@ contains
             value1(1) = value1(1) - a* &
                         ( uptt(i,T1%rt(i))*up00(j,T1%rt(j)) - uptt(T1%rt(i),i)*up00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*up00(T1%rt(j),j) + uptt(T1%rt(i),i)*up00(j,T1%rt(j)))
-            ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
-                        (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
-                         +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))
-            value1(1) = value1(1) - b* &
-                        ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))
             ! up*dn terms
             value1(1) = value1(1) - c* &
                         ( uptt(i,T1%rt(i))*dn00(j,T1%rt(j)) + uptt(T1%rt(i),i)*dn00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*dn00(T1%rt(j),j) - uptt(T1%rt(i),i)*dn00(j,T1%rt(j)))
-            ! dn*up terms
-            value1(1) = value1(1) - d* &
-                        ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))
 
             a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
             b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
@@ -916,6 +964,39 @@ contains
             value1(1) = value1(1) - a* &
                         ( uptt(i,T1%up(i))*up00(j,T1%up(j)) - uptt(T1%up(i),i)*up00(T1%up(j),j) &
                          -uptt(i,T1%up(i))*up00(T1%up(j),j) + uptt(T1%up(i),i)*up00(j,T1%up(j)))
+            ! up*dn terms
+            value1(1) = value1(1) - c* &
+                        ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
+                         -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))
+          end do
+       end do
+
+       ! Compute cond for down spin
+       value1  => T1%properties(ICONDdn)%values(:, dt1, T1%tmp)
+       do i = 1,  T1%properties(ICOND)%n
+          do j = 1,  T1%properties(ICOND)%n
+            a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+            b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
+            c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
+            d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+
+            ! dn*dn terms (note two ways for contraction!)
+            value1(1) = value1(1) - b* &
+                        (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
+                         +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))
+            value1(1) = value1(1) - b* &
+                        ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
+                         -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))
+            ! dn*up terms
+            value1(1) = value1(1) - d* &
+                        ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
+                         -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))
+
+            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
+            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
+            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
+            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+
             ! dn*dn terms (note two ways for contraction!)
             value1(1) = value1(1) - b* &
                         (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
@@ -923,16 +1004,16 @@ contains
             value1(1) = value1(1) - b* &
                         ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
                          -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))
-            ! up*dn terms
-            value1(1) = value1(1) - c* &
-                        ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
-                         -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))
             ! dn*up terms
             value1(1) = value1(1) - d* &
                         ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
                          -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))
           end do
        end do
+
+       ! sum for conventional total conductivity
+       T1%properties(ICOND)%values(:,dt1,T1%tmp) = T1%properties(ICONDup)%values(:,dt1,T1%tmp) + T1%properties(ICONDdn)%values(:,dt1,T1%tmp)
+
      endif
 
     endif

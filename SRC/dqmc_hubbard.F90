@@ -107,6 +107,7 @@ module DQMC_Hubbard
      integer  :: nWarm                 ! Number of warm up step
      integer  :: nPass                 ! Number of measurement step
      integer  :: nTry                  ! Number of global move
+     integer  :: nTry2                 ! Number of global move during warmup
      real(wp) :: gamma                 ! Parameters for Metopolis alg
      
      integer  :: nAccept               ! The following parameters  
@@ -176,7 +177,7 @@ contains
     ! ... Local Variables ...
     integer :: n_t, n_U, n_mu, L, HSF, nWarm, nPass
     integer :: accept, reject, HSFtype, fixw, tdm
-    integer :: seed, nOrth, nWrap, nTry, nBin, nMeas, ntausk, ssxx
+    integer :: seed, nOrth, nWrap, nTry, nTry2, nBin, nMeas, ntausk, ssxx
     character(len=slen) :: HSF_ipt, HSF_opt
     logical :: valid
     real(wp), pointer :: t_up(:) => null()
@@ -205,6 +206,7 @@ contains
     call CFG_Get(cfg, "tdm",     tdm)
     call CFG_Get(cfg, "nbin",    nBin)
     call CFG_Get(cfg, "ntry",    nTry)
+    call CFG_Get(cfg, "ntry2",   nTry2)
     call CFG_Get(cfg, "seed",    seed)
     call CFG_Get(cfg, "nwrap",   nWrap)
     call CFG_Get(cfg, "north",   nOrth)
@@ -265,7 +267,7 @@ contains
     
     ! call the function
     call DQMC_Hub_Init(Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
-       HSF, nWarm, nPass, nMeas, nTry, nBin, ntausk, seed, nOrth, nWrap, fixw, &
+       HSF, nWarm, nPass, nMeas, nTry, nTry2, nBin, ntausk, seed, nOrth, nWrap, fixw, &
        errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype)
     
     call CFG_Set(cfg, "n", Hub%n)
@@ -276,7 +278,7 @@ contains
   !---------------------------------------------------------------------!
 
   subroutine DQMC_Hub_Init(Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
-       HSF_IPT, nWarm, nPass, nMeas, nTry, nBin, ntausk, seed, nOrth, nWrap, fixw, &
+       HSF_IPT, nWarm, nPass, nMeas, nTry, nTry2, nBin, ntausk, seed, nOrth, nWrap, fixw, &
        errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype)
     !
     ! Purpose
@@ -309,7 +311,7 @@ contains
     real(wp), intent(in)  :: mu_up(:), mu_dn(:), dtau  ! Parameters
     integer,  intent(in)  :: L, n_t, n_U, n_mu
     integer,  intent(in)  :: HSF_IPT, seed, ssxx
-    integer,  intent(in)  :: nWarm, nPass, nOrth, nTry, HSFtype
+    integer,  intent(in)  :: nWarm, nPass, nOrth, nTry, nTry2, HSFtype
     integer,  intent(in)  :: nMeas, nBin, ntausk, nWrap, fixw, accept, reject
     real(wp), intent(in)  :: errrate, difflim, gamma, delta1, delta2
 
@@ -408,6 +410,7 @@ contains
     Hub%nPass    = nPass
     Hub%nMeas    = nMeas
     Hub%nTry     = nTry
+    Hub%nTry2    = nTry2
     Hub%tausk    = ntausk
 
     ! Initialize random seeds
@@ -922,6 +925,7 @@ contains
        write(OPT,FMT_STRINT)  "                Random seed : ", Hub%idum
        write(OPT,FMT_STRINT)  " Frequency of recomputing G : ", Hub%G_up%nWrap
        write(OPT,FMT_STRINT)  "Global move number of sites : ", Hub%nTry
+       write(OPT,FMT_STRINT)  "Global move in warmup       : ", Hub%nTry2
        write(OPT,FMT_STRINT)  "               Accept count : ", Hub%naccept
        write(OPT,FMT_STRINT)  "               Reject count : ", Hub%nreject
        write(OPT,FMT_STRDBL)  "    Approximate accept rate : ", &

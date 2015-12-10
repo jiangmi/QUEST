@@ -32,7 +32,7 @@ program dqmc_ggeom
   real(wp)            :: randn(1)
   integer, pointer    :: flags(:)      ! 8 possible tdm1 quantities
   integer             :: nflag
-  integer             :: ntry2, FTphy0, FTtdm
+  integer             :: ntry2, FTphy0, FTtdm, SelfE
 
   call cpu_time(t1)  
 
@@ -56,6 +56,7 @@ program dqmc_ggeom
   call CFG_Get(cfg, "tdm"   , comp_tdm)
   call CFG_Get(cfg, "FTphy0", FTphy0)
   call CFG_Get(cfg, "FTtdm" , FTtdm)
+  call CFG_Get(cfg, "SelfE" , SelfE)
 
   !if (nhist > 0) then
   !   call DQMC_open_file(adjustl(trim(ofile))//'.HSF.stream','unknown', HSF_output_file_unit)
@@ -103,7 +104,7 @@ program dqmc_ggeom
        if (mod(i, 10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
      endif
      call DQMC_Hub_Sweep(Hub, NO_MEAS0)   ! NO_MEAS0 = -1, parameter defined in dqmc_hubbard.F90
-     call DQMC_Hub_Sweep2(Hub, ntry2)  ! sweep2 is for global move update
+     call DQMC_Hub_Sweep2(Hub, ntry2)     ! sweep2 is for global move update
   end do
 
   call cpu_time(t3)
@@ -217,10 +218,16 @@ program dqmc_ggeom
     write(*,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
   endif
 
- ! ============================================================================================
- ! Print results at root:
- if (qmc_sim%rank == qmc_sim%aggr_root) then
+  ! ============================================================================================
+  ! Print results at root
+  if (qmc_sim%rank == qmc_sim%aggr_root) then
+
     call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
+    if (comp_tdm > 0) then
+      call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
+      call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
+    endif
+
     write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
                "STARTING JOB: ", mons(values(2)), " ", values(3), "  ", &
                values(5), ":", values(6), ":", values(7), "  ", values(1)
@@ -241,18 +248,17 @@ program dqmc_ggeom
     write(OPT,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
     write(OPT,*) "============================================================================"
 
-   !Print P0 results
-   call DQMC_Hub_OutputParam(Hub, OPT)
-   call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
+  endif ! end if (qmc_sim%rank == qmc_sim%aggr_root)
 
-   !Print tdm and G(tau) local
-   if (comp_tdm > 0) then
-     call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
-     call DQMC_TDM1_Print(tm, TDM_UNIT)
-     call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
-     call DQMC_TDM1_Print1(tm, OPT1)
-   endif
- endif ! end if (qmc_sim%rank == qmc_sim%aggr_root)
+  !Print P0 results: determine if qmc_sim%rank==0 in subroutines
+  call DQMC_Hub_OutputParam(Hub, OPT)
+  call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
+
+  !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
+  if (comp_tdm > 0) then
+    call DQMC_TDM1_Print(tm, TDM_UNIT)
+    call DQMC_TDM1_Print1(tm, OPT1)
+  endif
 
 ! ==============  Fourier transform ============================================
   !Compute Fourier transform
@@ -273,6 +279,8 @@ program dqmc_ggeom
   if (FTtdm > 0)  then
     call DQMC_TDM1_GetKFT(tm)
     call DQMC_TDM1_GetErrKFT(tm)
+  endif
+  if (SelfE > 0)  then
     call DQMC_TDM1_SelfEnergy(tm, tau)
   endif
 
@@ -285,6 +293,8 @@ program dqmc_ggeom
   endif
   if (FTtdm > 0) then
      call DQMC_TDM1_PrintKFT(tm, TDM_UNIT)
+  endif
+  if (SelfE > 0)  then
      call DQMC_TDM1_Print_SelfEnergy(tm, TDM_UNIT)
   endif
 

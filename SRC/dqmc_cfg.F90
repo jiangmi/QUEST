@@ -33,7 +33,7 @@ module DQMC_Cfg
   integer, parameter :: TYPE_STRING  = 3 
 
   ! default parameters
-  integer, parameter :: N_Param = 44
+  integer, parameter :: N_Param = 45
 
   ! name of parameters
   ! HSF parameter in dqmc_hubbard.F90
@@ -90,7 +90,8 @@ module DQMC_Cfg
        &  "flags  ", &    ! if to compute tdm quantities
        &  "ntry2  ", &    ! global move in warmup, can differ from ntry in meas
        &  "FTphy0 ", &    ! if to compute FT for phy0  
-       &  "FTtdm  "/)     ! if to compute FT for tdm
+       &  "FTtdm  ", &    ! if to compute FT for tdm
+       &  "SelfE  "/)     ! if to compute self-energy
 
   ! default values
   character(len=*), parameter :: PARAM_DVAL(N_Param) =  &
@@ -137,7 +138,8 @@ module DQMC_Cfg
        &  "1       ", &    ! flags
        &  "0       ", &    ! global warm
        &  "0       ", &    ! FTphy0
-       &  "0"/)            ! FTtdm
+       &  "0       ", &    ! FTtdm
+       &  "0"/)            ! SelfE
  
   ! parameter type
   integer, parameter :: PARAM_TYPE(N_Param) = &
@@ -184,7 +186,8 @@ module DQMC_Cfg
        &  TYPE_INTEGER, &    ! flags
        &  TYPE_INTEGER, &    ! global warm
        &  TYPE_INTEGER, &    ! FTphy0
-       &  TYPE_INTEGER/)     ! FTtdm
+       &  TYPE_INTEGER, &    ! FTtdm
+       &  TYPE_INTEGER/)     ! SelfE
 
   ! is array parameter
   logical, parameter :: PARAM_ARRAY(N_Param) = &
@@ -231,7 +234,8 @@ module DQMC_Cfg
        &  .true. ,&           ! flags
        &  .false.,&           ! globalwarm
        &  .false.,&           ! FTphy0
-       &  .false./)           ! FTtdm
+       &  .false.,&           ! FTtdm
+       &  .false./)           ! SelfE
 
   !
   ! Data Type
@@ -1123,8 +1127,8 @@ contains
 
           ! some possible errors
           if (id==41) then
-             if (n/=8) then
-                call DQMC_Error("There should be 8 tdm flags, check input !",0)
+             if (n/=10) then
+                call DQMC_Error("There should be 10 tdm flags, check input !",0)
              endif
              if (value(1)==0) then
                 call DQMC_Error("GFUN(tau) has to be computed in tdm !",0)

@@ -92,28 +92,30 @@ module DQMC_Phy0
   integer, parameter :: P0_NDN       = 2
   integer, parameter :: P0_NUD       = 3
   integer, parameter :: P0_KE        = 4
-  integer, parameter :: P0_ENERGY    = 5
-  integer, parameter :: P0_DENSITY   = 6
-  integer, parameter :: P0_CHIT      = 7
-  integer, parameter :: P0_CV        = 8
+  integer, parameter :: P0_KE_UP     = 5
+  integer, parameter :: P0_KE_DN     = 6
+  integer, parameter :: P0_ENERGY    = 7
+  integer, parameter :: P0_DENSITY   = 8
+  integer, parameter :: P0_CHIT      = 9
+  integer, parameter :: P0_CV        = 10
 
-  integer, parameter :: P0_SFERRO    = 9
-  integer, parameter :: P0_SFER2     = 10
-  integer, parameter :: P0_SAF       = 11
-  integer, parameter :: P0_SAFSQ     = 12
-  integer, parameter :: P0_SAF2      = 13
-  integer, parameter :: P0_SAF2SQ    = 14
-  integer, parameter :: P0_CDW       = 15
-  integer, parameter :: P0_NNPROD    = 16
-  integer, parameter :: P0_NNSUM     = 17
+  integer, parameter :: P0_SFERRO    = 11
+  integer, parameter :: P0_SFER2     = 12
+  integer, parameter :: P0_SAF       = 13
+  integer, parameter :: P0_SAFSQ     = 14
+  integer, parameter :: P0_SAF2      = 15
+  integer, parameter :: P0_SAF2SQ    = 16
+  integer, parameter :: P0_CDW       = 17
+  integer, parameter :: P0_NNPROD    = 18
+  integer, parameter :: P0_NNSUM     = 19
 
-  integer, parameter :: P0_potential_energy      = 18
-  integer, parameter :: P0_hopping_energy        = 19
-  integer, parameter :: P0_double_occupancy      = 20
-  integer, parameter :: P0_magnetisation_squared = 21
+  integer, parameter :: P0_potential_energy      = 20
+  integer, parameter :: P0_hopping_energy        = 21
+  integer, parameter :: P0_double_occupancy      = 22
+  integer, parameter :: P0_magnetisation_squared = 23
 
-  integer, parameter :: P0_N_NO_SAF  = 10
-  integer, parameter :: P0_N         = 21
+  integer, parameter :: P0_N_NO_SAF  = 12
+  integer, parameter :: P0_N         = 23
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -126,6 +128,8 @@ module DQMC_Phy0
        "        Down spin occupancy : ", &
        "             <U*N_up*N_dn>  : ", &
        "             Kinetic energy : ", &
+       "          UP Kinetic energy : ", &
+       "          DN Kinetic energy : ", &
        "               Total energy : ", &
        "                    Density : ", &
        "                Chi_thermal : ", &
@@ -777,16 +781,25 @@ contains
     ! loop all adj sites
     do i = 1, n  ! for each column
        do j = start(i), start(i + 1)-1 ! for each nonzero elements
-          P0%meas(P0_KE, tmp) =  P0%meas(P0_KE, tmp) + &
-               t_up(A(j)) * G_up(r(j), i)               + &
-               t_dn(A(j)) * G_dn(r(j), i)
-          P0%meas(P0_hopping_energy, tmp) = P0%meas(P0_hopping_energy, tmp) + &
-               t_up(A(j)) * G_up(r(j), i)               + &
-               t_dn(A(j)) * G_dn(r(j), i)
+
+          var1 = t_up(A(j)) * G_up(r(j), i)
+          var2 = t_dn(A(j)) * G_dn(r(j), i)
+          var3 = var1 + var2
+
+          P0%meas(P0_KE_UP, tmp) =  P0%meas(P0_KE_UP, tmp) + var1
+          P0%meas(P0_KE_DN, tmp) =  P0%meas(P0_KE_DN, tmp) + var2
+          P0%meas(P0_KE, tmp)    =  P0%meas(P0_KE, tmp)    + var3
+
+          P0%meas(P0_hopping_energy, tmp) = P0%meas(P0_hopping_energy, tmp) + var3
        end do
-       P0%meas(P0_KE, tmp)  = P0%meas(P0_KE, tmp)            - &
-            (mu_up(S%Map(i)) + 0.5d0 * U(S%map(i))) * P0%up(i) - &
-            (mu_dn(S%Map(i)) + 0.5d0 * U(S%map(i))) * P0%dn(i)            
+
+       var1 = (mu_up(S%Map(i)) + 0.5d0 * U(S%map(i))) * P0%up(i)
+       var2 = (mu_dn(S%Map(i)) + 0.5d0 * U(S%map(i))) * P0%dn(i)
+       var3 = var1 + var2
+
+       P0%meas(P0_KE_UP, tmp)  = P0%meas(P0_KE_UP, tmp) - var1
+       P0%meas(P0_KE_DN, tmp)  = P0%meas(P0_KE_DN, tmp) - var2
+       P0%meas(P0_KE, tmp)     = P0%meas(P0_KE, tmp)    - var3
     end do
 
     !=================================================================!

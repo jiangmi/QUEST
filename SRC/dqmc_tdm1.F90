@@ -50,7 +50,7 @@ module DQMC_TDM1
   end type tdmarray
 
   ! Index of the array varaiables
-  integer, parameter  :: NTDMARRAY = 10 
+  integer, parameter  :: NTDMARRAY = 10
   integer, parameter  :: IGFUN = 1
   integer, parameter  :: IGFUP = 2
   integer, parameter  :: IGFDN = 3
@@ -108,6 +108,10 @@ module DQMC_TDM1
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
 
+     ! curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy
+     complex(wp), pointer :: Dsqx(:,:), Dsqxup(:,:), Dsqxdn(:,:)
+     complex(wp), pointer :: Dsqy(:,:), Dsqyup(:,:), Dsqydn(:,:)
+
      ! 08/15/2015
      ! used for conductivity, d-wave paring sus etc.
      integer, ALLOCATABLE     :: rt(:), lf(:), up(:), dn(:)
@@ -119,7 +123,7 @@ module DQMC_TDM1
      complex(wp), pointer :: SEavg(:,:,:,:,:), SEerr(:,:,:,:,:)
 
   end type TDM1
-  
+ 
 contains
 
  !--------------------------------------------------------------------!
@@ -143,7 +147,8 @@ contains
     type(GeomWrap), intent(in):: Gwrap
 
     ! ... local variables ...
-    integer     :: i,j
+    integer     :: i,j,Ly
+    real(wp)    :: qy 
 
     ! ... Executable ...
 
@@ -192,13 +197,15 @@ contains
    
     ! IMPORTANT: the indices of Gtau(1:nsites) and hamilt(0:nsites-1) are different
     ! Note difference from rt etc. in dqmc_hamilt.F90
+    ! So switch the values to from 1 to nSite, instead of 0 to nSite-1
+    ! should be correct for any unit cell definition
     allocate(T1%rt(1:S%nSite))
     allocate(T1%lf(1:S%nSite))
     allocate(T1%up(1:S%nSite))
     allocate(T1%dn(1:S%nSite))
     allocate(T1%hopup(1:S%nSite,1:S%nSite))
     allocate(T1%hopdn(1:S%nSite,1:S%nSite))
-    ! switch the values to from 1 to nSite, instead of 0 to nSite-1
+
     do i = 1, S%nSite
        T1%rt(i) = Gwrap%Hamilt%rt(i-1)+1
        T1%lf(i) = Gwrap%Hamilt%lf(i-1)+1
@@ -322,7 +329,9 @@ contains
        case(ICOND, ICONDup, ICONDdn)
 
           nk = Gwrap%GammaLattice%nclass_k
-          nclass = 1
+          ! originally nClass=1 for only q=0 components of conductivity
+          ! modify nClass=1 to be same as other quantities
+          nclass = S%nClass
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
 
@@ -330,19 +339,20 @@ contains
           T1%properties(iprop)%n      =  S%nSite
           T1%properties(iprop)%nclass =  nClass
           T1%properties(iprop)%D      => S%D
+          T1%properties(iprop)%F      => S%F
           T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
           T1%properties(iprop)%np     =  np
           T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
           T1%properties(iprop)%ftw    => T1%ftwbos
           T1%properties(iprop)%phase  => S%chi_phase
+          T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valuesk(nk*npp,0:T1%L-1,T1%err))
 
-          allocate(T1%properties(iprop)%clabel(nclass))
-          T1%properties(iprop)%clabel(1)=" "
         ! used in meas for average, for conductivity, renormalized by lattice size
-          allocate(T1%properties(iprop)%F(nclass))
-          T1%properties(iprop)%F(1) = S%nSite*2   ! *2 is for averaging x and y directions
+        ! Below two lines are original for nClass=1 due to only q=0 components
+        !  allocate(T1%properties(iprop)%F(nclass))
+        !  T1%properties(iprop)%F(1) = S%nSite*2   ! *2 is for averaging x and y directions
      end select
 
      T1%properties(iprop)%values  = 0.0_wp
@@ -536,13 +546,18 @@ contains
 
     integer  :: i, j, k, dt, dt1, dt2
     real*8   :: a,b,c,d  
-    real(wp), pointer :: value1(:), value2(:)
+    real(wp), pointer :: value1(:), value2(:), value3(:), value4(:)
     real(wp) :: factor
 
 
     ! ... Executable ...
     if (.not.T1%compute) return
 
+    ! Below dt1 and dt2's length switch for two cases
+    ! Also factor=0.25 comes from two 0.5 factors
+    ! one is for double counting of site loops
+    ! the other for average G(i0,it) = (G(i0,it)+G(it,i0))*0.5,
+    ! which only applies for it != i0, 
     dt = it - i0
     if (dt .gt. 0) then
        ! it > i0
@@ -561,9 +576,10 @@ contains
     endif
 
     if (dt .ne. 0) then
-       ! value2 is for dt>0: G(beta-t,0) = -G(-t,0) = -G(0,t)
-       !               dt<0: G(-t,0) = -G(beta-t,0)
-       ! Some rules for value1 --> value2:
+       ! value2:
+       ! for dt>0: G(dt2,0) = G(beta-dt1,0) = -G(-dt1,0) = -G(0,dt1)
+       !     dt<0: G(dt2,0) = G(-dt,0) = G(beta-dt1,0) = -G(-dt1,0) = -G(0,dt1)
+       ! So rules for value1 --> value2:
        ! upt0 <--> -up0t, dnt0 <--> -dn0t
        ! uptt <--> up00, dntt <--> dn00
        ! If G's appear as a pair product, do not need since the product 
@@ -689,75 +705,70 @@ contains
 
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
+
+            k = T1%properties(ICOND)%D(i,j)
+
             a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
-            b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
             c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
-            d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
 
             ! up*up terms (note two ways for contraction!)           
-            value1(1) = value1(1) - a* &
+            value1(k) = value1(k) - a* &
                         (-upt0(i,T1%rt(j))*up0t(j,T1%rt(i)) - upt0(T1%rt(i),j)*up0t(T1%rt(j),i) &
                          +upt0(i,j)*up0t(T1%rt(j),T1%rt(i)) + upt0(T1%rt(i),T1%rt(j))*up0t(j,i))*0.5_wp
-            value1(1) = value1(1) - a* &
+            value1(k) = value1(k) - a* &
                         ( uptt(i,T1%rt(i))*up00(j,T1%rt(j)) - uptt(T1%rt(i),i)*up00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*up00(T1%rt(j),j) + uptt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
             ! up*dn terms
-            value1(1) = value1(1) - c* &
+            value1(k) = value1(k) - c* &
                         ( uptt(i,T1%rt(i))*dn00(j,T1%rt(j)) + uptt(T1%rt(i),i)*dn00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*dn00(T1%rt(j),j) - uptt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
 
             ! Below assuming isotropic system
             ! for averaging over x and y directions
             ! for anisotropic systems, need to modify this part
-            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
-            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+!            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
+!            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
 
             ! up*up terms (note two ways for contraction!)
-            value1(1) = value1(1) - a* &
-                        (-upt0(i,T1%up(j))*up0t(j,T1%up(i)) - upt0(T1%up(i),j)*up0t(T1%up(j),i) &
-                         +upt0(i,j)*up0t(T1%up(j),T1%up(i)) + upt0(T1%up(i),T1%up(j))*up0t(j,i))*0.5_wp
-            value1(1) = value1(1) - a* &
-                        ( uptt(i,T1%up(i))*up00(j,T1%up(j)) - uptt(T1%up(i),i)*up00(T1%up(j),j) &
-                         -uptt(i,T1%up(i))*up00(T1%up(j),j) + uptt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
+!            value1(k) = value1(k) - a* &
+!                        (-upt0(i,T1%up(j))*up0t(j,T1%up(i)) - upt0(T1%up(i),j)*up0t(T1%up(j),i) &
+!                         +upt0(i,j)*up0t(T1%up(j),T1%up(i)) + upt0(T1%up(i),T1%up(j))*up0t(j,i))*0.5_wp
+!            value1(k) = value1(k) - a* &
+!                        ( uptt(i,T1%up(i))*up00(j,T1%up(j)) - uptt(T1%up(i),i)*up00(T1%up(j),j) &
+!                         -uptt(i,T1%up(i))*up00(T1%up(j),j) + uptt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
             ! up*dn terms
-            value1(1) = value1(1) - c* &
-                        ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
-                         -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
+!            value1(k) = value1(k) - c* &
+!                        ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
+!                         -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
   
             ! value2: see the rules at the beginning of routine
             a = T1%hopup(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
-            b = T1%hopdn(j,T1%rt(j))*T1%hopdn(i,T1%rt(i))
             c = T1%hopup(j,T1%rt(j))*T1%hopdn(i,T1%rt(i))
-            d = T1%hopdn(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
             ! up*up terms
-            value2(1) = value2(1) - a* &
+            value2(k) = value2(k) - a* &
                         (-upt0(j,T1%rt(i))*up0t(i,T1%rt(j)) - upt0(T1%rt(j),i)*up0t(T1%rt(i),j) &
                          +upt0(j,i)*up0t(T1%rt(i),T1%rt(j)) + upt0(T1%rt(j),T1%rt(i))*up0t(i,j))*0.5_wp
-            value2(1) = value2(1) - a* &
+            value2(k) = value2(k) - a* &
                         ( uptt(j,T1%rt(j))*up00(i,T1%rt(i)) - uptt(T1%rt(j),j)*up00(T1%rt(i),i) &
                          -uptt(j,T1%rt(j))*up00(T1%rt(i),i) + uptt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
             ! up*dn terms
-            value2(1) = value2(1) - c* &
+            value2(k) = value2(k) - c* &
                         ( uptt(j,T1%rt(j))*dn00(i,T1%rt(i)) + uptt(T1%rt(j),j)*dn00(T1%rt(i),i) &
                          -uptt(j,T1%rt(j))*dn00(T1%rt(i),i) - uptt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
 
-            a = T1%hopup(j,T1%up(j))*T1%hopup(i,T1%up(i))
-            b = T1%hopdn(j,T1%up(j))*T1%hopdn(i,T1%up(i))
-            c = T1%hopup(j,T1%up(j))*T1%hopdn(i,T1%up(i))
-            d = T1%hopdn(j,T1%up(j))*T1%hopup(i,T1%up(i))
+!            a = T1%hopup(j,T1%up(j))*T1%hopup(i,T1%up(i))
+!            c = T1%hopup(j,T1%up(j))*T1%hopdn(i,T1%up(i))
             ! up*up terms
-            value2(1) = value2(1) - a* &
-                        (-upt0(j,T1%up(i))*up0t(i,T1%up(j)) - upt0(T1%up(j),i)*up0t(T1%up(i),j) &
-                         +upt0(j,i)*up0t(T1%up(i),T1%up(j)) + upt0(T1%up(j),T1%up(i))*up0t(i,j))*0.5_wp
-            value2(1) = value2(1) - a* &
-                        ( uptt(j,T1%up(j))*up00(i,T1%up(i)) - uptt(T1%up(j),j)*up00(T1%up(i),i) &
-                         -uptt(j,T1%up(j))*up00(T1%up(i),i) + uptt(T1%up(j),j)*up00(i,T1%up(i)))*0.5_wp
+!            value2(k) = value2(k) - a* &
+!                        (-upt0(j,T1%up(i))*up0t(i,T1%up(j)) - upt0(T1%up(j),i)*up0t(T1%up(i),j) &
+!                         +upt0(j,i)*up0t(T1%up(i),T1%up(j)) + upt0(T1%up(j),T1%up(i))*up0t(i,j))*0.5_wp
+!            value2(k) = value2(k) - a* &
+!                        ( uptt(j,T1%up(j))*up00(i,T1%up(i)) - uptt(T1%up(j),j)*up00(T1%up(i),i) &
+!                         -uptt(j,T1%up(j))*up00(T1%up(i),i) + uptt(T1%up(j),j)*up00(i,T1%up(i)))*0.5_wp
             ! up*dn terms
-            value2(1) = value2(1) - c* &
-                        ( uptt(j,T1%up(j))*dn00(i,T1%up(i)) + uptt(T1%up(j),j)*dn00(T1%up(i),i) &
-                         -uptt(j,T1%up(j))*dn00(T1%up(i),i) - uptt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
+!            value2(k) = value2(k) - c* &
+!                        ( uptt(j,T1%up(j))*dn00(i,T1%up(i)) + uptt(T1%up(j),j)*dn00(T1%up(i),i) &
+!                         -uptt(j,T1%up(j))*dn00(T1%up(i),i) - uptt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
           end do
        end do
 
@@ -767,84 +778,81 @@ contains
 
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
-            a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+
+            k = T1%properties(ICOND)%D(i,j)
+
             b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
-            c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
             d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
 
             ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
+            value1(k) = value1(k) - b* &
                         (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
                          +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))*0.5_wp
-            value1(1) = value1(1) - b* &
+            value1(k) = value1(k) - b* &
                         ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
                          -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
             ! dn*up terms
-            value1(1) = value1(1) - d* &
+            value1(k) = value1(k) - d* &
                         ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
                          -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
 
             ! Below assuming isotropic system
             ! for averaging over x and y directions
             ! for anisotropic systems, need to modify this part
-            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
-            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+!            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
+!            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
 
             ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
-                        (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
-                         +dnt0(i,j)*dn0t(T1%up(j),T1%up(i)) + dnt0(T1%up(i),T1%up(j))*dn0t(j,i))*0.5_wp
-            value1(1) = value1(1) - b* &
-                        ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
-                         -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
+!            value1(k) = value1(k) - b* &
+!                        (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
+!                         +dnt0(i,j)*dn0t(T1%up(j),T1%up(i)) + dnt0(T1%up(i),T1%up(j))*dn0t(j,i))*0.5_wp
+!            value1(k) = value1(k) - b* &
+!                        ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
+!                         -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))*0.5_wp
             ! dn*up terms
-            value1(1) = value1(1) - d* &
-                        ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
-                         -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
+!            value1(k) = value1(k) - d* &
+!                        ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
+!                         -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))*0.5_wp
 
             ! value2: see the rules at the beginning of routine
-            a = T1%hopup(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
             b = T1%hopdn(j,T1%rt(j))*T1%hopdn(i,T1%rt(i))
-            c = T1%hopup(j,T1%rt(j))*T1%hopdn(i,T1%rt(i))
             d = T1%hopdn(j,T1%rt(j))*T1%hopup(i,T1%rt(i))
 
             ! dn*dn terms (note two ways for contraction!)
-            value2(1) = value2(1) - b* &
+            value2(k) = value2(k) - b* &
                         (-dnt0(j,T1%rt(i))*dn0t(i,T1%rt(j)) - dnt0(T1%rt(j),i)*dn0t(T1%rt(i),j) &
                          +dnt0(j,i)*dn0t(T1%rt(i),T1%rt(j)) + dnt0(T1%rt(j),T1%rt(i))*dn0t(i,j))*0.5_wp
-            value2(1) = value2(1) - b* &
+            value2(k) = value2(k) - b* &
                         ( dntt(j,T1%rt(j))*dn00(i,T1%rt(i)) - dntt(T1%rt(j),j)*dn00(T1%rt(i),i) &
                          -dntt(j,T1%rt(j))*dn00(T1%rt(i),i) + dntt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
             ! dn*up terms
-            value2(1) = value2(1) - d* &
+            value2(k) = value2(k) - d* &
                         ( dntt(j,T1%rt(j))*up00(i,T1%rt(i)) + dntt(T1%rt(j),j)*up00(T1%rt(i),i) &
                          -dntt(j,T1%rt(j))*up00(T1%rt(i),i) - dntt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
 
             ! for averaging over x and y directions
-            a = T1%hopup(j,T1%up(j))*T1%hopup(i,T1%up(i))
-            b = T1%hopdn(j,T1%up(j))*T1%hopdn(i,T1%up(i))
-            c = T1%hopup(j,T1%up(j))*T1%hopdn(i,T1%up(i))
-            d = T1%hopdn(j,T1%up(j))*T1%hopup(i,T1%up(i))
+!            b = T1%hopdn(j,T1%up(j))*T1%hopdn(i,T1%up(i))
+!            d = T1%hopdn(j,T1%up(j))*T1%hopup(i,T1%up(i))
 
             ! dn*dn terms (note two ways for contraction!)
-            value2(1) = value2(1) - b* &
-                        (-dnt0(j,T1%up(i))*dn0t(i,T1%up(j)) - dnt0(T1%up(j),i)*dn0t(T1%up(i),j) &
-                         +dnt0(j,i)*dn0t(T1%up(i),T1%up(j)) + dnt0(T1%up(j),T1%up(i))*dn0t(i,j))*0.5_wp
-            value2(1) = value2(1) - b* &
-                        ( dntt(j,T1%up(j))*dn00(i,T1%up(i)) - dntt(T1%up(j),j)*dn00(T1%up(i),i) &
-                         -dntt(j,T1%up(j))*dn00(T1%up(i),i) + dntt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
+!            value2(k) = value2(k) - b* &
+!                        (-dnt0(j,T1%up(i))*dn0t(i,T1%up(j)) - dnt0(T1%up(j),i)*dn0t(T1%up(i),j) &
+!                         +dnt0(j,i)*dn0t(T1%up(i),T1%up(j)) + dnt0(T1%up(j),T1%up(i))*dn0t(i,j))*0.5_wp
+!            value2(k) = value2(k) - b* &
+!                        ( dntt(j,T1%up(j))*dn00(i,T1%up(i)) - dntt(T1%up(j),j)*dn00(T1%up(i),i) &
+!                         -dntt(j,T1%up(j))*dn00(T1%up(i),i) + dntt(T1%up(j),j)*dn00(i,T1%up(i)))*0.5_wp
             ! dn*up terms
-            value2(1) = value2(1) - d* &
-                        ( dntt(j,T1%up(j))*up00(i,T1%up(i)) + dntt(T1%up(j),j)*up00(T1%up(i),i) &
-                         -dntt(j,T1%up(j))*up00(T1%up(i),i) - dntt(T1%up(j),j)*up00(i,T1%up(i)))*0.5_wp
+!            value2(k) = value2(k) - d* &
+!                        ( dntt(j,T1%up(j))*up00(i,T1%up(i)) + dntt(T1%up(j),j)*up00(T1%up(i),i) &
+!                         -dntt(j,T1%up(j))*up00(T1%up(i),i) - dntt(T1%up(j),j)*up00(i,T1%up(i)))*0.5_wp
           end do
        end do
 
        ! sum for conventional total conductivity
-       T1%properties(ICOND)%values(:,dt1,T1%tmp) = T1%properties(ICONDup)%values(:,dt1,T1%tmp) + T1%properties(ICONDdn)%values(:,dt1,T1%tmp)
-       T1%properties(ICOND)%values(:,dt2,T1%tmp) = T1%properties(ICONDup)%values(:,dt2,T1%tmp) + T1%properties(ICONDdn)%values(:,dt2,T1%tmp)
+       T1%properties(ICOND)%values(:,dt1,T1%tmp) = &
+           T1%properties(ICONDup)%values(:,dt1,T1%tmp) + T1%properties(ICONDdn)%values(:,dt1,T1%tmp)
+       T1%properties(ICOND)%values(:,dt2,T1%tmp) = &
+           T1%properties(ICONDup)%values(:,dt2,T1%tmp) + T1%properties(ICONDdn)%values(:,dt2,T1%tmp)
 
      endif
 
@@ -937,37 +945,36 @@ contains
 
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
+
+            k = T1%properties(ICOND)%D(i,j)
+
             a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
-            b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
             c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
-            d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
             ! up*up terms (note two ways for contraction!)
-            value1(1) = value1(1) - a* &
+            value1(k) = value1(k) - a* &
                         (-upt0(i,T1%rt(j))*up0t(j,T1%rt(i)) - upt0(T1%rt(i),j)*up0t(T1%rt(j),i) &
                          +upt0(i,j)*up0t(T1%rt(j),T1%rt(i)) + upt0(T1%rt(i),T1%rt(j))*up0t(j,i))
-            value1(1) = value1(1) - a* &
+            value1(k) = value1(k) - a* &
                         ( uptt(i,T1%rt(i))*up00(j,T1%rt(j)) - uptt(T1%rt(i),i)*up00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*up00(T1%rt(j),j) + uptt(T1%rt(i),i)*up00(j,T1%rt(j)))
             ! up*dn terms
-            value1(1) = value1(1) - c* &
+            value1(k) = value1(k) - c* &
                         ( uptt(i,T1%rt(i))*dn00(j,T1%rt(j)) + uptt(T1%rt(i),i)*dn00(T1%rt(j),j) &
                          -uptt(i,T1%rt(i))*dn00(T1%rt(j),j) - uptt(T1%rt(i),i)*dn00(j,T1%rt(j)))
 
-            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
-            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+!            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
+!            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
             ! up*up terms (note two ways for contraction!)
-            value1(1) = value1(1) - a* &
-                        (-upt0(i,T1%up(j))*up0t(j,T1%up(i)) - upt0(T1%up(i),j)*up0t(T1%up(j),i) &
-                         +upt0(i,j)*up0t(T1%up(j),T1%up(i)) + upt0(T1%up(i),T1%up(j))*up0t(j,i))
-            value1(1) = value1(1) - a* &
-                        ( uptt(i,T1%up(i))*up00(j,T1%up(j)) - uptt(T1%up(i),i)*up00(T1%up(j),j) &
-                         -uptt(i,T1%up(i))*up00(T1%up(j),j) + uptt(T1%up(i),i)*up00(j,T1%up(j)))
+!            value1(k) = value1(k) - a* &
+!                        (-upt0(i,T1%up(j))*up0t(j,T1%up(i)) - upt0(T1%up(i),j)*up0t(T1%up(j),i) &
+!                         +upt0(i,j)*up0t(T1%up(j),T1%up(i)) + upt0(T1%up(i),T1%up(j))*up0t(j,i))
+!            value1(k) = value1(k) - a* &
+!                        ( uptt(i,T1%up(i))*up00(j,T1%up(j)) - uptt(T1%up(i),i)*up00(T1%up(j),j) &
+!                         -uptt(i,T1%up(i))*up00(T1%up(j),j) + uptt(T1%up(i),i)*up00(j,T1%up(j)))
             ! up*dn terms
-            value1(1) = value1(1) - c* &
-                        ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
-                         -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))
+!            value1(k) = value1(k) - c* &
+!                        ( uptt(i,T1%up(i))*dn00(j,T1%up(j)) + uptt(T1%up(i),i)*dn00(T1%up(j),j) &
+!                         -uptt(i,T1%up(i))*dn00(T1%up(j),j) - uptt(T1%up(i),i)*dn00(j,T1%up(j)))
           end do
        end do
 
@@ -975,44 +982,44 @@ contains
        value1  => T1%properties(ICONDdn)%values(:, dt1, T1%tmp)
        do i = 1,  T1%properties(ICOND)%n
           do j = 1,  T1%properties(ICOND)%n
-            a = T1%hopup(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
+
+            k = T1%properties(ICOND)%D(i,j)
+
             b = T1%hopdn(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
-            c = T1%hopup(i,T1%rt(i))*T1%hopdn(j,T1%rt(j))
             d = T1%hopdn(i,T1%rt(i))*T1%hopup(j,T1%rt(j))
 
             ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
+            value1(k) = value1(k) - b* &
                         (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
                          +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))
-            value1(1) = value1(1) - b* &
+            value1(k) = value1(k) - b* &
                         ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
                          -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))
             ! dn*up terms
-            value1(1) = value1(1) - d* &
+            value1(k) = value1(k) - d* &
                         ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
                          -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))
 
-            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
-            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
-            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
+!            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
+!            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
 
             ! dn*dn terms (note two ways for contraction!)
-            value1(1) = value1(1) - b* &
-                        (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
-                         +dnt0(i,j)*dn0t(T1%up(j),T1%up(i)) + dnt0(T1%up(i),T1%up(j))*dn0t(j,i))
-            value1(1) = value1(1) - b* &
-                        ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
-                         -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))
+!            value1(k) = value1(k) - b* &
+!                        (-dnt0(i,T1%up(j))*dn0t(j,T1%up(i)) - dnt0(T1%up(i),j)*dn0t(T1%up(j),i) &
+!                         +dnt0(i,j)*dn0t(T1%up(j),T1%up(i)) + dnt0(T1%up(i),T1%up(j))*dn0t(j,i))
+!            value1(k) = value1(k) - b* &
+!                        ( dntt(i,T1%up(i))*dn00(j,T1%up(j)) - dntt(T1%up(i),i)*dn00(T1%up(j),j) &
+!                         -dntt(i,T1%up(i))*dn00(T1%up(j),j) + dntt(T1%up(i),i)*dn00(j,T1%up(j)))
             ! dn*up terms
-            value1(1) = value1(1) - d* &
-                        ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
-                         -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))
+!            value1(k) = value1(k) - d* &
+!                        ( dntt(i,T1%up(i))*up00(j,T1%up(j)) + dntt(T1%up(i),i)*up00(T1%up(j),j) &
+!                         -dntt(i,T1%up(i))*up00(T1%up(j),j) - dntt(T1%up(i),i)*up00(j,T1%up(j)))
           end do
        end do
 
        ! sum for conventional total conductivity
-       T1%properties(ICOND)%values(:,dt1,T1%tmp) = T1%properties(ICONDup)%values(:,dt1,T1%tmp) + T1%properties(ICONDdn)%values(:,dt1,T1%tmp)
+       T1%properties(ICOND)%values(:,dt1,T1%tmp) = &
+            T1%properties(ICONDup)%values(:,dt1,T1%tmp) + T1%properties(ICONDdn)%values(:,dt1,T1%tmp)
 
      endif
 
@@ -1221,6 +1228,7 @@ contains
   end subroutine DQMC_TDM1_GetErr
 
   !--------------------------------------------------------------------!
+  ! print all tdm quantities
 
   subroutine DQMC_TDM1_Print(T1, OPT)
     use dqmc_mpi
@@ -1265,8 +1273,10 @@ contains
   end subroutine DQMC_TDM1_Print
 
   !--------------------------------------------------------------------!
+  ! Below print out tdm quantities separately (if needed)
+  !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print1(T1, OPT1)
+  subroutine DQMC_TDM1_Print_localGtau(T1, OPT1)
     use dqmc_mpi
     !
     ! Purpose
@@ -1285,7 +1295,7 @@ contains
     character(len=slen) :: title
 
     ! ... Executable ...
-    if (.not.T1%compute) return
+    if (.not.T1%compute .or. T1%flags(IGFUN) == 0) return
 
     if (qmc_sim%rank .ne. 0) return
 
@@ -1305,7 +1315,6 @@ contains
 !    call DQMC_Print_Array(0, T1%L, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
 
     ! Print local G(tau)'s
-    if (T1%flags(IGFUN) == 1) then
       do i = 1, T1%properties(IGFUN)%nclass
         do j = 0, T1%L-1
           tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
@@ -1316,20 +1325,8 @@ contains
         endif
      ! write(OPT1,'(1x)')
       enddo
-    endif
 
-!    do i = 1, T1%properties(IGFDN)%nclass
-!      do j = 0, T1%L-1
-!        tmp(j+1, 1:2) = T1%properties(IGFDN)%values(i, j, T1%avg:T1%err)
-!      enddo
-!      title=pname(IGFDN)//" "//trim(adjustl(T1%properties(IGFDN)%clabel(i)))
-!      if (index(title, " 0.0000  0.0000") > 0) then
-!        call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
-!      endif
-     ! write(OPT2,'(1x)')
-!    enddo
-
-  end subroutine DQMC_TDM1_Print1
+  end subroutine DQMC_TDM1_Print_localGtau
 
   !--------------------------------------------------------------------!
 
@@ -1825,5 +1822,363 @@ contains
     enddo
 
   end subroutine DQMC_TDM1_Print_SelfEnergy
+
+  !--------------------------------------------------------------------!
+  ! Below three routines for curr-curr(qx=0,qy;iwn) is estimated by 
+  ! linear extrapolation of two smallest qy
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM1_currDs(T1,Hub)
+    use DQMC_Hubbard
+    ! curr-curr(qx=0,qy;iwn) is estimated by linear extrapolation of two smallest qy
+    ! FT coefficients were prepared in DQMC_TDM1_Init
+
+    ! Whether to call this routine is specified in ggeom.F90
+
+    type(tdm1), intent(inout) :: T1
+    type(Hubbard), intent(in) :: Hub
+
+    integer              :: i, j, k, n, nclass, ibin, Nq
+    integer,     pointer :: F(:)
+    real(wp),    pointer :: vec(:,:)
+    real(wp),    pointer :: value1(:), value2(:)
+    complex(wp), pointer :: valuew(:)
+    real(wp)             :: twopi, L, q, factor
+    complex(wp)          :: ql
+
+    if (.not.T1%compute .or. T1%flags(ICOND)==0) return
+
+    ! Aliases
+    n        =  Hub%S%nsite
+    nclass   =  Hub%S%nclass
+    F        => Hub%S%F
+    vec      => Hub%S%vecClass
+    L        =  sqrt(real(n))     ! for square lattice only!!!
+    twopi    =  2.d0*acos(-1.0_wp)
+
+    ! for averaging weighted summation of sum_ly exp(i*qy*ly) * curr-curr
+    factor = 1.d0/n
+
+    ! 4 smallest qx, qy
+    Nq = 4
+    allocate(T1%Dsqx  (0:Nq,T1%err))
+    allocate(T1%Dsqxup(0:Nq,T1%err))
+    allocate(T1%Dsqxdn(0:Nq,T1%err))
+    allocate(T1%Dsqy  (0:Nq,T1%err))
+    allocate(T1%Dsqyup(0:Nq,T1%err))
+    allocate(T1%Dsqydn(0:Nq,T1%err))   
+
+    allocate(value1(0:T1%L-1))  ! store FTq of condup and conddn data
+    allocate(value2(0:T1%L-1))
+    allocate(valuew(0:T1%L-1))  ! totally L wn values, but actually only need iwn=0
+
+    T1%Dsqx   = 0.d0
+    T1%Dsqxup = 0.d0
+    T1%Dsqxdn = 0.d0
+    T1%Dsqy   = 0.d0
+    T1%Dsqyup = 0.d0
+    T1%Dsqydn = 0.d0
+
+    !Get Dsqy for each bin and average
+    !For MPI run, nbin=1 so T1%avg=T1%nBin+1 = 2
+    do ibin = T1%avg, 1, -1
+
+       do k = 0, Nq  ! smallest qy's, including qy=0
+          q = k*twopi/L
+
+          !-----------------------------------------------------------------------------
+          !First do FT to qy: vec(i,2)=ly for (qx=0,qy), only F(j) since qx=0
+          value1 = 0.d0
+          value2 = 0.d0
+          do i = 1, nclass
+             ! 12/27/2015: note here for MPI run
+             ! binned values() (only 1 bin) are not for MC, which has been
+             ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+             ! avg value is already averaged over proc, see DQMC_TDM1_GetKFT
+
+!write(*,'(a6,i2,a3,f4.1,a3,f4.1,a3,i4)') "class",i," x=",vec(i,1)," y=",vec(i,2), " F=",F(i)
+   
+             ! yqy = F(i)*cmplx(cos(qy*vec(i,2)),sin(qy*vec(i,2)))  ! * F(j)
+             ql = F(i)*dcos(q*vec(i,2))  ! same as RTScode dishbpar2.f, only need cos real part
+
+             value1 = value1 + ql * T1%properties(ICONDup)%values(i,0:T1%L-1,ibin)
+             value2 = value1 + ql * T1%properties(ICONDdn)%values(i,0:T1%L-1,ibin)
+          enddo
+
+          !Then iwn=0 component, only for one class so set ndim=0, see dqmc_util.F90
+          !only need iwn=0
+          call DQMC_getFTw(value1,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqyup(k,ibin) = valuew(0)
+          call DQMC_getFTw(value2,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqydn(k,ibin) = valuew(0)  
+
+          T1%Dsqy(k,ibin) = T1%Dsqyup(k,ibin) + T1%Dsqydn(k,ibin) 
+
+          !-----------------------------------------------------------------------------
+          !FT to qx: vec(i,1)=lx for (qx,qy=0), but same qx=qy, same q loop
+          value1 = 0.d0
+          value2 = 0.d0
+          do i = 1, nclass
+             ql = F(i)*dcos(q*vec(i,1))  ! same as RTScode dishbpar2.f, only need cos real part
+
+             value1 = value1 + ql * T1%properties(ICONDup)%values(i,0:T1%L-1,ibin)
+             value2 = value1 + ql * T1%properties(ICONDdn)%values(i,0:T1%L-1,ibin)
+          enddo
+
+          !Then iwn=0 component, only for one class so set ndim=0, see dqmc_util.F90
+          !only need iwn=0
+          call DQMC_getFTw(value1,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqxup(k,ibin) = valuew(0)
+          call DQMC_getFTw(value2,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqxdn(k,ibin) = valuew(0)
+
+          T1%Dsqx(k,ibin) = T1%Dsqxup(k,ibin) + T1%Dsqxdn(k,ibin)
+     
+       enddo  ! Loop over q
+    enddo     ! Loop over bins
+
+    ! averaging weighted summation over # of lattice sites n
+    T1%Dsqyup = T1%Dsqyup * factor
+    T1%Dsqydn = T1%Dsqydn * factor
+    T1%Dsqy   = T1%Dsqy   * factor
+    T1%Dsqxup = T1%Dsqxup * factor
+    T1%Dsqxdn = T1%Dsqxdn * factor
+    T1%Dsqx   = T1%Dsqx   * factor
+
+  end subroutine DQMC_TDM1_currDs
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM1_currDs_Err(T1)
+
+    use DQMC_MPI
+
+    type(tdm1), intent(inout) :: T1
+
+    integer :: n, nproc, i, j, Nq
+
+    complex(wp), pointer  :: average(:), binval(:), error(:), temp(:)
+
+    if (.not.T1%compute .or. T1%flags(ICOND)==0) return
+
+    nproc = qmc_sim%size
+
+    if (nproc .eq. 1) then
+
+       !Note that values(avg) is known from DQMC_TDM1_GetErr, values(err) is unknown
+       !in which FT from values(avg), here do not use JackKnife for simplicity
+
+       ! Dsupy
+       average  => T1%Dsqyup(:,T1%avg)
+       error    => T1%Dsqyup(:,T1%err)
+       do i = 1, T1%nbin
+          binval => T1%Dsqyup(:,i)
+          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       enddo
+       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+       ! Dsdny
+       average  => T1%Dsqydn(:,T1%avg)
+       error    => T1%Dsqydn(:,T1%err)
+       do i = 1, T1%nbin
+          binval => T1%Dsqydn(:,i)
+          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       enddo
+       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+       ! Dsy
+       average  => T1%Dsqy(:,T1%avg)
+       error    => T1%Dsqy(:,T1%err)
+       do i = 1, T1%nbin
+          binval => T1%Dsqy(:,i)
+          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       enddo
+       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+!-----------------------------------------------------------------------------
+       ! Dsupx
+       average  => T1%Dsqxup(:,T1%avg)
+       error    => T1%Dsqxup(:,T1%err)
+       do i = 1, T1%nbin
+          binval => T1%Dsqxup(:,i)
+          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       enddo
+       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+       ! Dsdnx
+       average  => T1%Dsqxdn(:,T1%avg)
+       error    => T1%Dsqxdn(:,T1%err)
+       do i = 1, T1%nbin
+          binval => T1%Dsqxdn(:,i)
+          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       enddo
+       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+       ! Dsx
+       average  => T1%Dsqx(:,T1%avg)
+       error    => T1%Dsqx(:,T1%err)
+       do i = 1, T1%nbin
+          binval => T1%Dsqx(:,i)
+          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       enddo
+       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+
+    else
+
+#   ifdef _QMC_MPI
+      ! 12/27/2015: note here for MPI run
+      ! binned values() (only 1 bin) are not for MC, which has been
+      ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+      ! avg value is already averaged over proc, see DQMC_TDM1_GetKFT
+
+      Nq = 4
+      allocate(temp(0:Nq))  ! two lowest qy 
+
+      ! Dsupy
+      average  => T1%Dsqyup(0:Nq,T1%avg)
+      binval   => T1%Dsqyup(0:Nq,1)
+      ! Compute error: sum(y_i-avg_y)^2
+      error  => T1%Dsqyup(0:Nq,T1%err)
+      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+      error  = error*dble(nproc-1)/dble(nproc)
+      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+
+      ! Dsdny
+      average  => T1%Dsqydn(0:Nq,T1%avg)
+      binval   => T1%Dsqydn(0:Nq,1)
+      ! Compute error: sum(y_i-avg_y)^2
+      error  => T1%Dsqydn(0:Nq,T1%err)
+      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+      error  = error*dble(nproc-1)/dble(nproc)
+      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+
+      ! Dsy
+      average  => T1%Dsqy(0:Nq,T1%avg)
+      binval   => T1%Dsqy(0:Nq,1)
+      ! Compute error: sum(y_i-avg_y)^2
+      error  => T1%Dsqy(0:Nq,T1%err)
+      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+      error  = error*dble(nproc-1)/dble(nproc)
+      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+!-----------------------------------------------------------------------------
+      ! Dsupx
+      average  => T1%Dsqxup(0:Nq,T1%avg)
+      binval   => T1%Dsqxup(0:Nq,1)
+      ! Compute error: sum(y_i-avg_y)^2
+      error  => T1%Dsqxup(0:Nq,T1%err)
+      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+      error  = error*dble(nproc-1)/dble(nproc)
+      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+
+      ! Dsdnx
+      average  => T1%Dsqxdn(0:Nq,T1%avg)
+      binval   => T1%Dsqxdn(0:Nq,1)
+      ! Compute error: sum(y_i-avg_y)^2
+      error  => T1%Dsqxdn(0:Nq,T1%err)
+      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+      error  = error*dble(nproc-1)/dble(nproc)
+      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+
+      ! Dsx
+      average  => T1%Dsqx(0:Nq,T1%avg)
+      binval   => T1%Dsqx(0:Nq,1)
+      ! Compute error: sum(y_i-avg_y)^2
+      error  => T1%Dsqx(0:Nq,T1%err)
+      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+      error  = error*dble(nproc-1)/dble(nproc)
+      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+
+      deallocate(temp)
+
+#    endif
+
+    endif
+
+  end subroutine DQMC_TDM1_currDs_Err
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM1_currDs_Print(T1, OPT)
+    use dqmc_mpi
+
+    type(TDM1), intent(in)   :: T1                 ! T1
+    integer, intent(in)      :: OPT
+
+    integer  :: i, j, k, ip, jp, iprop, Nq
+
+    if (.not.T1%compute .or. T1%flags(ICOND)==0) return
+    if (qmc_sim%rank .ne. 0) return
+
+    Nq = 4
+
+!--------------------------------------------------------------------------------------
+    write(OPT,'(a43)') "qy*Ly/2*pi       curr-curr(qx=0, qy; iwn=0)"
+    write(OPT,*)"=================================================================="
+
+    write(OPT,'(a6)') "Dsqy"
+    do i = 0,Nq
+       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
+         i, " ",   real (T1%Dsqy(i,T1%avg)), " ", real (T1%Dsqy(i,T1%err)), &
+            "+i ", aimag(T1%Dsqy(i,T1%avg)), " ", aimag(T1%Dsqy(i,T1%err))
+    enddo
+    write(OPT,*)"------------------------------------------------------------------"
+
+    write(OPT,'(a6)') "Dsqyup"
+    do i = 0,Nq
+       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
+         i, " ",   real (T1%Dsqyup(i,T1%avg)), " ", real (T1%Dsqyup(i,T1%err)), &
+            "+i ", aimag(T1%Dsqyup(i,T1%avg)), " ", aimag(T1%Dsqyup(i,T1%err))
+    enddo
+    write(OPT,*)"------------------------------------------------------------------"
+
+    write(OPT,'(a6)') "Dsqydn"
+    do i = 0,Nq
+       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
+         i, " ",   real (T1%Dsqydn(i,T1%avg)), " ", real (T1%Dsqydn(i,T1%err)), &
+            "+i ", aimag(T1%Dsqydn(i,T1%avg)), " ", aimag(T1%Dsqydn(i,T1%err))
+    enddo
+    write(OPT,*)"=================================================================="
+
+!--------------------------------------------------------------------------------------
+    write(OPT,'(a43)') "qx*Lx/2*pi       curr-curr(qx, qy=0; iwn=0)"
+    write(OPT,*)"=================================================================="
+
+    write(OPT,'(a6)') "Dsqx"
+    do i = 0,Nq
+       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
+         i, " ",   real (T1%Dsqx(i,T1%avg)), " ", real (T1%Dsqx(i,T1%err)), &
+            "+i ", aimag(T1%Dsqx(i,T1%avg)), " ", aimag(T1%Dsqx(i,T1%err))
+    enddo
+    write(OPT,*)"------------------------------------------------------------------"
+
+    write(OPT,'(a6)') "Dsqxup"
+    do i = 0,Nq
+       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
+         i, " ",   real (T1%Dsqxup(i,T1%avg)), " ", real (T1%Dsqxup(i,T1%err)), &
+            "+i ", aimag(T1%Dsqxup(i,T1%avg)), " ", aimag(T1%Dsqxup(i,T1%err))
+    enddo
+    write(OPT,*)"------------------------------------------------------------------"
+
+    write(OPT,'(a6)') "Dsqxdn"
+    do i = 0,Nq
+       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
+         i, " ",   real (T1%Dsqxdn(i,T1%avg)), " ", real (T1%Dsqxdn(i,T1%err)), &
+            "+i ", aimag(T1%Dsqxdn(i,T1%avg)), " ", aimag(T1%Dsqxdn(i,T1%err))
+    enddo
+
+  end subroutine DQMC_TDM1_currDs_Print
 
 end module DQMC_TDM1

@@ -4,6 +4,7 @@ module DQMC_Phy0
   use DQMC_UTIL
   use DQMC_WSPACE
   use DQMC_STRUCT
+  use DQMC_Geom_Wrap
 
   implicit none 
   
@@ -111,11 +112,14 @@ module DQMC_Phy0
 
   integer, parameter :: P0_potential_energy      = 20
   integer, parameter :: P0_hopping_energy        = 21
-  integer, parameter :: P0_double_occupancy      = 22
-  integer, parameter :: P0_magnetisation_squared = 23
+  integer, parameter :: P0_Kx                    = 22
+  integer, parameter :: P0_Kx_up                 = 23
+  integer, parameter :: P0_Kx_dn                 = 24
+  integer, parameter :: P0_double_occupancy      = 25
+  integer, parameter :: P0_magnetisation_squared = 26
 
   integer, parameter :: P0_N_NO_SAF  = 12
-  integer, parameter :: P0_N         = 23
+  integer, parameter :: P0_N         = 26
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -145,6 +149,9 @@ module DQMC_Phy0
        "Den+Den AF structure factor : ", &
        "           Potential energy : ", &
        "             Hopping energy : ", &
+       "                      <-Kx> : ", &
+       "                   <-Kx_up> : ", &
+       "                   <-Kx_dn> : ", &
        "           Double occupancy : ", &
        "      Magnetisation squared : "/)
   character(len=*), parameter :: P0_SIGN_STR(3) = (/&
@@ -200,6 +207,11 @@ module DQMC_Phy0
      logical :: init
      logical :: initFT
 
+     ! 12/27/2015
+     ! used for KE_up(dn) in x direction <-Kx> for D and Ds
+     integer, ALLOCATABLE :: rt(:), lf(:), top(:), bot(:)
+     complex*16, ALLOCATABLE  :: hopup(:,:), hopdn(:,:)
+
   end type Phy0
 
 contains
@@ -207,7 +219,8 @@ contains
   ! Subroutines
   ! ==================================================================
   
-  subroutine DQMC_Phy0_Init(P0, S, beta, nBin, WS)
+  subroutine DQMC_Phy0_Init(P0, S, beta, nBin, WS, Gwrap)
+    use DQMC_Geom_Wrap
     !
     ! Purpose
     ! =======
@@ -225,9 +238,10 @@ contains
     integer, intent(in)       :: nBin    ! No of bins
     real(wp), intent(in)      :: beta
     type(WSpace), intent(in), target :: WS
+    type(GeomWrap), intent(in) :: Gwrap
 
     ! ... Local vars ...
-    integer :: i, n
+    integer :: i, j, n
 
     ! ... Executable ...
 
@@ -322,6 +336,30 @@ contains
     ! It will be changed to .true. once DQMC_GetFT() is called.
     P0%initFT = .false.
 
+    ! 12/27/2015:
+    ! The following is the same as in tdm1.F90
+    ! IMPORTANT: the indices of Gtau(1:nsites) and hamilt(0:nsites-1) are different
+    ! Note difference from rt etc. in dqmc_hamilt.F90
+    ! So switch the values to from 1 to nSite, instead of 0 to nSite-1
+    ! should be correct for any unit cell definition
+    allocate(P0%rt(1:S%nSite))
+    allocate(P0%lf(1:S%nSite))
+    allocate(P0%top(1:S%nSite))
+    allocate(P0%bot(1:S%nSite))
+    allocate(P0%hopup(1:S%nSite,1:S%nSite))
+    allocate(P0%hopdn(1:S%nSite,1:S%nSite))
+
+    do i = 1, S%nSite
+       P0%rt(i)  = Gwrap%Hamilt%rt(i-1)+1
+       P0%lf(i)  = Gwrap%Hamilt%lf(i-1)+1
+       P0%top(i) = Gwrap%Hamilt%up(i-1)+1
+       P0%bot(i) = Gwrap%Hamilt%dn(i-1)+1
+       do j = 1, S%nSite
+          P0%hopup(i,j) = Gwrap%Hamilt%hopup(i-1,j-1)
+          P0%hopdn(i,j) = Gwrap%Hamilt%hopdn(i-1,j-1)
+       enddo
+    enddo
+
    end subroutine DQMC_Phy0_Init
 
   !--------------------------------------------------------------------!
@@ -354,6 +392,13 @@ contains
           deallocate(P0%AllPropEigVec)
        endif
     end if
+
+    deallocate(P0%rt)
+    deallocate(P0%lf)
+    deallocate(P0%top)
+    deallocate(P0%bot)
+    deallocate(P0%hopup)
+    deallocate(P0%hopdn)
 
   end subroutine DQMC_Phy0_Free
 
@@ -803,6 +848,25 @@ contains
     end do
 
     !=================================================================!
+    ! KE in x direction <-Kx> for D and Ds (up and dn spins)
+    !=================================================================!
+
+    do i = 1, n
+       ! - sign for <-Kx>
+       ! Below applies for isotropic system
+       !var1 = -0.5d0* (P0%hopup(i,P0%rt(i))*G_up(i, P0%rt(i)) + P0%hopup(i,P0%top(i))*G_up(i, P0%top(i)))
+       !var2 = -0.5d0* (P0%hopdn(i,P0%rt(i))*G_dn(i, P0%rt(i)) + P0%hopdn(i,P0%top(i))*G_dn(i, P0%top(i)))
+       ! only consider x direction
+       var1 = -(P0%hopup(i,P0%rt(i))*G_up(i, P0%rt(i)) + P0%hopup(P0%rt(i),i)*G_up(P0%rt(i),i))
+       var2 = -(P0%hopdn(i,P0%rt(i))*G_dn(i, P0%rt(i)) + P0%hopdn(P0%rt(i),i)*G_dn(P0%rt(i),i))
+       var3 = var1 + var2
+
+       P0%meas(P0_Kx_up, tmp) = P0%meas(P0_Kx_up, tmp) + var1
+       P0%meas(P0_Kx_dn, tmp) = P0%meas(P0_Kx_dn, tmp) + var2
+       P0%meas(P0_Kx, tmp)    = P0%meas(P0_Kx, tmp)    + var3
+    enddo
+
+    !=================================================================!
     ! Total occupancy = nup + ndn
     !=================================================================!
     P0%meas(P0_DENSITY, tmp) = P0%meas(P0_NUP, tmp) + &                                                                  
@@ -1167,21 +1231,23 @@ contains
                    i = i + 1
                 enddo
              enddo
-             currft => P0%AllPropEigVal(P0%IARREV(ip)+(ik-1)*na:P0%IARREV(ip)+ik*na-1, ibin) 
+
+             !2015.12.17: No need for the following spectrum:
+!             currft => P0%AllPropEigVal(P0%IARREV(ip)+(ik-1)*na:P0%IARREV(ip)+ik*na-1, ibin) 
 
              !Diagonalize Fourier transform matrix. Store eigenvalues in AllPropEigVal.
-             if (ibin == P0%avg) then
-                call zheev('V', 'L', na, U, na, currft, work, 2*na, rwork, it)
+!             if (ibin == P0%avg) then
+!                call zheev('V', 'L', na, U, na, currft, work, 2*na, rwork, it)
                 !Store eigenvectors as well for the average
-                P0%AllPropEigVec(:,:,ik,ip) = U
-             else
-                call zheev('N', 'L', na, U, na, currft, work, 2*na, rwork, it)
-                call zgemm('N', 'N', na, na, na, ONEZ, U, na, P0%AllPropEigVec(:,:,ik,ip), na, ZEROZ, W, na)
-                call zgemm('T', 'N', na, na, na, ONEZ, P0%AllPropEigVec(:,:,ik,ip), na, W, na, ZEROZ, U, na)
-                do i = 1, na
-                   currft(i) = dreal(U(i,i))
-                enddo
-             endif
+!                P0%AllPropEigVec(:,:,ik,ip) = U
+!             else
+!                call zheev('N', 'L', na, U, na, currft, work, 2*na, rwork, it)
+!                call zgemm('N', 'N', na, na, na, ONEZ, U, na, P0%AllPropEigVec(:,:,ik,ip), na, ZEROZ, W, na)
+!                call zgemm('T', 'N', na, na, na, ONEZ, P0%AllPropEigVec(:,:,ik,ip), na, W, na, ZEROZ, U, na)
+!                do i = 1, na
+!                   currft(i) = dreal(U(i,i))
+!                enddo
+!             endif
 
           enddo ! Loop over k-points
 
@@ -1234,15 +1300,15 @@ contains
           call mpi_allreduce((P0%AllPropFT(:,1)-P0%AllPropFT(:,avg))**2, P0%AllPropFT(:,err), m, mpi_double, &
              mpi_sum, mpi_comm_world, i)
 #      endif
-       P0%AllPropEigVal(:,err) = sqrt(P0%AllPropEigVal(:,err) * dble(nproc-1)/dble(nproc))
+!       P0%AllPropEigVal(:,err) = sqrt(P0%AllPropEigVal(:,err) * dble(nproc-1)/dble(nproc))
        P0%AllPropFT(:,err) = sqrt(P0%AllPropFT(:,err) * dble(nproc-1)/dble(nproc))
 
     else
 
        !Compute errorbars using bins
-       do i = 1, n
-          P0%AllPropEigVal(i,err) = sqrt((nbin-1)*sum((P0%AllPropEigVal(i,avg) - P0%AllPropEigVal(i,1:nbin))**2)/nbin)
-       enddo
+!       do i = 1, n
+!          P0%AllPropEigVal(i,err) = sqrt((nbin-1)*sum((P0%AllPropEigVal(i,avg) - P0%AllPropEigVal(i,1:nbin))**2)/nbin)
+!       enddo
   
        do i = 1, m
           P0%AllPropFT(i,err) = sqrt((nbin-1)*sum((P0%AllPropFT(i,avg) - P0%AllPropFT(i,1:nbin))**2)/nbin)
@@ -1354,103 +1420,104 @@ contains
     call DQMC_Print_RealArray(0, nakg*(na+1)/2, "FT of Pairing correlation fn:", &
          clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-    if (na > 1) then
+    !2015.12.17: No need for the following spectrum:
+!    if (na > 1) then
 
-       ii = 0 
-       do i = 1, nkt
-          do ia = 1, na
-             ii = ii + 1
-             if (ia == 1) then
-                write(clabel(ii),'(2(i5))')i, ia
-             else
-                write(clabel(ii),'(5x,i5)')ia
-             endif
-          enddo
-       enddo
-       FTptr => P0%AllPropEigVal(P0%IARREV(IGFUN):P0%IARREV(IGFUN+1)-1,:)
-       call DQMC_Print_RealArray(0, nakt, "Eigenvalues of Ave Equal t Green's function:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       ii = 0 
+!       do i = 1, nkt
+!          do ia = 1, na
+!             ii = ii + 1
+!             if (ia == 1) then
+!                write(clabel(ii),'(2(i5))')i, ia
+!             else
+!                write(clabel(ii),'(5x,i5)')ia
+!             endif
+!          enddo
+!       enddo
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IGFUN):P0%IARREV(IGFUN+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakt, "Eigenvalues of Ave Equal t Green's function:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(IGFUP):P0%IARREV(IGFUP+1)-1,:)
-       call DQMC_Print_RealArray(0, nakt, "Eigenvalues of Up Equal t Green's function:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IGFUP):P0%IARREV(IGFUP+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakt, "Eigenvalues of Up Equal t Green's function:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(IGFDN):P0%IARREV(IGFDN+1)-1,:)
-       call DQMC_Print_RealArray(0, nakt, "Eigenvalues of Dn Equal t Green's function:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IGFDN):P0%IARREV(IGFDN+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakt, "Eigenvalues of Dn Equal t Green's function:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       ii = 0 
-       do i = 1, nkg
-          do ia = 1, na
-             ii = ii + 1
-             if (ia == 1) then
-                write(clabel(ii),'(2(i5))')i, ia
-             else
-                write(clabel(ii),'(5x,i5)')ia
-             endif
-          enddo
-       enddo
-       FTptr => P0%AllPropEigVal(P0%IARREV(IDEN0):P0%IARREV(IDEN0+1)-1,:)
-       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Density-density correlation fn: (up-up)", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       ii = 0 
+!       do i = 1, nkg
+!          do ia = 1, na
+!             ii = ii + 1
+!             if (ia == 1) then
+!                write(clabel(ii),'(2(i5))')i, ia
+!             else
+!                write(clabel(ii),'(5x,i5)')ia
+!             endif
+!          enddo
+!       enddo
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IDEN0):P0%IARREV(IDEN0+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Density-density correlation fn: (up-up)", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(IDEN1):P0%IARREV(IDEN1+1)-1,:)
-       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Density-density correlation fn: (up-dn)", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IDEN1):P0%IARREV(IDEN1+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Density-density correlation fn: (up-dn)", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(ISPXX):P0%IARREV(ISPXX+1)-1,:)
-       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of XX spin correlation fn:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(ISPXX):P0%IARREV(ISPXX+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of XX spin correlation fn:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(ISPZZ):P0%IARREV(ISPZZ+1)-1,:)
-       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of ZZ spin correlation fn:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(ISPZZ):P0%IARREV(ISPZZ+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of ZZ spin correlation fn:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(IAVSP):P0%IARREV(IAVSP+1)-1,:)
-       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Average spin correlation fn:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IAVSP):P0%IARREV(IAVSP+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Average spin correlation fn:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       FTptr => P0%AllPropEigVal(P0%IARREV(IPAIR):P0%IARREV(IPAIR+1)-1,:)
-       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Pairing correlation fn:", &
-            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
+!       FTptr => P0%AllPropEigVal(P0%IARREV(IPAIR):P0%IARREV(IPAIR+1)-1,:)
+!       call DQMC_Print_RealArray(0, nakg, "Eigenvalues of Pairing correlation fn:", &
+!            clabel, FTptr(:, avg:avg), FTptr(:, err:err), OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IGFUN)
-       call DQMC_Print_EigenMode(na, nkt, "Eigenmodes of Ave Equal t Green's function (Natural orbitals):", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IGFUN)
+!       call DQMC_Print_EigenMode(na, nkt, "Eigenmodes of Ave Equal t Green's function (Natural orbitals):", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IGFUP)
-       call DQMC_Print_EigenMode(na, nkt, "Eigenmodes of Up Equal t Green's function (Natural orbitals):", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IGFUP)
+!       call DQMC_Print_EigenMode(na, nkt, "Eigenmodes of Up Equal t Green's function (Natural orbitals):", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IGFDN)
-       call DQMC_Print_EigenMode(na, nkt, "Eigenmodes of Down Equal t Green's function (Natural orbitals):", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IGFDN)
+!       call DQMC_Print_EigenMode(na, nkt, "Eigenmodes of Down Equal t Green's function (Natural orbitals):", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IDEN0)
-       call DQMC_Print_EigenMode(na, nkg,"Eigenmodes of Density-density correlation fn: (up-up)", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IDEN0)
+!       call DQMC_Print_EigenMode(na, nkg,"Eigenmodes of Density-density correlation fn: (up-up)", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IDEN1)
-       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of Density-density correlation fn: (up-dn)", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IDEN1)
+!       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of Density-density correlation fn: (up-dn)", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,ISPXX)
-       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of XX-Spin correlation fn: ", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,ISPXX)
+!       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of XX-Spin correlation fn: ", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,ISPZZ)
-       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of ZZ-Spin correlation fn: ", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,ISPZZ)
+!       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of ZZ-Spin correlation fn: ", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IAVSP)
-       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of Average Spin correlation fn: ", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IAVSP)
+!       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of Average Spin correlation fn: ", &
+!             Nmptr, OPT)
 
-       Nmptr => P0%AllPropEigVec(:,:,:,IPAIR)
-       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of Pairing correlation fn: ", &
-             Nmptr, OPT)
+!       Nmptr => P0%AllPropEigVec(:,:,:,IPAIR)
+!       call DQMC_Print_EigenMode(na, nkg, "Eigenmodes of Pairing correlation fn: ", &
+!             Nmptr, OPT)
 
-    endif
+!    endif
 
     deallocate(clabel)
 

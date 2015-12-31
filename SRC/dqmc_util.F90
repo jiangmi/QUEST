@@ -1156,6 +1156,7 @@ contains
 
   subroutine dqmc_GetFTk(value, n, nclass, class, na, nk, ft_wgt, phase, valuek)
 
+    ! na means natom in unit cell
      real(wp),    intent(in)  :: value(nclass)
      integer,     intent(in)  :: n
      integer,     intent(in)  :: nclass
@@ -1204,6 +1205,147 @@ contains
      enddo ! Loop over k-points
 
   end subroutine DQMC_getFTk
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_getFTw(gl,gw,maxl,dtau,bose,nmax)
+     ! Fourier transform g(n,l) to get g(n,w) (Fermi or Bose frequencies).
+
+     ! 12/30/2015:
+     ! Adapted from RTScode dishbpar2.f, but only for one (qx,qy): g(l)->g(w)
+     ! May add mx, my loops if needed for all q, as in dishbpar2.f
+
+     ! Do spline interpolation on tau data, then perform FT to iwn
+     ! This applies especially to curr-curr(tau), which always has large fluctuations
+
+     ! dtau/intrat is the spacing used for the tau integration
+     ! ndim: square lattice ndim*ndim
+     ! maxl: # of time slices L
+     ! nmax: L/2 since G(tau) is symmetric over tau (following RTS code's definition)
+
+     ! Note gl and gw have 0:ndim/2, which considers PBC so that 1/4 of (qx,qy) needed
+
+     integer,    intent(in)    :: maxl,bose,nmax
+     real(wp),   intent(in)    :: gl(0:maxl), dtau
+     complex(wp),intent(inout) :: gw(0:maxl)
+
+     real(wp) ::  larray(1000),terpray(1000),tauray(1000)
+     real(wp) ::  temp,temp2,temp3,rti2
+     real(wp) ::  splarg,spzero,twopi,omega
+     integer  ::  ti,ti2,intrat
+
+     intrat = 4     ! Adapted from paramp.dat for RTS code dishbpar2.f
+     twopi  = 2.d0*acos(-1.0_wp)
+
+     ! splarg -- we want to pass 2d30 to spline, pass it via splarg
+     splarg = 2.d30
+     ! spzero -- we also want to pass 0.d0 to splint....
+     spzero = 0.d0
+
+         do ti = 0, maxl
+            larray(ti+1) = gl(ti)
+            tauray(ti+1) = ti*dtau
+         enddo
+         call spline(tauray,larray,maxl+1,splarg,splarg,terpray)
+
+         !Fourier transform over time to get g(n,w)
+         do ti = 0, nmax
+
+            if(bose .eq. 0)then
+               omega = (ti+0.5d0)*twopi/maxl
+            else
+               omega = ti*twopi/maxl
+            endif
+
+            call splint(tauray,larray,terpray,maxl+1,spzero,   temp)
+            call splint(tauray,larray,terpray,maxl+1,maxl*dtau,temp2)
+            rti2 = (intrat*maxl-1.d0)/intrat*dtau
+            call splint(tauray,larray,terpray,maxl+1,rti2,     temp3)
+
+            gw(ti) = temp*dtau/intrat/3.d0                                        &
+                   + temp2*cdexp(dcmplx(0.d0,1.d0)*omega*maxl) * dtau/intrat/3.d0 &
+                   + temp3*cdexp(dcmplx(0.d0,1.d0)*omega*rti2/dtau) * dtau/intrat*(4.d0/3.d0)
+
+            do ti2 = 1,intrat*maxl-3,2
+               call splint(tauray,larray,terpray,maxl+1, ti2*dtau/intrat,temp)
+               gw(ti) = gw(ti) + temp*(4.d0/3.d0)* cdexp(dcmplx(0.d0,1.d0)*omega*ti2/intrat)*dtau/intrat
+               call splint(tauray,larray,terpray,maxl+1, (ti2+1)*dtau/intrat,temp)
+               gw(ti) = gw(ti) + temp*(2.d0/3.d0)* cdexp(dcmplx(0.d0,1.d0)*omega*(ti2+1)/intrat)*dtau/intrat
+            enddo
+         enddo
+  end subroutine DQMC_getFTw
+
+  !--------------------------------------------------------------------!
+
+       SUBROUTINE SPLINE(X,Y,N,YP1,YPN,Y2)
+     ! 12/30/2015:
+     ! Adapted from RTScode dishbpar2.f
+       implicit none
+       integer nmax,n
+       PARAMETER (NMAX=400)
+       double precision x(n),y(n),y2(n),u(nmax)
+       double precision yp1,ypn,p,qn,sig,un
+       integer i,k
+       IF (YP1.GT..99D30) THEN
+         Y2(1)=0.d0
+         U(1)=0.d0
+       ELSE
+         Y2(1)=-0.5d0
+         U(1)=(3.d0/(X(2)-X(1)))*((Y(2)-Y(1))/(X(2)-X(1))-YP1)
+       ENDIF
+       DO 10 I=2,N-1
+         SIG=(X(I)-X(I-1))/(X(I+1)-X(I-1))
+         P=SIG*Y2(I-1)+2.d0
+         Y2(I)=(SIG-1.d0)/P
+         U(I)=(6.d0*((Y(I+1)-Y(I))/(X(I+1)-X(I))-(Y(I)-Y(I-1)) &
+              /(X(I)-X(I-1)))/(X(I+1)-X(I-1))-SIG*U(I-1))/P
+10      continue
+       IF (YPN.GT..99D30) THEN
+         QN=0.d0
+         UN=0.d0
+       ELSE
+         QN=0.5d0
+         UN=(3.d0/(X(N)-X(N-1)))*(YPN-(Y(N)-Y(N-1))/(X(N)-X(N-1)))
+       ENDIF
+       Y2(N)=(UN-QN*U(N-1))/(QN*Y2(N-1)+1.d0)
+       DO 20 K=N-1,1,-1
+              Y2(K)=Y2(K)*Y2(K+1)+U(K)
+20     continue
+       RETURN
+       END
+
+  !--------------------------------------------------------------------!
+
+      SUBROUTINE SPLINT(XA,YA,Y2A,N,X,Y)
+     ! 12/30/2015:
+     ! Adapted from RTScode dishbpar2.f
+      implicit none
+      integer n
+      double precision XA(N),YA(N),Y2A(N)
+      integer klo,khi,k
+      double precision x,y,h,a,b
+       KLO=1
+       KHI=N
+1       IF (KHI-KLO.GT.1) THEN
+         K=(KHI+KLO)/2
+         IF(XA(K).GT.X)THEN
+           KHI=K
+         ELSE
+           KLO=K
+         ENDIF
+       GOTO 1
+       ENDIF
+       H=XA(KHI)-XA(KLO)
+       IF (H.EQ.0.d0) then
+         write(6,*) 'Bad XA input.'
+         stop
+       endif
+       A=(XA(KHI)-X)/H
+       B=(X-XA(KLO))/H
+       Y=A*YA(KLO)+B*YA(KHI)+  &
+          ((A**3-A)*Y2A(KLO)+(B**3-B)*Y2A(KHI))*(H**2)/6.d0
+       RETURN
+       END
 
   !--------------------------------------------------------------------!
 

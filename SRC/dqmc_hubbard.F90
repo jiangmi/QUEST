@@ -154,8 +154,9 @@ contains
 
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Config(Hub, cfg)
+  subroutine DQMC_Hub_Config(Hub, cfg, Gwrap)
     use dqmc_mpi
+    use DQMC_Geom_Wrap
     !
     ! Purpose
     ! =======
@@ -173,6 +174,7 @@ contains
     !
     type(config), intent(inout)    :: cfg
     type(Hubbard), intent(inout)   :: Hub                   ! Hubbard model
+    type(GeomWrap), intent(in)     :: Gwrap
 
     ! ... Local Variables ...
     integer :: n_t, n_U, n_mu, L, HSF, nWarm, nPass
@@ -268,8 +270,8 @@ contains
     ! call the function
     call DQMC_Hub_Init(Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
        HSF, nWarm, nPass, nMeas, nTry, nTry2, nBin, ntausk, seed, nOrth, nWrap, fixw, &
-       errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype)
-    
+       errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype, Gwrap)
+
     call CFG_Set(cfg, "n", Hub%n)
 
     deallocate(t_up, t_dn, mu_up, mu_dn, U)
@@ -279,7 +281,8 @@ contains
 
   subroutine DQMC_Hub_Init(Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
        HSF_IPT, nWarm, nPass, nMeas, nTry, nTry2, nBin, ntausk, seed, nOrth, nWrap, fixw, &
-       errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype)
+       errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype, Gwrap)
+    use DQMC_Geom_Wrap
     !
     ! Purpose
     ! =======
@@ -307,6 +310,7 @@ contains
 #      include "sprng_f.h"
 #   endif
     type(Hubbard),   intent(inout)  :: Hub             ! Hubbard model
+    type(GeomWrap),  intent(in)     :: Gwrap
     real(wp), intent(in)  :: U(:), t_up(:), t_dn(:) 
     real(wp), intent(in)  :: mu_up(:), mu_dn(:), dtau  ! Parameters
     integer,  intent(in)  :: L, n_t, n_U, n_mu
@@ -576,9 +580,9 @@ contains
        call DQMC_GetG(ilb, Hub%G_dn, Hub%SB_dn)
     end if
 
-    
     temp = Hub%dtau * Hub%L
-    call DQMC_Phy0_Init(Hub%P0, Hub%S, temp, nBin, Hub%WS)
+
+    call DQMC_Phy0_Init(Hub%P0, Hub%S, temp, nBin, Hub%WS, Gwrap)
     call DQMC_Phy2_Init(Hub%P2, nBin, Hub%S, Hub%WS, Hub%meas2)
 
     ! Initialize simulation range
@@ -920,8 +924,8 @@ contains
        write(OPT,FMT_STRDBL)  "                       dtau : ", Hub%dtau
        write(OPT,FMT_STRDBL)  "                       beta : ", Hub%dtau*Hub%L
        write(OPT,FMT_STRINT)  "     Number of warmup sweep : ", Hub%nWarm
-       write(OPT,'(a30,i12,a10,i3)')  "Number of measurement sweep : ", Hub%nPass, "  * MPI = ", qmc_sim%size
-       write(OPT,FMT_STRINT)  "   Frequency of measurement : ", Hub%nMeas
+       write(OPT,'(a30,i12,a1,i2,a10,i3)')  "Number of measurement sweep : ", Hub%nPass, "/", Hub%tausk, "  * MPI = ", qmc_sim%size
+       write(OPT,FMT_STRINT)  " Warm steps between measure : ", Hub%tausk
        write(OPT,FMT_STRINT)  "                Random seed : ", Hub%idum
        write(OPT,FMT_STRINT)  " Frequency of recomputing G : ", Hub%G_up%nWrap
        write(OPT,FMT_STRINT)  "Global move number of sites : ", Hub%nTry

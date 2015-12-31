@@ -25,14 +25,14 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter, ierr  
   character(len=50)   :: ofile  
-  integer             :: OPT,OPT1 !,OPT2,OPT3,OPT4
+  integer             :: OPT,OPT1,OPT2  !,OPT3,OPT4
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
   real(wp)            :: randn(1)
-  integer, pointer    :: flags(:)      ! 8 possible tdm1 quantities
+  integer, pointer    :: flags(:)      ! 10 possible tdm1 quantities
   integer             :: nflag
-  integer             :: ntry2, FTphy0, FTtdm, SelfE
+  integer             :: ntry2, FTphy0, FTtdm, SelfE, Dsqy
 
   call cpu_time(t1)  
 
@@ -57,6 +57,7 @@ program dqmc_ggeom
   call CFG_Get(cfg, "FTphy0", FTphy0)
   call CFG_Get(cfg, "FTtdm" , FTtdm)
   call CFG_Get(cfg, "SelfE" , SelfE)
+  call CFG_Get(cfg, "Dsqy"  , Dsqy)
 
   !if (nhist > 0) then
   !   call DQMC_open_file(adjustl(trim(ofile))//'.HSF.stream','unknown', HSF_output_file_unit)
@@ -75,7 +76,7 @@ program dqmc_ggeom
   call DQMC_Geom_Print(Hub%S, symmetries_output_file_unit) ! dqmc_struct.F90
 
   ! Initialize the rest data (including seed for MPI processes), dqmc_hubbard.F90
-  call DQMC_Hub_Config(Hub, cfg)
+  call DQMC_Hub_Config(Hub, cfg, Gwrap)
 
   ! Initialize time dependent properties if comp_tdm > 0
   if (comp_tdm > 0) then
@@ -228,6 +229,10 @@ program dqmc_ggeom
       call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
     endif
 
+    if (Dsqy > 0) then
+      call DQMC_open_file('Dsqy_'//adjustl(trim(ofile)),'replace', OPT2)
+    endif
+
     write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
                "STARTING JOB: ", mons(values(2)), " ", values(3), "  ", &
                values(5), ":", values(6), ":", values(7), "  ", values(1)
@@ -257,7 +262,15 @@ program dqmc_ggeom
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then
     call DQMC_TDM1_Print(tm, TDM_UNIT)
-    call DQMC_TDM1_Print1(tm, OPT1)
+    call DQMC_TDM1_Print_localGtau(tm, OPT1)
+  endif
+
+! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
+  !Direct access to binned data; no need to be in the loop above
+  if (Dsqy > 0) then
+    call DQMC_TDM1_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
+    call DQMC_TDM1_currDs_Err(tm)
+    call DQMC_TDM1_currDs_Print(tm,OPT2)
   endif
 
 ! ==============  Fourier transform ============================================

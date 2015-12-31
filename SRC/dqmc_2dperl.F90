@@ -4,6 +4,7 @@ module DQMC_2DPERL
   use DQMC_CFG
   use DQMC_STRUCT
   use DQMC_HUBBARD
+  use DQMC_Geom_Wrap
   ! Chia-Chen: 09/06/2011
   ! added in order to access the number of processors
   use DQMC_MPI
@@ -42,12 +43,13 @@ contains
     integer :: OPT     ! Input/output handle
 
     ! ... Local scalar ...
-    type(config)  :: cfg
-    type(Hubbard) :: Hub          ! Hubbard model
-    integer       :: nx, ny
+    type(config)   :: cfg
+    type(Hubbard)  :: Hub          ! Hubbard model
+    type(GeomWrap) :: Gwrap
+    integer        :: nx, ny
 
-    integer       :: i, j, k, nBin, nIter, slice
-    real(wp)      :: randn(1)
+    integer        :: i, j, k, nBin, nIter, slice
+    real(wp)       :: randn(1)
     character(len=50) :: ofile
 
     ! ... Executable ...
@@ -64,7 +66,7 @@ contains
     call CFG_Get(cfg, "ofile", ofile)   ! output file name
 
     ! Initialize the Hubbard data structure
-    call DQMC_Hub_Config(Hub, cfg)
+    call DQMC_Hub_Config(Hub, cfg, Gwrap)
 
     ! Execution MC loop
     ! Warmup sweep

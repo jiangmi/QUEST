@@ -150,9 +150,6 @@ module DQMC_GEOM_WRAP
     real(wp), pointer  :: tdnvalue(:) => null()
     integer, pointer   :: tmp(:,:) => null()
 
-    ! to get relative vector between sites, used for determine phase for computing S_AF in plane
-    ! for bilayer cases, only include z=0 component
-    real(wp) :: xyz(3)
     character(label_len) :: label 
 
     ! ... Executable ...
@@ -182,11 +179,23 @@ module DQMC_GEOM_WRAP
 
     !Symmetry Classes
     S%nClass = gwrap%Lattice%nclass
+
+    ! 12/27/2015:
+    ! get relative vector between sites for nClass
+    ! used for phase for computing S_AF in plane 
+    ! for bilayer cases, only include z=0 component
+    ! Also useful for general FT:
+    ! For unit cell including more than 1 atom, e.g. with staggered pot,
+    ! QUEST code only compute FT between cells while still real space for intracell
+    ! here use relative vector between sites for general FT
+    allocate(S%vecClass(S%nClass,3))  
+
     allocate(S%D(n,n))
     allocate(S%F(S%nClass))
     allocate(S%clabel(S%nClass))
     allocate(S%AFphase(S%nClass))
 
+    !dqmc_latt.F90
     S%D(1:n,1:n) =  gwrap%Lattice%myclass(0: n - 1, 0: n - 1)
     S%F(:)       =  gwrap%Lattice%class_size(:)
     clab         => gwrap%Lattice%class_label
@@ -194,15 +203,17 @@ module DQMC_GEOM_WRAP
       !write(S%clabel(ic), '(2(i3), 3(f8.4))') (int(clab(ic, j)), j = 4, 5), (clab(ic, j), j = 1, 3)       
       write(S%clabel(ic),'(2(i3),i5,3(f8.3))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
 
+      ! 12/27/2015:
+      ! Get relative vector between sites for nClass
+      label = S%clabel(ic)
+      read(label(12:19),*) S%vecClass(ic,1)
+      read(label(20:27),*) S%vecClass(ic,2)
+      read(label(28:35),*) S%vecClass(ic,3)
+
       ! decide (-1)^x+y for computing S_AF and S_CDW in plane
       ! for bilayer cases, only include z=0 component
-      label = S%clabel(ic)
-      read(label(12:19),*) xyz(1)
-      read(label(20:27),*) xyz(2)
-      read(label(28:35),*) xyz(3)
-
-      if (abs(xyz(3))<0.0001) then                                ! z=0, within the same plane
-        if ( mod(int(abs(xyz(1)))+int(abs(xyz(2))),2) == 0) then  ! (-1)**(x+y)=1
+      if (abs(S%vecClass(ic,3))<0.0001) then                                ! z=0, within the same plane
+        if ( mod(int(abs(S%vecClass(ic,1)))+int(abs(S%vecClass(ic,2))),2) == 0) then  ! (-1)**(x+y)=1
           S%AFphase(ic) = 1
         else
           S%AFphase(ic) = -1

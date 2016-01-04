@@ -109,8 +109,13 @@ module DQMC_TDM1
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
 
      ! curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy
-     complex(wp), pointer :: Dsqx(:,:), Dsqxup(:,:), Dsqxdn(:,:)
-     complex(wp), pointer :: Dsqy(:,:), Dsqyup(:,:), Dsqydn(:,:)
+     ! iwn=0 component is real,  (q,3,bin,3), first 3 denotes up, dn and total
+     ! second 3: nospline, qwspline, wqspline for iwn=0
+     real(wp), pointer :: Dsqx(:,:,:,:)   
+     real(wp), pointer :: Dsqy(:,:,:,:)    
+
+     ! pi* (<-Kx>-curr-curr(qx=0,qy->0;iwn=0))
+     real(wp), pointer :: Ds(:,:,:)        ! (3,bin,3) 
 
      ! 08/15/2015
      ! used for conductivity, d-wave paring sus etc.
@@ -128,7 +133,7 @@ contains
 
  !--------------------------------------------------------------------!
   
-  subroutine DQMC_TDM1_Init(L, dtau, T1, nBin, S, Gwrap, flags)
+  subroutine DQMC_TDM1_Init(L, dtau, T1, nBin, S, Gwrap, flags)!, splinew0)
     use DQMC_Geom_Wrap
     !
     ! Purpose
@@ -138,13 +143,14 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1      ! time dependent measurement
-    integer, intent(in)       :: L       ! No of time slice
-    integer, intent(in)       :: nBin    ! No of Bins
-    integer, intent(in)       :: flags(NTDMARRAY)
-    real(wp), intent(in)      :: dtau
-    type(Struct), intent(in)  :: S
-    type(GeomWrap), intent(in):: Gwrap
+    type(TDM1), intent(inout)   :: T1      ! time dependent measurement
+    integer, intent(in)         :: L       ! No of time slice
+    integer, intent(in)         :: nBin    ! No of Bins
+    integer, intent(in)         :: flags(NTDMARRAY)
+    !character(len=2),intent(in) :: splinew0
+    real(wp), intent(in)        :: dtau
+    type(Struct), intent(in)    :: S
+    type(GeomWrap), intent(in)  :: Gwrap
 
     ! ... local variables ...
     integer     :: i,j,Ly
@@ -164,14 +170,11 @@ contains
     T1%compute  = .true.
     T1%flags    = flags
 
-    ! Allocate storages
     allocate(T1%sgn(nBin+2))
-    ! initialize values
     T1%sgn   = ZERO
 
     call  DQMC_TDM1_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
-!    write(*,*) "# of tdm quantities:", ntdm
     allocate(T1%properties(NTDMARRAY))
 
     do i = 1, NTDMARRAY
@@ -716,12 +719,10 @@ contains
                         (-upt0(i,T1%rt(j))*up0t(j,T1%rt(i)) - upt0(T1%rt(i),j)*up0t(T1%rt(j),i) &
                          +upt0(i,j)*up0t(T1%rt(j),T1%rt(i)) + upt0(T1%rt(i),T1%rt(j))*up0t(j,i))*0.5_wp
             value1(k) = value1(k) - a* &
-                        ( uptt(i,T1%rt(i))*up00(j,T1%rt(j)) - uptt(T1%rt(i),i)*up00(T1%rt(j),j) &
-                         -uptt(i,T1%rt(i))*up00(T1%rt(j),j) + uptt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
+                        (uptt(i,T1%rt(i)) - uptt(T1%rt(i),i))*(up00(j,T1%rt(j)) - up00(T1%rt(j),j))*0.5_wp
             ! up*dn terms
             value1(k) = value1(k) - c* &
-                        ( uptt(i,T1%rt(i))*dn00(j,T1%rt(j)) + uptt(T1%rt(i),i)*dn00(T1%rt(j),j) &
-                         -uptt(i,T1%rt(i))*dn00(T1%rt(j),j) - uptt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
+                        (uptt(i,T1%rt(i)) - uptt(T1%rt(i),i))*(dn00(j,T1%rt(j)) - dn00(T1%rt(j),j))*0.5_wp
 
             ! Below assuming isotropic system
             ! for averaging over x and y directions
@@ -749,12 +750,10 @@ contains
                         (-upt0(j,T1%rt(i))*up0t(i,T1%rt(j)) - upt0(T1%rt(j),i)*up0t(T1%rt(i),j) &
                          +upt0(j,i)*up0t(T1%rt(i),T1%rt(j)) + upt0(T1%rt(j),T1%rt(i))*up0t(i,j))*0.5_wp
             value2(k) = value2(k) - a* &
-                        ( uptt(j,T1%rt(j))*up00(i,T1%rt(i)) - uptt(T1%rt(j),j)*up00(T1%rt(i),i) &
-                         -uptt(j,T1%rt(j))*up00(T1%rt(i),i) + uptt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
+                        (uptt(j,T1%rt(j)) - uptt(T1%rt(j),j))*(up00(i,T1%rt(i)) - up00(T1%rt(i),i))*0.5_wp
             ! up*dn terms
             value2(k) = value2(k) - c* &
-                        ( uptt(j,T1%rt(j))*dn00(i,T1%rt(i)) + uptt(T1%rt(j),j)*dn00(T1%rt(i),i) &
-                         -uptt(j,T1%rt(j))*dn00(T1%rt(i),i) - uptt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
+                        (uptt(j,T1%rt(j)) - uptt(T1%rt(j),j))*(dn00(i,T1%rt(i)) - dn00(T1%rt(i),i))*0.5_wp
 
 !            a = T1%hopup(j,T1%up(j))*T1%hopup(i,T1%up(i))
 !            c = T1%hopup(j,T1%up(j))*T1%hopdn(i,T1%up(i))
@@ -789,12 +788,10 @@ contains
                         (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
                          +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))*0.5_wp
             value1(k) = value1(k) - b* &
-                        ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))*0.5_wp
+                        (dntt(i,T1%rt(i)) - dntt(T1%rt(i),i))*(dn00(j,T1%rt(j)) - dn00(T1%rt(j),j))*0.5_wp
             ! dn*up terms
             value1(k) = value1(k) - d* &
-                        ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))*0.5_wp
+                        (dntt(i,T1%rt(i)) - dntt(T1%rt(i),i))*(up00(j,T1%rt(j)) - up00(T1%rt(j),j))*0.5_wp
 
             ! Below assuming isotropic system
             ! for averaging over x and y directions
@@ -823,12 +820,10 @@ contains
                         (-dnt0(j,T1%rt(i))*dn0t(i,T1%rt(j)) - dnt0(T1%rt(j),i)*dn0t(T1%rt(i),j) &
                          +dnt0(j,i)*dn0t(T1%rt(i),T1%rt(j)) + dnt0(T1%rt(j),T1%rt(i))*dn0t(i,j))*0.5_wp
             value2(k) = value2(k) - b* &
-                        ( dntt(j,T1%rt(j))*dn00(i,T1%rt(i)) - dntt(T1%rt(j),j)*dn00(T1%rt(i),i) &
-                         -dntt(j,T1%rt(j))*dn00(T1%rt(i),i) + dntt(T1%rt(j),j)*dn00(i,T1%rt(i)))*0.5_wp
+                        (dntt(j,T1%rt(j)) - dntt(T1%rt(j),j))*(dn00(i,T1%rt(i)) - dn00(T1%rt(i),i))*0.5_wp
             ! dn*up terms
             value2(k) = value2(k) - d* &
-                        ( dntt(j,T1%rt(j))*up00(i,T1%rt(i)) + dntt(T1%rt(j),j)*up00(T1%rt(i),i) &
-                         -dntt(j,T1%rt(j))*up00(T1%rt(i),i) - dntt(T1%rt(j),j)*up00(i,T1%rt(i)))*0.5_wp
+                        (dntt(j,T1%rt(j)) - dntt(T1%rt(j),j))*(up00(i,T1%rt(i)) - up00(T1%rt(i),i))*0.5_wp
 
             ! for averaging over x and y directions
 !            b = T1%hopdn(j,T1%up(j))*T1%hopdn(i,T1%up(i))
@@ -955,12 +950,10 @@ contains
                         (-upt0(i,T1%rt(j))*up0t(j,T1%rt(i)) - upt0(T1%rt(i),j)*up0t(T1%rt(j),i) &
                          +upt0(i,j)*up0t(T1%rt(j),T1%rt(i)) + upt0(T1%rt(i),T1%rt(j))*up0t(j,i))
             value1(k) = value1(k) - a* &
-                        ( uptt(i,T1%rt(i))*up00(j,T1%rt(j)) - uptt(T1%rt(i),i)*up00(T1%rt(j),j) &
-                         -uptt(i,T1%rt(i))*up00(T1%rt(j),j) + uptt(T1%rt(i),i)*up00(j,T1%rt(j)))
+                        (uptt(i,T1%rt(i)) - uptt(T1%rt(i),i))*(up00(j,T1%rt(j)) - up00(T1%rt(j),j))*0.5_wp
             ! up*dn terms
             value1(k) = value1(k) - c* &
-                        ( uptt(i,T1%rt(i))*dn00(j,T1%rt(j)) + uptt(T1%rt(i),i)*dn00(T1%rt(j),j) &
-                         -uptt(i,T1%rt(i))*dn00(T1%rt(j),j) - uptt(T1%rt(i),i)*dn00(j,T1%rt(j)))
+                        (uptt(i,T1%rt(i)) - uptt(T1%rt(i),i))*(dn00(j,T1%rt(j)) - dn00(T1%rt(j),j))*0.5_wp
 
 !            a = T1%hopup(i,T1%up(i))*T1%hopup(j,T1%up(j))
 !            c = T1%hopup(i,T1%up(i))*T1%hopdn(j,T1%up(j))
@@ -993,12 +986,10 @@ contains
                         (-dnt0(i,T1%rt(j))*dn0t(j,T1%rt(i)) - dnt0(T1%rt(i),j)*dn0t(T1%rt(j),i) &
                          +dnt0(i,j)*dn0t(T1%rt(j),T1%rt(i)) + dnt0(T1%rt(i),T1%rt(j))*dn0t(j,i))
             value1(k) = value1(k) - b* &
-                        ( dntt(i,T1%rt(i))*dn00(j,T1%rt(j)) - dntt(T1%rt(i),i)*dn00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*dn00(T1%rt(j),j) + dntt(T1%rt(i),i)*dn00(j,T1%rt(j)))
+                        (dntt(i,T1%rt(i)) - dntt(T1%rt(i),i))*(dn00(j,T1%rt(j)) - dn00(T1%rt(j),j))*0.5_wp
             ! dn*up terms
             value1(k) = value1(k) - d* &
-                        ( dntt(i,T1%rt(i))*up00(j,T1%rt(j)) + dntt(T1%rt(i),i)*up00(T1%rt(j),j) &
-                         -dntt(i,T1%rt(i))*up00(T1%rt(j),j) - dntt(T1%rt(i),i)*up00(j,T1%rt(j)))
+                        (dntt(i,T1%rt(i)) - dntt(T1%rt(i),i))*(up00(j,T1%rt(j)) - up00(T1%rt(j),j))*0.5_wp
 
 !            b = T1%hopdn(i,T1%up(i))*T1%hopdn(j,T1%up(j))
 !            d = T1%hopdn(i,T1%up(i))*T1%hopup(j,T1%up(j))
@@ -1831,9 +1822,13 @@ contains
   subroutine DQMC_TDM1_currDs(T1,Hub)
     use DQMC_Hubbard
     ! curr-curr(qx=0,qy;iwn) is estimated by linear extrapolation of two smallest qy
-    ! FT coefficients were prepared in DQMC_TDM1_Init
-
+    ! same as RTScode dishbpar2.f, only need cos real part for FT coefficients
     ! Whether to call this routine is specified in ggeom.F90
+
+    ! For MPI run
+    ! binned values() (only 1 bin) are not from MC, which has been
+    ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+    ! avg value is already averaged over proc, similar to DQMC_TDM1_GetKFT
 
     type(tdm1), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
@@ -1841,10 +1836,11 @@ contains
     integer              :: i, j, k, n, nclass, ibin, Nq
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
-    real(wp),    pointer :: value1(:), value2(:)
+    real(wp),    pointer :: value(:)
+    real(wp),    pointer :: xtemp1(:), ytemp1(:), xtemp2(:), ytemp2(:)
     complex(wp), pointer :: valuew(:)
     real(wp)             :: twopi, L, q, factor
-    complex(wp)          :: ql
+    real(wp)             :: ql
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
 
@@ -1859,91 +1855,101 @@ contains
     ! for averaging weighted summation of sum_ly exp(i*qy*ly) * curr-curr
     factor = 1.d0/n
 
-    ! 4 smallest qx, qy
-    Nq = 4
-    allocate(T1%Dsqx  (0:Nq,T1%err))
-    allocate(T1%Dsqxup(0:Nq,T1%err))
-    allocate(T1%Dsqxdn(0:Nq,T1%err))
-    allocate(T1%Dsqy  (0:Nq,T1%err))
-    allocate(T1%Dsqyup(0:Nq,T1%err))
-    allocate(T1%Dsqydn(0:Nq,T1%err))   
+    ! 3 smallest qx, qy. For MPI run, nbin=1 so T1%avg=T1%nBin+1 = 2
+   ! final 3 denotes three cases: nospline, qwspline, wqspline for iwn=0
+    Nq = 3
+    allocate(T1%Dsqx(0:Nq,3,T1%err,3))
+    allocate(T1%Dsqy(0:Nq,3,T1%err,3))
+    allocate(T1%Ds  (3,T1%err,3))  ! <-Kx>-curr
 
-    allocate(value1(0:T1%L-1))  ! store FTq of condup and conddn data
-    allocate(value2(0:T1%L-1))
-    allocate(valuew(0:T1%L-1))  ! totally L wn values, but actually only need iwn=0
+    ! for usage in qwspline case
+    allocate(xtemp1(0:T1%L-1))
+    allocate(xtemp2(0:T1%L-1))
+    allocate(ytemp1(0:T1%L-1))
+    allocate(ytemp2(0:T1%L-1))
+    ! totally L wn values, but actually only need iwn=0
+    allocate(valuew(0:T1%L-1))  
 
-    T1%Dsqx   = 0.d0
-    T1%Dsqxup = 0.d0
-    T1%Dsqxdn = 0.d0
-    T1%Dsqy   = 0.d0
-    T1%Dsqyup = 0.d0
-    T1%Dsqydn = 0.d0
+    T1%Dsqx = 0.d0
+    T1%Dsqy = 0.d0
+    T1%Ds   = 0.d0
 
     !Get Dsqy for each bin and average
-    !For MPI run, nbin=1 so T1%avg=T1%nBin+1 = 2
     do ibin = T1%avg, 1, -1
 
-       do k = 0, Nq  ! smallest qy's, including qy=0
+       do k = 0, Nq  ! including qy=0
           q = k*twopi/L
 
-          !-----------------------------------------------------------------------------
-          !First do FT to qy: vec(i,2)=ly for (qx=0,qy), only F(j) since qx=0
-          value1 = 0.d0
-          value2 = 0.d0
+          !for usage in qwspline case
+          xtemp1  = 0.d0
+          xtemp2  = 0.d0
+          ytemp1  = 0.d0
+          ytemp2  = 0.d0
           do i = 1, nclass
-             ! 12/27/2015: note here for MPI run
-             ! binned values() (only 1 bin) are not for MC, which has been
-             ! updated in JackKnife among procs in DQMC_TDM1_GetErr
-             ! avg value is already averaged over proc, see DQMC_TDM1_GetKFT
 
 !write(*,'(a6,i2,a3,f4.1,a3,f4.1,a3,i4)') "class",i," x=",vec(i,1)," y=",vec(i,2), " F=",F(i)
-   
-             ! yqy = F(i)*cmplx(cos(qy*vec(i,2)),sin(qy*vec(i,2)))  ! * F(j)
-             ql = F(i)*dcos(q*vec(i,2))  ! same as RTScode dishbpar2.f, only need cos real part
 
-             value1 = value1 + ql * T1%properties(ICONDup)%values(i,0:T1%L-1,ibin)
-             value2 = value1 + ql * T1%properties(ICONDdn)%values(i,0:T1%L-1,ibin)
-          enddo
+             !First do FT to qy: vec(i,2)=ly for (qx=0,qy)
+             ql = F(i)*dcos(q*vec(i,2))  
 
-          !Then iwn=0 component, only for one class so set ndim=0, see dqmc_util.F90
-          !only need iwn=0
-          call DQMC_getFTw(value1,valuew,T1%L,Hub%dtau,1,T1%L/2)
-          T1%Dsqyup(k,ibin) = valuew(0)
-          call DQMC_getFTw(value2,valuew,T1%L,Hub%dtau,1,T1%L/2)
-          T1%Dsqydn(k,ibin) = valuew(0)  
+             !only need iwn=0 component
+             value => T1%properties(ICONDup)%values(i,0:T1%L-1,ibin)
+             call DQMC_getFTw(value,valuew,T1%L,Hub%dtau,1,T1%L/2)
+             T1%Dsqy(k,1,ibin,1) = T1%Dsqy(k,1,ibin,1) + ql*sum(value)*Hub%dtau
+             T1%Dsqy(k,1,ibin,3) = T1%Dsqy(k,1,ibin,3) + ql*valuew(0)
+             ytemp1 = ytemp1 + ql*value
 
-          T1%Dsqy(k,ibin) = T1%Dsqyup(k,ibin) + T1%Dsqydn(k,ibin) 
+             value => T1%properties(ICONDdn)%values(i,0:T1%L-1,ibin)
+             call DQMC_getFTw(value,valuew,T1%L,Hub%dtau,1,T1%L/2)
+             T1%Dsqy(k,2,ibin,1) = T1%Dsqy(k,2,ibin,1) + ql*sum(value)*Hub%dtau
+             T1%Dsqy(k,2,ibin,3) = T1%Dsqy(k,2,ibin,3) + ql*valuew(0)
+             ytemp2 = ytemp2 + ql*value
+ 
+             !------------------------------------------------------------
+             !FT to qx: vec(i,1)=lx for (qx,qy=0)
+             ql = F(i)*dcos(q*vec(i,1)) 
 
-          !-----------------------------------------------------------------------------
-          !FT to qx: vec(i,1)=lx for (qx,qy=0), but same qx=qy, same q loop
-          value1 = 0.d0
-          value2 = 0.d0
-          do i = 1, nclass
-             ql = F(i)*dcos(q*vec(i,1))  ! same as RTScode dishbpar2.f, only need cos real part
+             !only need iwn=0 component
+             value => T1%properties(ICONDup)%values(i,0:T1%L-1,ibin)
+             call DQMC_getFTw(value,valuew,T1%L,Hub%dtau,1,T1%L/2)
+             T1%Dsqx(k,1,ibin,1) = T1%Dsqx(k,1,ibin,1) + ql*sum(value)*Hub%dtau
+             T1%Dsqx(k,1,ibin,3) = T1%Dsqx(k,1,ibin,3) + ql*valuew(0)
+             xtemp1 = xtemp1 + ql*value
 
-             value1 = value1 + ql * T1%properties(ICONDup)%values(i,0:T1%L-1,ibin)
-             value2 = value1 + ql * T1%properties(ICONDdn)%values(i,0:T1%L-1,ibin)
-          enddo
+             value => T1%properties(ICONDdn)%values(i,0:T1%L-1,ibin)
+             call DQMC_getFTw(value,valuew,T1%L,Hub%dtau,1,T1%L/2)
+             T1%Dsqx(k,2,ibin,1) = T1%Dsqx(k,2,ibin,1) + ql*sum(value)*Hub%dtau
+             T1%Dsqx(k,2,ibin,3) = T1%Dsqx(k,2,ibin,3) + ql*valuew(0)
+             xtemp2 = xtemp2 + ql*value
+          enddo  ! loop over nclass
+  
+          !Get iwn=0 for the case qwspline
+          call DQMC_getFTw(ytemp1,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqy(k,1,ibin,2) = valuew(0)
+          call DQMC_getFTw(ytemp2,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqy(k,2,ibin,2) = valuew(0)
+          call DQMC_getFTw(xtemp1,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqx(k,1,ibin,2) = valuew(0)
+          call DQMC_getFTw(xtemp2,valuew,T1%L,Hub%dtau,1,T1%L/2)
+          T1%Dsqx(k,2,ibin,2) = valuew(0)
 
-          !Then iwn=0 component, only for one class so set ndim=0, see dqmc_util.F90
-          !only need iwn=0
-          call DQMC_getFTw(value1,valuew,T1%L,Hub%dtau,1,T1%L/2)
-          T1%Dsqxup(k,ibin) = valuew(0)
-          call DQMC_getFTw(value2,valuew,T1%L,Hub%dtau,1,T1%L/2)
-          T1%Dsqxdn(k,ibin) = valuew(0)
-
-          T1%Dsqx(k,ibin) = T1%Dsqxup(k,ibin) + T1%Dsqxdn(k,ibin)
-     
+          !total=up+dn contributions
+          T1%Dsqy(k,3,ibin,:) = T1%Dsqy(k,1,ibin,:) + T1%Dsqy(k,2,ibin,:) 
+          T1%Dsqx(k,3,ibin,:) = T1%Dsqx(k,1,ibin,:) + T1%Dsqx(k,2,ibin,:)
+  
        enddo  ! Loop over q
-    enddo     ! Loop over bins
 
-    ! averaging weighted summation over # of lattice sites n
-    T1%Dsqyup = T1%Dsqyup * factor
-    T1%Dsqydn = T1%Dsqydn * factor
-    T1%Dsqy   = T1%Dsqy   * factor
-    T1%Dsqxup = T1%Dsqxup * factor
-    T1%Dsqxdn = T1%Dsqxdn * factor
-    T1%Dsqx   = T1%Dsqx   * factor
+       ! averaging weighted summation over # of lattice sites n
+       T1%Dsqy(:,1:3,ibin,:) = T1%Dsqy(:,1:3,ibin,:) * factor
+       T1%Dsqx(:,1:3,ibin,:) = T1%Dsqx(:,1:3,ibin,:) * factor
+
+       !curr-curr(qx=0,qy;iwn) is estimated by linear extrapolation of two smallest qy
+       !22,23,24 denotes Kx, Kx_up and Kx_dn, from dqmc_phy0.F90
+       T1%Ds(1,ibin,:) = Hub%P0%meas(23,ibin) - (2.d0*T1%Dsqy(1,1,ibin,:)-T1%Dsqy(2,1,ibin,:))
+       T1%Ds(2,ibin,:) = Hub%P0%meas(24,ibin) - (2.d0*T1%Dsqy(1,2,ibin,:)-T1%Dsqy(2,2,ibin,:))
+       T1%Ds(3,ibin,:) = T1%Ds(1,ibin,:) + T1%Ds(2,ibin,:)
+
+    enddo     ! Loop over bins
 
   end subroutine DQMC_TDM1_currDs
 
@@ -1955,9 +1961,9 @@ contains
 
     type(tdm1), intent(inout) :: T1
 
-    integer :: n, nproc, i, j, Nq
+    integer :: n, nproc, i, j, s, Nq
 
-    complex(wp), pointer  :: average(:), binval(:), error(:), temp(:)
+    real(wp), pointer  :: average(:), binval(:), error(:), temp(:)
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
 
@@ -1968,61 +1974,33 @@ contains
        !Note that values(avg) is known from DQMC_TDM1_GetErr, values(err) is unknown
        !in which FT from values(avg), here do not use JackKnife for simplicity
 
-       ! Dsupy
-       average  => T1%Dsqyup(:,T1%avg)
-       error    => T1%Dsqyup(:,T1%err)
-       do i = 1, T1%nbin
-          binval => T1%Dsqyup(:,i)
-          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+       ! loop over nospline, qwspline, wqspline
+       do j = 1,3
+   
+          ! loop over spin up, dn, total
+          do s = 1,3
+             average  => T1%Dsqy(:,s,T1%avg,j)
+             error    => T1%Dsqy(:,s,T1%err,j)
+             do i = 1, T1%nbin
+                binval => T1%Dsqy(:,s,i,j)
+                error  =  error + (average-binval)**2
+             enddo
+             error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+             !--------------------------------------------------
+             average  => T1%Dsqx(:,s,T1%avg,j)
+             error    => T1%Dsqx(:,s,T1%err,j)
+             do i = 1, T1%nbin
+                binval => T1%Dsqx(:,s,i,j)
+                error  =  error + (average-binval)**2
+             enddo
+             error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+             !--------------------------------------------------
+             do i = 1, T1%nbin
+                T1%Ds(s,T1%err,j) = T1%Ds(s,T1%err,j) + (T1%Ds(s,T1%avg,j) - T1%Ds(s,i,j))**2
+             enddo
+             T1%Ds(s,T1%err,j) = T1%Ds(s,T1%err,j)* dble(T1%nbin-1)/dble(T1%nbin)
+          enddo
        enddo
-       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
-       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-       ! Dsdny
-       average  => T1%Dsqydn(:,T1%avg)
-       error    => T1%Dsqydn(:,T1%err)
-       do i = 1, T1%nbin
-          binval => T1%Dsqydn(:,i)
-          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-       enddo
-       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
-       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-       ! Dsy
-       average  => T1%Dsqy(:,T1%avg)
-       error    => T1%Dsqy(:,T1%err)
-       do i = 1, T1%nbin
-          binval => T1%Dsqy(:,i)
-          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-       enddo
-       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
-       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-!-----------------------------------------------------------------------------
-       ! Dsupx
-       average  => T1%Dsqxup(:,T1%avg)
-       error    => T1%Dsqxup(:,T1%err)
-       do i = 1, T1%nbin
-          binval => T1%Dsqxup(:,i)
-          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-       enddo
-       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
-       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-       ! Dsdnx
-       average  => T1%Dsqxdn(:,T1%avg)
-       error    => T1%Dsqxdn(:,T1%err)
-       do i = 1, T1%nbin
-          binval => T1%Dsqxdn(:,i)
-          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-       enddo
-       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
-       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-       ! Dsx
-       average  => T1%Dsqx(:,T1%avg)
-       error    => T1%Dsqx(:,T1%err)
-       do i = 1, T1%nbin
-          binval => T1%Dsqx(:,i)
-          error  =  error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-       enddo
-       error  = error* dble(T1%nbin-1)/dble(T1%nbin)
-       error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
 
     else
 
@@ -2032,75 +2010,36 @@ contains
       ! updated in JackKnife among procs in DQMC_TDM1_GetErr
       ! avg value is already averaged over proc, see DQMC_TDM1_GetKFT
 
-      Nq = 4
+      Nq = 3
       allocate(temp(0:Nq))  ! two lowest qy 
 
-      ! Dsupy
-      average  => T1%Dsqyup(0:Nq,T1%avg)
-      binval   => T1%Dsqyup(0:Nq,1)
-      ! Compute error: sum(y_i-avg_y)^2
-      error  => T1%Dsqyup(0:Nq,T1%err)
-      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+      ! loop over nospline, qwspline, wqspline
+      do j = 1,3
+         ! loop over spin up, dn, total
+         do s = 1,3
+            average  => T1%Dsqy(0:Nq,s,T1%avg,j)
+            binval   => T1%Dsqy(0:Nq,s,1,j)
+            ! Compute error: sum(y_i-avg_y)^2
+            error  => T1%Dsqy(0:Nq,s,T1%err,j)
+            temp   =  (average-binval)**2
+            call mpi_allreduce(temp, error, Nq+1, mpi_double, mpi_sum, mpi_comm_world, i)
 
-      error  = error*dble(nproc-1)/dble(nproc)
-      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
+            error  = error*dble(nproc-1)/dble(nproc)
+            !-------------------------------------------------------
+            average  => T1%Dsqx(0:Nq,s,T1%avg,j)
+            binval   => T1%Dsqx(0:Nq,s,1,j)
+            ! Compute error: sum(y_i-avg_y)^2
+            error  => T1%Dsqx(0:Nq,s,T1%err,j)
+            temp   =  (average-binval)**2
+            call mpi_allreduce(temp, error, Nq+1, mpi_double, mpi_sum, mpi_comm_world, i)
 
-      ! Dsdny
-      average  => T1%Dsqydn(0:Nq,T1%avg)
-      binval   => T1%Dsqydn(0:Nq,1)
-      ! Compute error: sum(y_i-avg_y)^2
-      error  => T1%Dsqydn(0:Nq,T1%err)
-      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
-
-      error  = error*dble(nproc-1)/dble(nproc)
-      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-
-      ! Dsy
-      average  => T1%Dsqy(0:Nq,T1%avg)
-      binval   => T1%Dsqy(0:Nq,1)
-      ! Compute error: sum(y_i-avg_y)^2
-      error  => T1%Dsqy(0:Nq,T1%err)
-      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
-
-      error  = error*dble(nproc-1)/dble(nproc)
-      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-!-----------------------------------------------------------------------------
-      ! Dsupx
-      average  => T1%Dsqxup(0:Nq,T1%avg)
-      binval   => T1%Dsqxup(0:Nq,1)
-      ! Compute error: sum(y_i-avg_y)^2
-      error  => T1%Dsqxup(0:Nq,T1%err)
-      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
-
-      error  = error*dble(nproc-1)/dble(nproc)
-      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-
-      ! Dsdnx
-      average  => T1%Dsqxdn(0:Nq,T1%avg)
-      binval   => T1%Dsqxdn(0:Nq,1)
-      ! Compute error: sum(y_i-avg_y)^2
-      error  => T1%Dsqxdn(0:Nq,T1%err)
-      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
-
-      error  = error*dble(nproc-1)/dble(nproc)
-      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-
-      ! Dsx
-      average  => T1%Dsqx(0:Nq,T1%avg)
-      binval   => T1%Dsqx(0:Nq,1)
-      ! Compute error: sum(y_i-avg_y)^2
-      error  => T1%Dsqx(0:Nq,T1%err)
-      temp   =  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
-      call mpi_allreduce(temp, error, Nq+1, mpi_double_complex, mpi_sum, mpi_comm_world, i)
-
-      error  = error*dble(nproc-1)/dble(nproc)
-      error  = cmplx(sqrt(real(error)),sqrt(aimag(error)))
-
+            error  = error*dble(nproc-1)/dble(nproc)
+            !-------------------------------------------------------
+            call mpi_allreduce((T1%Ds(s,T1%avg,j)-T1%Ds(s,1,j))**2, &
+                          T1%Ds(s,T1%err,j), 1, mpi_double, mpi_sum, mpi_comm_world, i)
+            T1%Ds(s,T1%err,j) = T1%Ds(s,T1%err,j)*dble(nproc-1)/dble(nproc)
+         enddo
+      enddo
       deallocate(temp)
 
 #    endif
@@ -2118,67 +2057,78 @@ contains
     integer, intent(in)      :: OPT
 
     integer  :: i, j, k, ip, jp, iprop, Nq
+    character(len=18) :: spline(3)
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
     if (qmc_sim%rank .ne. 0) return
 
-    Nq = 4
+    Nq = 3
+    spline(1) = "nospline for iwn=0"
+    spline(2) = "qwspline for iwn=0"
+    spline(3) = "wqspline for iwn=0"
 
 !--------------------------------------------------------------------------------------
+  ! loop over nospline, qwspline, wqspline
+  do j = 1,3
+    write(OPT,'(a45)') "Ds/pi = <-Kx> - curr-curr(qx=0, qy->0; iwn=0)"
+    write(OPT,'(a30)')"=================================================================="
+    write(OPT,'(a18)') spline(j)
+    write(OPT,'(a30)')"=================================================================="
+    write(OPT,'(a3,e16.8,a2,e16.8)') "Ds=", T1%Ds(3,T1%avg,j), " ", T1%Ds(3,T1%err,j)
+    write(OPT,'(a3,e16.8,a2,e16.8)') "UP ", T1%Ds(1,T1%avg,j), " ", T1%Ds(1,T1%err,j)
+    write(OPT,'(a3,e16.8,a2,e16.8)') "DN ", T1%Ds(2,T1%avg,j), " ", T1%Ds(2,T1%err,j)
+  enddo
+  write(OPT,'(a30)') " "
+  
+  ! loop over nospline, qwspline, wqspline
+  do j = 1,3
+    write(OPT,'(a30)')"=================================================================="
     write(OPT,'(a43)') "qy*Ly/2*pi       curr-curr(qx=0, qy; iwn=0)"
-    write(OPT,*)"=================================================================="
+    write(OPT,'(a30)')"=================================================================="
+    write(OPT,'(a18)') spline(j)
+    write(OPT,'(a30)')"=================================================================="
 
     write(OPT,'(a6)') "Dsqy"
     do i = 0,Nq
-       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
-         i, " ",   real (T1%Dsqy(i,T1%avg)), " ", real (T1%Dsqy(i,T1%err)), &
-            "+i ", aimag(T1%Dsqy(i,T1%avg)), " ", aimag(T1%Dsqy(i,T1%err))
+       write(OPT,'(i2,a2,e16.8,a2,e16.8)') i, " ", T1%Dsqy(i,3,T1%avg,j), " ", T1%Dsqy(i,3,T1%err,j)
     enddo
-    write(OPT,*)"------------------------------------------------------------------"
+    write(OPT,'(a30)')"------------------------------------------------------------------"
 
     write(OPT,'(a6)') "Dsqyup"
     do i = 0,Nq
-       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
-         i, " ",   real (T1%Dsqyup(i,T1%avg)), " ", real (T1%Dsqyup(i,T1%err)), &
-            "+i ", aimag(T1%Dsqyup(i,T1%avg)), " ", aimag(T1%Dsqyup(i,T1%err))
+       write(OPT,'(i2,a2,e16.8,a2,e16.8)') i, " ", T1%Dsqy(i,1,T1%avg,j), " ", T1%Dsqy(i,1,T1%err,j)
     enddo
-    write(OPT,*)"------------------------------------------------------------------"
+    write(OPT,'(a30)')"------------------------------------------------------------------"
 
     write(OPT,'(a6)') "Dsqydn"
     do i = 0,Nq
-       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
-         i, " ",   real (T1%Dsqydn(i,T1%avg)), " ", real (T1%Dsqydn(i,T1%err)), &
-            "+i ", aimag(T1%Dsqydn(i,T1%avg)), " ", aimag(T1%Dsqydn(i,T1%err))
+       write(OPT,'(i2,a2,e16.8,a2,e16.8)') i, " ", T1%Dsqy(i,2,T1%avg,j), " ", T1%Dsqy(i,2,T1%err,j)
     enddo
-    write(OPT,*)"=================================================================="
+    write(OPT,'(a30)')"=================================================================="
 
 !--------------------------------------------------------------------------------------
     write(OPT,'(a43)') "qx*Lx/2*pi       curr-curr(qx, qy=0; iwn=0)"
-    write(OPT,*)"=================================================================="
+    write(OPT,'(a30)')"=================================================================="
 
     write(OPT,'(a6)') "Dsqx"
     do i = 0,Nq
-       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
-         i, " ",   real (T1%Dsqx(i,T1%avg)), " ", real (T1%Dsqx(i,T1%err)), &
-            "+i ", aimag(T1%Dsqx(i,T1%avg)), " ", aimag(T1%Dsqx(i,T1%err))
+       write(OPT,'(i2,a2,e16.8,a2,e16.8)') i, " ", T1%Dsqx(i,3,T1%avg,j), " ", T1%Dsqx(i,3,T1%err,j)
     enddo
-    write(OPT,*)"------------------------------------------------------------------"
+    write(OPT,'(a30)')"------------------------------------------------------------------"
 
     write(OPT,'(a6)') "Dsqxup"
     do i = 0,Nq
-       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
-         i, " ",   real (T1%Dsqxup(i,T1%avg)), " ", real (T1%Dsqxup(i,T1%err)), &
-            "+i ", aimag(T1%Dsqxup(i,T1%avg)), " ", aimag(T1%Dsqxup(i,T1%err))
+       write(OPT,'(i2,a2,e16.8,a2,e16.8)') i, " ", T1%Dsqx(i,1,T1%avg,j), " ", T1%Dsqx(i,1,T1%err,j)
     enddo
-    write(OPT,*)"------------------------------------------------------------------"
+    write(OPT,'(a30)')"------------------------------------------------------------------"
 
     write(OPT,'(a6)') "Dsqxdn"
     do i = 0,Nq
-       write(OPT,'(i2,a2,e16.8,a2,e16.8,a4,e16.8,a2,e16.8)')                &
-         i, " ",   real (T1%Dsqxdn(i,T1%avg)), " ", real (T1%Dsqxdn(i,T1%err)), &
-            "+i ", aimag(T1%Dsqxdn(i,T1%avg)), " ", aimag(T1%Dsqxdn(i,T1%err))
+       write(OPT,'(i2,a2,e16.8,a2,e16.8)') i, " ", T1%Dsqx(i,2,T1%avg,j), " ", T1%Dsqx(i,2,T1%err,j)
     enddo
-
+    write(OPT,'(a30)') " "
+  enddo
+  
   end subroutine DQMC_TDM1_currDs_Print
 
 end module DQMC_TDM1

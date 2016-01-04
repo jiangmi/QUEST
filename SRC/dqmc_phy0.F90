@@ -110,7 +110,7 @@ module DQMC_Phy0
   integer, parameter :: P0_NNPROD    = 18
   integer, parameter :: P0_NNSUM     = 19
 
-  integer, parameter :: P0_potential_energy      = 20
+  integer, parameter :: P0_PE                    = 20
   integer, parameter :: P0_hopping_energy        = 21
   integer, parameter :: P0_Kx                    = 22
   integer, parameter :: P0_Kx_up                 = 23
@@ -404,6 +404,394 @@ contains
 
   !--------------------------------------------------------------------!
 
+  subroutine DQMC_Phy0_Meas(n, P0, G_up, G_dn, U, mu_up, mu_dn, t_up, t_dn, sgnup, sgndn, S)
+    ! Called by DQMC_Hub_FullMeas in dqmc_hubbard.F90
+    !
+    ! Purpose
+    ! =======
+    !    This subroutine performs some physics measurement on
+    !    Hubbard model.
+    !
+    ! Arguments
+    ! =========
+    !
+    integer, intent(in)          :: n            ! Number of sites
+    type(Phy0), intent(inout)    :: P0           ! Phy0
+    real(wp), intent(in)         :: G_up(n,n)    ! Green's function
+    real(wp), intent(in)         :: G_dn(n,n)    ! for spin up and down
+    real(wp), intent(in)         :: sgnup, sgndn ! Sgn for det(G_up) det(G_dn)
+    real(wp), intent(in)         :: mu_up(n), mu_dn(n)  ! Chemical and Kinetic para
+    real(wp), intent(in)         :: t_up(:), t_dn(:)  ! Chemical and Kinetic para
+    real(wp), intent(in)         :: U(:)         ! Chemical and Kinetic para
+    type(Struct), intent(in)     :: S            ! Underline structure
+
+    ! ... local scalar ...
+
+    integer  :: i, j, k, ph                      ! Loop iterator
+    integer  :: tmp, idx, m                      ! Helper variables
+    real(wp) :: sgn                        
+    real(wp) :: var1, var2, var3          
+    integer, pointer  :: start(:) 
+    integer, pointer  :: r(:) 
+    integer, pointer  :: A(:) 
+
+    ! Auxiliary variable for chi_thermal and C_v
+    real(wp) :: Cbar, Nbar, Tbar, un
+    real(wp) :: h_up(n, n), h_dn(n, n) 
+    real(wp) :: A_up(n, n), A_dn(n, n)
+
+    ! ... executable ...
+
+    idx = P0%idx
+    tmp = P0%avg
+
+    ! initialization
+    ! Here we use avg bin as a temp variable 
+    P0%meas(:,tmp)   = ZERO
+
+    P0%G_fun(:,tmp)  = ZERO
+    P0%Gf_up(:,tmp)  = ZERO
+    P0%Gf_dn(:,tmp)  = ZERO
+    P0%Den0(:,tmp)   = ZERO
+    P0%Den1(:,tmp)   = ZERO
+    P0%SpinXX(:,tmp) = ZERO
+    P0%SpinZZ(:,tmp) = ZERO
+    P0%Pair(:,tmp)   = ZERO
+
+    ! Compute the site density for spin up and spin down
+    do i = 1, n
+       !======================================================!
+       ! The density of electrons of spin up(dn) on site i    !
+       ! is 1-G_up(i,i) (1-G_dn(i,i)).                        !
+       ! nup (ndn) is the sum of all spin up (down) electrons.!
+       !======================================================!
+       P0%up(i)  = ONE - G_up(i, i)
+       P0%dn(i)  = ONE - G_dn(i, i)
+       P0%meas(P0_NUD, tmp) = P0%meas(P0_NUD, tmp)+ &
+            P0%up(i) * P0%dn(i) * U(S%Map(i))
+       !======================================================!
+       ! Double occupancy P0%up(i) * P0%dn(i)
+       !======================================================!
+       P0%meas(P0_double_occupancy, tmp) = P0%meas(P0_double_occupancy, tmp) + &
+       P0%up(i) * P0%dn(i)
+       !=====================================================================!
+       ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
+       !=====================================================================!
+       P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + &
+            (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
+    end do
+
+    P0%meas(P0_NUP, tmp) = sum(P0%up)
+    P0%meas(P0_NDN, tmp) = sum(P0%dn)
+    
+    !=================================================================!
+    ! Kinetic energy = Hopping energy + mu term 
+    !=================================================================!
+    ! Hopping energy = tt*sum_{ij\sigma}(G_{ij\sigma}+G_{ji\sigma})
+
+    ! set alias
+    start => S%T%cstart
+    r     => S%T%row
+    A     => S%T%A
+    
+    ! loop all adj sites
+    do i = 1, n  ! for each column
+       do j = start(i), start(i + 1)-1 ! for each nonzero elements
+
+          var1 = t_up(A(j)) * G_up(r(j), i)
+          var2 = t_dn(A(j)) * G_dn(r(j), i)
+          var3 = var1 + var2
+
+          P0%meas(P0_KE_UP, tmp) =  P0%meas(P0_KE_UP, tmp) + var1
+          P0%meas(P0_KE_DN, tmp) =  P0%meas(P0_KE_DN, tmp) + var2
+          P0%meas(P0_KE, tmp)    =  P0%meas(P0_KE, tmp)    + var3
+
+          P0%meas(P0_hopping_energy, tmp) = P0%meas(P0_hopping_energy, tmp) + var3
+       end do
+
+       !Include -mu*(nup+ndn)
+       var1 = mu_up(S%Map(i)) * P0%up(i)
+       var2 = mu_dn(S%Map(i)) * P0%dn(i)
+       var3 = var1 + var2
+
+       P0%meas(P0_KE_UP, tmp)  = P0%meas(P0_KE_UP, tmp) - var1
+       P0%meas(P0_KE_DN, tmp)  = P0%meas(P0_KE_DN, tmp) - var2
+       P0%meas(P0_KE, tmp)     = P0%meas(P0_KE, tmp)    - var3
+    end do
+
+    !=================================================================!
+    ! Total energy = kinetic energy + potential energy
+    !=================================================================!
+    P0%meas(P0_ENERGY, tmp) = P0%meas(P0_KE, tmp) + P0%meas(P0_PE, tmp)
+
+    !=================================================================!
+    ! KE in x direction <-Kx> for D and Ds (up and dn spins)
+    !=================================================================!
+
+    do i = 1, n
+       ! - sign for <-Kx>
+       ! Below applies for isotropic system
+       !var1 = -0.5d0* (P0%hopup(i,P0%rt(i))*G_up(i, P0%rt(i)) + P0%hopup(i,P0%top(i))*G_up(i, P0%top(i)))
+       !var2 = -0.5d0* (P0%hopdn(i,P0%rt(i))*G_dn(i, P0%rt(i)) + P0%hopdn(i,P0%top(i))*G_dn(i, P0%top(i)))
+       ! only consider x direction
+       var1 = -P0%hopup(i,P0%rt(i))*G_up(i, P0%rt(i)) - P0%hopup(P0%rt(i),i)*G_up(P0%rt(i),i)
+       var2 = -P0%hopdn(i,P0%rt(i))*G_dn(i, P0%rt(i)) - P0%hopdn(P0%rt(i),i)*G_dn(P0%rt(i),i)
+       var3 = var1 + var2
+
+       P0%meas(P0_Kx_up, tmp) = P0%meas(P0_Kx_up, tmp) + var1
+       P0%meas(P0_Kx_dn, tmp) = P0%meas(P0_Kx_dn, tmp) + var2
+       P0%meas(P0_Kx, tmp)    = P0%meas(P0_Kx, tmp)    + var3
+    enddo
+
+    !=================================================================!
+    ! Total occupancy = nup + ndn
+    !=================================================================!
+    P0%meas(P0_DENSITY, tmp) = P0%meas(P0_NUP, tmp) + &                                                                  
+         P0%meas(P0_NDN, tmp)      
+
+    !=================================================================! 
+    ! Magnetisation squared = 1/4 (rho - 2 double_occupancy)    
+    !=================================================================! 
+    P0%meas(P0_magnetisation_squared, tmp) = 0.25d0 * (P0%meas(P0_density, tmp) -&
+     2 * P0%meas(P0_double_occupancy, tmp))
+
+    !=========================================!
+    ! Chi_thermal 
+    !=========================================!
+
+    ! Fill h_up, h_dn with hopping matrix elements
+    h_up = ZERO
+    h_dn = ZERO
+    do i = 1, n
+       do j = start(i), start(i + 1) - 1
+          h_up(r(j), i) =  -t_up(A(j))
+          h_dn(r(j), i) =  -t_dn(A(j))
+       end do
+       h_up(i,i) =  h_up(i,i) - mu_up(S%Map(i)) - 0.5d0 * U(S%Map(i))
+       h_dn(i,i) =  h_dn(i,i) - mu_dn(S%Map(i)) - 0.5d0 * U(S%Map(i))
+    end do
+
+    ! Gfun * t
+    ! Fill h_up, h_dn 
+    call blas_dgemm('N', 'N', n, n, n, ONE, G_up, n, h_up, n, ZERO, A_up, n)
+    call blas_dgemm('N', 'N', n, n, n, ONE, G_dn, n, h_dn, n, ZERO, A_dn, n)
+
+    ! Total number of particles
+    Nbar = sum(P0%up) + sum(P0%dn)
+
+    Tbar = 0.d0
+    do i = 1, n
+       Tbar = Tbar + h_up(i, i) + h_dn(i, i)
+    enddo
+
+    Cbar = 0.d0
+    do i = 1, n
+       Cbar = Cbar + A_up(i, i) + A_dn(i, i)
+    enddo
+
+    !< N T >
+    P0%meas(P0_CHIT, tmp) = (Tbar - Cbar) * Nbar 
+    do j = 1, n
+       do k = 1, n
+          P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) - G_up(j,k) * A_up(k,j) - G_dn(j,k) * A_dn(k,j)
+       enddo
+    enddo
+    P0%meas(P0_CHIT,tmp) = P0%meas(P0_CHIT, tmp) + Cbar
+
+    !< N U >
+    P0%meas(P0_CHIT,tmp) = P0%meas(P0_CHIT, tmp) + Nbar * P0%meas(P0_NUD, tmp)
+    do i = 1, n
+       un = ONE
+       do k = 1, n 
+          un = un - G_up(i, k) * G_up(k, i)
+       enddo
+       P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) +  un*P0%dn(i)*U(S%Map(i))
+       un = ONE
+       do k = 1, n 
+          un = un - G_dn(i, k) * G_dn(k, i)
+       enddo
+       P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) + un*P0%up(i)*U(S%Map(i))
+    enddo
+    P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) - TWO * P0%meas(P0_NUD, tmp)
+
+    !Scale by inverse temperature
+    P0%meas(P0_CHIT, tmp) = P0%beta * P0%beta * P0%meas(P0_CHIT, tmp)
+
+    !=========================================!
+    ! Specific heat
+    !=========================================!
+
+    !< T T >
+    P0%meas(P0_CV, tmp) = (Tbar - Cbar)**2 
+    do i = 1, n
+       do j = 1, n 
+          P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + (h_up(i, j) - A_up(i, j)) * A_up(j, i) &
+             + (h_dn(i, j) - A_dn(i, j)) * A_dn(j, i)
+       enddo
+    enddo
+    
+    !< T U >
+    P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + (Tbar - Cbar)*P0%meas(P0_NUD, tmp) 
+    do i = 1, n 
+       !un = U(S%map(i)) * P0%up(i)
+       un = ZERO
+       do j = 1, n
+          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + un * G_dn(j,i) * (h_dn(i,j) - A_dn(i,j))
+          un = un + G_dn(j, i) * (h_dn(i, j) - A_dn(i, j))
+       enddo
+       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + un *  U(S%map(i)) * P0%up(i)
+       !un = U(S%map(i)) * P0%dn(i)
+       un = ZERO
+       do j = 1, n
+          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + un * G_up(j,i) * (h_up(i,j) - A_up(i,j))
+          un = un + G_up(j, i) * (h_up(i, j) - A_up(i, j))
+       enddo
+       P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + un *  U(S%map(i)) * P0%dn(i)
+    enddo
+
+    !< U T >
+    P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + (Tbar - Cbar)*P0%meas(P0_NUD, tmp) 
+    do i = 1, n 
+       P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + U(S%map(i)) * P0%up(i) * A_dn(i,i)
+       !un = U(S%map(i)) * P0%up(i)
+       un = ZERO
+       do j = 1, n
+          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * A_dn(i,j) * G_dn(j,i)
+          un = un + A_dn(i,j) * G_dn(j,i)
+       enddo
+       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * U(S%map(i)) * P0%up(i)
+
+       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + U(S%map(i)) * P0%dn(i) * A_up(i,i)
+       !un = U(S%map(i)) * P0%dn(i)
+       un = ZERO
+       do j = 1, n
+          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * A_up(i,j) * G_up(j,i)
+          un = un + A_up(i,j) * G_up(j,i)
+       enddo
+       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * U(S%map(i)) * P0%dn(i)
+    enddo
+
+    !< U U >
+    ! Redefine A_up and A_dn
+    do j = 1, n 
+       do i = 1, n
+          un = sqrt(U(S%Map(i))*U(S%Map(j)))
+          A_up(i,j) = un * (P0%up(i)*P0%up(j) - G_up(i,j)*G_up(j,i))
+          A_dn(i,j) = un * (P0%dn(i)*P0%dn(j) - G_dn(i,j)*G_dn(j,i))
+       enddo
+       A_up(j,j) = P0%up(j) * U(S%Map(j))
+       A_dn(j,j) = P0%dn(j) * U(S%Map(j))
+    enddo
+    ! Compute UU contribution to Cv
+    do j = 1, n 
+       do i = 1, n
+          P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + A_up(i,j)*A_dn(i,j)
+       enddo
+    enddo
+
+    ! Scale by inverse T
+    P0%meas(P0_CV, tmp) = P0%beta * P0%beta * P0%meas(P0_CV, tmp)
+
+    !=====================!
+    ! Autocorelation term.!
+    !=====================!
+!    if (P0%compSAF) then
+       P0%meas(P0_SAF, tmp)  = TWO*n-P0%meas(P0_NUP, tmp)-&
+            P0%meas(P0_NDN, tmp)
+       P0%meas(P0_SAF2,tmp)  = P0%meas(P0_SAF, tmp)
+!    end if
+
+    do i = 1,n
+       do j = 1,n
+          var1 = G_up(i,j) * G_up(j,i) + G_dn(i,j) * G_dn(j,i)
+          var2 = -TWO * G_up(i,j) * G_dn(j,i)
+          var3 = G_up(i,i) * G_up(j,j) + G_dn(i,i) * G_dn(j,j) - &
+                 TWO * G_up(i,i) * G_dn(j,j) - var1
+          
+          ! k is the index
+          k = S%D(i,j)
+          ph = S%gf_phase(i,j)
+          P0%G_fun(k, tmp) = P0%G_fun(k, tmp) + ph*(G_up(i,j) + G_dn(i,j))
+          P0%Gf_up(k, tmp) = P0%Gf_up(k, tmp) + ph*G_up(i,j) 
+          P0%Gf_dn(k, tmp) = P0%Gf_dn(k, tmp) + ph*G_dn(i,j)
+          P0%Den0(k, tmp)  = P0%Den0(k, tmp) + &
+               P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1
+          P0%Den1(k, tmp)  = P0%Den1(k, tmp) + P0%up(i)*P0%dn(j)
+          P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var2
+          P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var3
+          P0%Pair(k,tmp)  = P0%Pair(k,tmp) + G_up(i,j) * G_dn(i,j)
+          
+!          if (P0%compSAF) then
+!             var1 = S%P(i)*S%P(j)
+             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + S%AFphase(k) * var2
+             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + S%AFphase(k) * var3
+
+             ! CDW related quantities also in plane
+             ! <n_i*n_j>
+             P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + &
+                   S%AFphase(k)* (P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
+             ! <n_i+n_j>, seems not necessary for staggered potential and/or other projects
+           !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
+!          end if
+       end do
+       ! special case for (i,i) due to different Wick contraction possibilities 
+       k = S%D(i,i)
+       var1 =  G_up(i,i) + G_dn(i,i)
+       P0%Den0(k, tmp)   = P0%Den0(k, tmp)   + var1
+       P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var1
+       P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
+
+     !  P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + var1
+     !  P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + var1
+       P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
+    end do
+    
+    P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
+    P0%meas(P0_SFER2,  tmp) = sum(P0%SpinZZ(:,tmp))
+
+    P0%meas(P0_CDW, tmp) = P0%meas(P0_NNPROD, tmp) !- P0%meas(P0_NNSUM, tmp)*P0%meas(P0_DENSITY,tmp)
+    
+    ! Average
+    P0%meas(:,tmp) = P0%meas(:,tmp) / n
+    do i = 1, P0%nClass
+       P0%G_fun (i, tmp) = P0%G_fun (i, tmp) / S%F(i) * HALF
+       P0%Gf_up (i, tmp) = P0%Gf_up (i, tmp) / S%F(i)
+       P0%Gf_dn (i, tmp) = P0%Gf_dn (i, tmp) / S%F(i)
+       P0%SpinXX(i, tmp) = P0%SpinXX(i, tmp) / S%F(i)
+       P0%SpinZZ(i, tmp) = P0%SpinZZ(i, tmp) / S%F(i)
+       P0%Den0  (i, tmp) = P0%Den0  (i, tmp) / S%F(i) * HALF
+       P0%Den1  (i, tmp) = P0%Den1  (i, tmp) / S%F(i)
+       P0%Pair(i, tmp)   = P0%Pair(i, tmp) / S%F(i) * HALF
+    end do
+
+!    if (P0%compSAF) then
+       P0%meas(P0_SAFSQ, tmp) = P0%meas(P0_SAF, tmp) * P0%meas(P0_SAF, tmp)
+       P0%meas(P0_SAF2SQ,tmp) = P0%meas(P0_SAF2,tmp) * P0%meas(P0_SAF2,tmp)
+!    end if
+
+    ! Accumulate result to P0(:, idx)
+    sgn = sgnup * sgndn
+    P0%meas(:, idx) =  P0%meas(:, idx) + P0%meas(:, tmp) * sgn
+
+    m = P0%nClass
+    call blas_daxpy(m, sgn, P0%G_fun (1:m,tmp), 1, P0%G_fun (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Gf_up (1:m,tmp), 1, P0%Gf_up (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Gf_dn (1:m,tmp), 1, P0%Gf_dn (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%SpinXX(1:m,tmp), 1, P0%SpinXX(1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%SpinZZ(1:m,tmp), 1, P0%SpinZZ(1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Den0  (1:m,tmp), 1, P0%Den0  (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Den1  (1:m,tmp), 1, P0%Den1  (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Pair  (1:m,tmp), 1, P0%Pair(1:m,idx), 1)
+
+    P0%sign(P0_SGN,   idx) =  P0%sign(P0_SGN,   idx) + sgn
+    P0%sign(P0_SGNUP, idx) =  P0%sign(P0_SGNUP, idx) + sgnup
+    P0%sign(P0_SGNDN, idx) =  P0%sign(P0_SGNDN, idx) + sgndn
+    P0%cnt = P0%cnt + 1
+
+  end subroutine DQMC_Phy0_Meas
+
+  !--------------------------------------------------------------------!
+
   subroutine DQMC_Phy0_Avg(P0)
     !
     ! Purpose
@@ -462,80 +850,6 @@ contains
     p0%cnt = 0
 
   end subroutine DQMC_Phy0_Avg
-
-  !--------------------------------------------------------------------!
-  
-  subroutine DQMC_Phy0_Print(P0, S, OPT)
-    use dqmc_mpi
-    !
-    ! Purpose
-    ! =======
-    !    This subroutine prints out the average and errors
-    !    of measurements. Structure S will give labels for
-    !    each autocorrelation terms.
-    !
-    !  Pre-assumption
-    ! ===============
-    !    OPT is a file handle
-    !    DQMC_Phy0_GetErr was called.
-    !
-    ! Arguments
-    ! =========
-    !
-    type(Phy0), intent(in)    :: P0   ! Phy0
-    type(Struct), intent(in)  :: S    ! Underline lattice structure
-    integer, intent(in)       :: OPT  ! Output file handle
-
-    ! ... Local scalar ...
-    integer :: nClass, avg, err
-
-    ! ... Executable ...
-
-   if (qmc_sim%rank /= 0) return
-
-    nClass = P0%nClass
-    avg    = P0%avg
-    err    = P0%err
-
-   
-    ! Scalar terms
-    call DQMC_Print_RealArray(0, 3, "Sign of equal time measurements:", &
-         P0_SIGN_STR, P0%sign(:,avg:avg), P0%sign(:,err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, P0%nmeas, "Equal time measurements:", &
-         P0_STR, P0%meas(:,avg:avg), P0%meas(:,err:err), OPT)
-
-    ! Function terms
-    call DQMC_Print_RealArray(0, nClass, "Mean Equal time Green's function:", &
-         S%clabel, P0%G_fun(:, avg:avg), P0%G_fun(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, "Up Equal time Green's function:", &
-         S%clabel, P0%Gf_up(:, avg:avg), P0%Gf_up(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, "Down Equal time Green's function:", &
-         S%clabel, P0%Gf_dn(:, avg:avg), P0%Gf_dn(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, &
-         "Density-density correlation fn: (up-up)", &
-         S%clabel, P0%Den0(:, avg:avg), P0%Den0(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, &
-         "Density-density correlation fn: (up-dn)", &
-         S%clabel, P0%Den1(:, avg:avg), P0%Den1(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, "XX Spin correlation function:", &
-         S%clabel, P0%SpinXX(:, avg:avg), P0%SpinXX(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, "ZZ Spin correlation function:", &
-         S%clabel, P0%SpinZZ(:, avg:avg), P0%SpinZZ(:, err:err), OPT)
-
-    call DQMC_Print_RealArray(0, nClass, "Average Spin correlation function:", &
-         S%clabel, P0%AveSpin(:, avg:avg), P0%AveSpin(:, err:err), OPT)
-    
-    call DQMC_Print_RealArray(0, nClass, "Pairing correlation function:", &
-         S%clabel, P0%Pair(:, avg:avg), P0%Pair(:, err:err), OPT)
-    
-  end subroutine DQMC_Phy0_Print
 
   !--------------------------------------------------------------------!
 
@@ -727,402 +1041,82 @@ contains
   endif
 
   end subroutine DQMC_Phy0_GetErr
-
+  
   !--------------------------------------------------------------------!
-
-  subroutine DQMC_Phy0_Meas(n, P0, G_up, G_dn, U, mu_up, mu_dn, t_up, t_dn, sgnup, sgndn, S)
+  
+  subroutine DQMC_Phy0_Print(P0, S, OPT)
+    use dqmc_mpi
     !
     ! Purpose
     ! =======
-    !    This subroutine performs some physics measurement on
-    !    Hubbard model.
+    !    This subroutine prints out the average and errors
+    !    of measurements. Structure S will give labels for
+    !    each autocorrelation terms.
+    !
+    !  Pre-assumption
+    ! ===============
+    !    OPT is a file handle
+    !    DQMC_Phy0_GetErr was called.
     !
     ! Arguments
     ! =========
     !
-    integer, intent(in)          :: n            ! Number of sites
-    type(Phy0), intent(inout)    :: P0           ! Phy0
-    real(wp), intent(in)         :: G_up(n,n)    ! Green's function
-    real(wp), intent(in)         :: G_dn(n,n)    ! for spin up and down
-    real(wp), intent(in)         :: sgnup, sgndn ! Sgn for det(G_up) det(G_dn)
-    real(wp), intent(in)         :: mu_up(n), mu_dn(n)  ! Chemical and Kinetic para
-    real(wp), intent(in)         :: t_up(:), t_dn(:)  ! Chemical and Kinetic para
-    real(wp), intent(in)         :: U(:)         ! Chemical and Kinetic para
-    type(Struct), intent(in)     :: S            ! Underline structure
-    target :: S
+    type(Phy0), intent(in)    :: P0   ! Phy0
+    type(Struct), intent(in)  :: S    ! Underline lattice structure
+    integer, intent(in)       :: OPT  ! Output file handle
 
-    ! ... local scalar ...
+    ! ... Local scalar ...
+    integer :: nClass, avg, err
 
-    integer  :: i, j, k, ph                      ! Loop iterator
-    integer  :: tmp, idx, m                      ! Helper variables
-    real(wp) :: sgn                        
-    real(wp) :: var1, var2, var3          
-    integer, pointer  :: start(:) 
-    integer, pointer  :: r(:) 
-    integer, pointer  :: A(:) 
+    ! ... Executable ...
 
-    ! Auxiliary variable for chi_thermal and C_v
-    real(wp) :: Cbar, Nbar, Tbar, un
-    real(wp) :: h_up(n, n), h_dn(n, n) 
-    real(wp) :: A_up(n, n), A_dn(n, n)
+   if (qmc_sim%rank /= 0) return
 
-    ! ... executable ...
+    nClass = P0%nClass
+    avg    = P0%avg
+    err    = P0%err
 
-    idx = P0%idx
-    tmp = P0%avg
-
-    ! initialization
-    ! Here we use avg bin as a temp variable 
-    P0%meas(:,tmp)   = ZERO
-
-    P0%G_fun(:,tmp)  = ZERO
-    P0%Gf_up(:,tmp)  = ZERO
-    P0%Gf_dn(:,tmp)  = ZERO
-    P0%Den0(:,tmp)   = ZERO
-    P0%Den1(:,tmp)   = ZERO
-    P0%SpinXX(:,tmp) = ZERO
-    P0%SpinZZ(:,tmp) = ZERO
-    P0%Pair(:,tmp)   = ZERO
-
-    ! Compute the site density for spin up and spin down
-    do i = 1, n
-       !======================================================!
-       ! The density of electrons of spin up(dn) on site i    !
-       ! is 1-G_up(i,i) (1-G_dn(i,i)).                        !
-       ! nup (ndn) is the sum of all spin up (down) electrons.!
-       !======================================================!
-       P0%up(i)  = ONE - G_up(i, i)
-       P0%dn(i)  = ONE - G_dn(i, i)
-       P0%meas(P0_NUD, tmp) = P0%meas(P0_NUD, tmp)+ &
-            P0%up(i) * P0%dn(i) * U(S%Map(i))
-       !======================================================!
-       ! Double occupancy P0%up(i) * P0%dn(i)
-       !======================================================!
-       P0%meas(P0_double_occupancy, tmp) = P0%meas(P0_double_occupancy, tmp) +&
-       P0%up(i) * P0%dn(i)
-       !=====================================================================!
-       ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
-       !=====================================================================!
-       P0%meas(P0_potential_energy, tmp) = P0%meas(P0_potential_energy, tmp)+ &
-            (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
-       
-    end do
-
-    P0%meas(P0_NUP, tmp) = sum(P0%up)
-    P0%meas(P0_NDN, tmp) = sum(P0%dn)
+   
+    ! Scalar terms
+    call DQMC_Print_RealArray(0, 3, "Sign of equal time measurements:", &
+         P0_SIGN_STR, P0%sign(:,avg:avg), P0%sign(:,err:err), OPT)
     
-    !=================================================================!
-    ! Kinetic energy = tt*sum_{ij\sigma}(G_{ij\sigma}+G_{ji\sigma}) - 
-    ! - \sum_{i\sigma} \mu_{i\sigma} (n_{i\sigma} + U_i / 2)!
-    ! where site i and site j are neighbors   !
-    !=================================================================!
-    ! Hopping energy = tt*sum_{ij\sigma}(G_{ij\sigma}+G_{ji\sigma})
+    call DQMC_Print_RealArray(0, P0%nmeas, "Equal time measurements:", &
+         P0_STR, P0%meas(:,avg:avg), P0%meas(:,err:err), OPT)
 
-    ! set alias
-    start => S%T%cstart
-    r     => S%T%row
-    A     => S%T%A
+    ! Function terms
+    call DQMC_Print_RealArray(0, nClass, "Mean Equal time Green's function:", &
+         S%clabel, P0%G_fun(:, avg:avg), P0%G_fun(:, err:err), OPT)
     
-    ! loop all adj sites
-    do i = 1, n  ! for each column
-       do j = start(i), start(i + 1)-1 ! for each nonzero elements
-
-          var1 = t_up(A(j)) * G_up(r(j), i)
-          var2 = t_dn(A(j)) * G_dn(r(j), i)
-          var3 = var1 + var2
-
-          P0%meas(P0_KE_UP, tmp) =  P0%meas(P0_KE_UP, tmp) + var1
-          P0%meas(P0_KE_DN, tmp) =  P0%meas(P0_KE_DN, tmp) + var2
-          P0%meas(P0_KE, tmp)    =  P0%meas(P0_KE, tmp)    + var3
-
-          P0%meas(P0_hopping_energy, tmp) = P0%meas(P0_hopping_energy, tmp) + var3
-       end do
-
-       var1 = (mu_up(S%Map(i)) + 0.5d0 * U(S%map(i))) * P0%up(i)
-       var2 = (mu_dn(S%Map(i)) + 0.5d0 * U(S%map(i))) * P0%dn(i)
-       var3 = var1 + var2
-
-       P0%meas(P0_KE_UP, tmp)  = P0%meas(P0_KE_UP, tmp) - var1
-       P0%meas(P0_KE_DN, tmp)  = P0%meas(P0_KE_DN, tmp) - var2
-       P0%meas(P0_KE, tmp)     = P0%meas(P0_KE, tmp)    - var3
-    end do
-
-    !=================================================================!
-    ! KE in x direction <-Kx> for D and Ds (up and dn spins)
-    !=================================================================!
-
-    do i = 1, n
-       ! - sign for <-Kx>
-       ! Below applies for isotropic system
-       !var1 = -0.5d0* (P0%hopup(i,P0%rt(i))*G_up(i, P0%rt(i)) + P0%hopup(i,P0%top(i))*G_up(i, P0%top(i)))
-       !var2 = -0.5d0* (P0%hopdn(i,P0%rt(i))*G_dn(i, P0%rt(i)) + P0%hopdn(i,P0%top(i))*G_dn(i, P0%top(i)))
-       ! only consider x direction
-       var1 = -(P0%hopup(i,P0%rt(i))*G_up(i, P0%rt(i)) + P0%hopup(P0%rt(i),i)*G_up(P0%rt(i),i))
-       var2 = -(P0%hopdn(i,P0%rt(i))*G_dn(i, P0%rt(i)) + P0%hopdn(P0%rt(i),i)*G_dn(P0%rt(i),i))
-       var3 = var1 + var2
-
-       P0%meas(P0_Kx_up, tmp) = P0%meas(P0_Kx_up, tmp) + var1
-       P0%meas(P0_Kx_dn, tmp) = P0%meas(P0_Kx_dn, tmp) + var2
-       P0%meas(P0_Kx, tmp)    = P0%meas(P0_Kx, tmp)    + var3
-    enddo
-
-    !=================================================================!
-    ! Total occupancy = nup + ndn
-    !=================================================================!
-    P0%meas(P0_DENSITY, tmp) = P0%meas(P0_NUP, tmp) + &                                                                  
-         P0%meas(P0_NDN, tmp)      
-
-    !=================================================================! 
-    ! Magnetisation squared = 1/4 (rho - 2 double_occupancy)    
-    !=================================================================! 
-    P0%meas(P0_magnetisation_squared, tmp) = 0.25d0 * (P0%meas(P0_density, tmp) -&
-     2 * P0%meas(P0_double_occupancy, tmp))
-
-    !=================================================================!
-    ! Total energy = hopping energy + potential energy - 
-    ! - sum_{i \sigma} (\mu_{up i \sigma} n_{dn i \sigma})
-    !=================================================================!
-    P0%meas(P0_ENERGY, tmp) = P0%meas(P0_hopping_energy, tmp) + &
-         P0%meas(P0_potential_energy, tmp)
-    do i = 1, n
-      P0%meas(P0_ENERGY, tmp) = P0%meas(P0_ENERGY, tmp) - &
-       (mu_up(S%Map(i)) * P0%up(i) + mu_dn(S%Map(i)) * P0%dn(i))
-    enddo
-    !=========================================!
-    ! Chi_thermal 
-    !=========================================!
-
-    ! Fill h_up, h_dn with hopping matrix elements
-    h_up = ZERO
-    h_dn = ZERO
-    do i = 1, n
-       do j = start(i), start(i + 1) - 1
-          h_up(r(j), i) =  -t_up(A(j))
-          h_dn(r(j), i) =  -t_dn(A(j))
-       end do
-       h_up(i,i) =  h_up(i,i) - mu_up(S%Map(i)) - 0.5d0 * U(S%Map(i))
-       h_dn(i,i) =  h_dn(i,i) - mu_dn(S%Map(i)) - 0.5d0 * U(S%Map(i))
-    end do
-
-    ! Gfun * t
-    ! Fill h_up, h_dn 
-    call blas_dgemm('N', 'N', n, n, n, ONE, G_up, n, h_up, n, ZERO, A_up, n)
-    call blas_dgemm('N', 'N', n, n, n, ONE, G_dn, n, h_dn, n, ZERO, A_dn, n)
-
-    ! Total number of particles
-    Nbar = sum(P0%up) + sum(P0%dn)
-
-    Tbar = 0.d0
-    do i = 1, n
-       Tbar = Tbar + h_up(i, i) + h_dn(i, i)
-    enddo
-
-    Cbar = 0.d0
-    do i = 1, n
-       Cbar = Cbar + A_up(i, i) + A_dn(i, i)
-    enddo
-
-    !< N T >
-    P0%meas(P0_CHIT, tmp) = (Tbar - Cbar) * Nbar 
-    do j = 1, n
-       do k = 1, n
-          P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) - G_up(j,k) * A_up(k,j) - G_dn(j,k) * A_dn(k,j)
-       enddo
-    enddo
-    P0%meas(P0_CHIT,tmp) = P0%meas(P0_CHIT, tmp) + Cbar
-
-    !< N U >
-    P0%meas(P0_CHIT,tmp) = P0%meas(P0_CHIT, tmp) + Nbar * P0%meas(P0_NUD, tmp)
-    do i = 1, n
-       un = ONE
-       do k = 1, n 
-          un = un - G_up(i, k) * G_up(k, i)
-       enddo
-       P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) +  un*P0%dn(i)*U(S%Map(i))
-       un = ONE
-       do k = 1, n 
-          un = un - G_dn(i, k) * G_dn(k, i)
-       enddo
-       P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) + un*P0%up(i)*U(S%Map(i))
-    enddo
-    P0%meas(P0_CHIT, tmp) = P0%meas(P0_CHIT, tmp) - TWO * P0%meas(P0_NUD, tmp)
-
-    !Scale by inverse temperature
-    P0%meas(P0_CHIT, tmp) = P0%beta * P0%beta * P0%meas(P0_CHIT, tmp)
-
-    !=========================================!
-    ! Specific heat
-    !=========================================!
-
-    !< T T >
-    P0%meas(P0_CV, tmp) = (Tbar - Cbar)**2 
-    do i = 1, n
-       do j = 1, n 
-          P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + (h_up(i, j) - A_up(i, j)) * A_up(j, i) &
-             + (h_dn(i, j) - A_dn(i, j)) * A_dn(j, i)
-       enddo
-    enddo
+    call DQMC_Print_RealArray(0, nClass, "Up Equal time Green's function:", &
+         S%clabel, P0%Gf_up(:, avg:avg), P0%Gf_up(:, err:err), OPT)
     
-    !< T U >
-    P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + (Tbar - Cbar)*P0%meas(P0_NUD, tmp) 
-    do i = 1, n 
-       !un = U(S%map(i)) * P0%up(i)
-       un = ZERO
-       do j = 1, n
-          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + un * G_dn(j,i) * (h_dn(i,j) - A_dn(i,j))
-          un = un + G_dn(j, i) * (h_dn(i, j) - A_dn(i, j))
-       enddo
-       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + un *  U(S%map(i)) * P0%up(i)
-       !un = U(S%map(i)) * P0%dn(i)
-       un = ZERO
-       do j = 1, n
-          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + un * G_up(j,i) * (h_up(i,j) - A_up(i,j))
-          un = un + G_up(j, i) * (h_up(i, j) - A_up(i, j))
-       enddo
-       P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + un *  U(S%map(i)) * P0%dn(i)
-    enddo
-
-    !< U T >
-    P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + (Tbar - Cbar)*P0%meas(P0_NUD, tmp) 
-    do i = 1, n 
-       P0%meas(P0_CV, tmp) = P0%meas(P0_CV, tmp) + U(S%map(i)) * P0%up(i) * A_dn(i,i)
-       !un = U(S%map(i)) * P0%up(i)
-       un = ZERO
-       do j = 1, n
-          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * A_dn(i,j) * G_dn(j,i)
-          un = un + A_dn(i,j) * G_dn(j,i)
-       enddo
-       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * U(S%map(i)) * P0%up(i)
-
-       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + U(S%map(i)) * P0%dn(i) * A_up(i,i)
-       !un = U(S%map(i)) * P0%dn(i)
-       un = ZERO
-       do j = 1, n
-          !P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * A_up(i,j) * G_up(j,i)
-          un = un + A_up(i,j) * G_up(j,i)
-       enddo
-       P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) - un * U(S%map(i)) * P0%dn(i)
-    enddo
-
-    !< U U >
-    ! Redefine A_up and A_dn
-    do j = 1, n 
-       do i = 1, n
-          un = sqrt(U(S%Map(i))*U(S%Map(j)))
-          A_up(i,j) = un * (P0%up(i)*P0%up(j) - G_up(i,j)*G_up(j,i))
-          A_dn(i,j) = un * (P0%dn(i)*P0%dn(j) - G_dn(i,j)*G_dn(j,i))
-       enddo
-       A_up(j,j) = P0%up(j) * U(S%Map(j))
-       A_dn(j,j) = P0%dn(j) * U(S%Map(j))
-    enddo
-    ! Compute UU contribution to Cv
-    do j = 1, n 
-       do i = 1, n
-          P0%meas(P0_CV,tmp) = P0%meas(P0_CV,tmp) + A_up(i,j)*A_dn(i,j)
-       enddo
-    enddo
-
-    ! Scale by inverse T
-    P0%meas(P0_CV, tmp) = P0%beta * P0%beta * P0%meas(P0_CV, tmp)
-
-    !=====================!
-    ! Autocorelation term.!
-    !=====================!
-!    if (P0%compSAF) then
-       P0%meas(P0_SAF, tmp)  = TWO*n-P0%meas(P0_NUP, tmp)-&
-            P0%meas(P0_NDN, tmp)
-       P0%meas(P0_SAF2,tmp)  = P0%meas(P0_SAF, tmp)
-!    end if
-
-    do i = 1,n
-       do j = 1,n
-          var1 = G_up(i,j) * G_up(j,i) + G_dn(i,j) * G_dn(j,i)
-          var2 = -TWO * G_up(i,j) * G_dn(j,i)
-          var3 = G_up(i,i) * G_up(j,j) + G_dn(i,i) * G_dn(j,j) - &
-                 TWO * G_up(i,i) * G_dn(j,j) - var1
-          
-          ! k is the index
-          k = S%D(i,j)
-          ph = S%gf_phase(i,j)
-          P0%G_fun(k, tmp) = P0%G_fun(k, tmp) + ph*(G_up(i,j) + G_dn(i,j))
-          P0%Gf_up(k, tmp) = P0%Gf_up(k, tmp) + ph*G_up(i,j) 
-          P0%Gf_dn(k, tmp) = P0%Gf_dn(k, tmp) + ph*G_dn(i,j)
-          P0%Den0(k, tmp)  = P0%Den0(k, tmp) + &
-               P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1
-          P0%Den1(k, tmp)  = P0%Den1(k, tmp) + P0%up(i)*P0%dn(j)
-          P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var2
-          P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var3
-          P0%Pair(k,tmp)  = P0%Pair(k,tmp) + G_up(i,j) * G_dn(i,j)
-          
-!          if (P0%compSAF) then
-!             var1 = S%P(i)*S%P(j)
-             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + S%AFphase(k) * var2
-             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + S%AFphase(k) * var3
-
-             ! CDW related quantities also in plane
-             ! <n_i*n_j>
-             P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + &
-                   S%AFphase(k)* (P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
-             ! <n_i+n_j>, seems not necessary for staggered potential and/or other projects
-           !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
-!          end if
-       end do
-       ! special case for (i,i) due to different Wick contraction possibilities 
-       k = S%D(i,i)
-       var1 =  G_up(i,i) + G_dn(i,i)
-       P0%Den0(k, tmp)   = P0%Den0(k, tmp)   + var1
-       P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var1
-       P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
-
-       P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + var1
-       P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + var1
-       P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
-    end do
+    call DQMC_Print_RealArray(0, nClass, "Down Equal time Green's function:", &
+         S%clabel, P0%Gf_dn(:, avg:avg), P0%Gf_dn(:, err:err), OPT)
     
-    P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
-    P0%meas(P0_SFER2,  tmp) = sum(P0%SpinZZ(:,tmp))
-
-    P0%meas(P0_CDW, tmp) = P0%meas(P0_NNPROD, tmp) !- P0%meas(P0_NNSUM, tmp)*P0%meas(P0_DENSITY,tmp)
+    call DQMC_Print_RealArray(0, nClass, &
+         "Density-density correlation fn: (up-up)", &
+         S%clabel, P0%Den0(:, avg:avg), P0%Den0(:, err:err), OPT)
     
-    ! Average
-    P0%meas(:,tmp) = P0%meas(:,tmp) / n
-    do i = 1, P0%nClass
-       P0%G_fun (i, tmp) = P0%G_fun (i, tmp) / S%F(i) * HALF
-       P0%Gf_up (i, tmp) = P0%Gf_up (i, tmp) / S%F(i)
-       P0%Gf_dn (i, tmp) = P0%Gf_dn (i, tmp) / S%F(i)
-       P0%SpinXX(i, tmp) = P0%SpinXX(i, tmp) / S%F(i)
-       P0%SpinZZ(i, tmp) = P0%SpinZZ(i, tmp) / S%F(i)
-       P0%Den0  (i, tmp) = P0%Den0  (i, tmp) / S%F(i) * HALF
-       P0%Den1  (i, tmp) = P0%Den1  (i, tmp) / S%F(i)
-       P0%Pair(i, tmp)   = P0%Pair(i, tmp) / S%F(i) * HALF
-    end do
+    call DQMC_Print_RealArray(0, nClass, &
+         "Density-density correlation fn: (up-dn)", &
+         S%clabel, P0%Den1(:, avg:avg), P0%Den1(:, err:err), OPT)
+    
+    call DQMC_Print_RealArray(0, nClass, "XX Spin correlation function:", &
+         S%clabel, P0%SpinXX(:, avg:avg), P0%SpinXX(:, err:err), OPT)
+    
+    call DQMC_Print_RealArray(0, nClass, "ZZ Spin correlation function:", &
+         S%clabel, P0%SpinZZ(:, avg:avg), P0%SpinZZ(:, err:err), OPT)
 
-!    if (P0%compSAF) then
-       P0%meas(P0_SAFSQ, tmp) = P0%meas(P0_SAF, tmp) * P0%meas(P0_SAF, tmp)
-       P0%meas(P0_SAF2SQ,tmp) = P0%meas(P0_SAF2,tmp) * P0%meas(P0_SAF2,tmp)
-!    end if
-
-    ! Accumulate result to P0(:, idx)
-    sgn = sgnup * sgndn
-    P0%meas(:, idx) =  P0%meas(:, idx) + P0%meas(:, tmp) * sgn
-
-    m = P0%nClass
-    call blas_daxpy(m, sgn, P0%G_fun (1:m,tmp), 1, P0%G_fun (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Gf_up (1:m,tmp), 1, P0%Gf_up (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Gf_dn (1:m,tmp), 1, P0%Gf_dn (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%SpinXX(1:m,tmp), 1, P0%SpinXX(1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%SpinZZ(1:m,tmp), 1, P0%SpinZZ(1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Den0  (1:m,tmp), 1, P0%Den0  (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Den1  (1:m,tmp), 1, P0%Den1  (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Pair  (1:m,tmp), 1, P0%Pair(1:m,idx), 1)
-
-    P0%sign(P0_SGN,   idx) =  P0%sign(P0_SGN,   idx) + sgn
-    P0%sign(P0_SGNUP, idx) =  P0%sign(P0_SGNUP, idx) + sgnup
-    P0%sign(P0_SGNDN, idx) =  P0%sign(P0_SGNDN, idx) + sgndn
-    P0%cnt = P0%cnt + 1
-
-  end subroutine DQMC_Phy0_Meas
-
+    call DQMC_Print_RealArray(0, nClass, "Average Spin correlation function:", &
+         S%clabel, P0%AveSpin(:, avg:avg), P0%AveSpin(:, err:err), OPT)
+    
+    call DQMC_Print_RealArray(0, nClass, "Pairing correlation function:", &
+         S%clabel, P0%Pair(:, avg:avg), P0%Pair(:, err:err), OPT)
+    
+  end subroutine DQMC_Phy0_Print
+  
+  !====================================================================!
   !--------------------------------------------------------------------!
 
   subroutine DQMC_Phy0_GetFT(P0, class, phase, ft_wgt_t, ft_wgt_g, nkt, nkg, na, nt)

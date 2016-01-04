@@ -227,10 +227,9 @@ program dqmc_ggeom
     if (comp_tdm > 0) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
       call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
-    endif
-
-    if (Dsqy > 0) then
-      call DQMC_open_file('Dsqy_'//adjustl(trim(ofile)),'replace', OPT2)
+      if (Dsqy > 0) then
+        call DQMC_open_file('current_'//adjustl(trim(ofile)),'replace', OPT2)
+      endif
     endif
 
     write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
@@ -302,7 +301,6 @@ program dqmc_ggeom
      !Print info on k-points and construct clabel, in dqmc_geom_wrap.F90
      call DQMC_Print_HeaderFT(Gwrap, OPT, .true.)   ! k grid for Green function
      call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)  ! k grid for spin/charge correlation
-     call DQMC_Phy0_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
   if (FTtdm > 0) then
      call DQMC_TDM1_PrintKFT(tm, TDM_UNIT)

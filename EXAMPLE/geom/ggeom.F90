@@ -301,6 +301,7 @@ program dqmc_ggeom
      !Print info on k-points and construct clabel, in dqmc_geom_wrap.F90
      call DQMC_Print_HeaderFT(Gwrap, OPT, .true.)   ! k grid for Green function
      call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)  ! k grid for spin/charge correlation
+     call DQMC_Phy0_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
   if (FTtdm > 0) then
      call DQMC_TDM1_PrintKFT(tm, TDM_UNIT)

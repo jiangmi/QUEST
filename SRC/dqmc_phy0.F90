@@ -761,7 +761,7 @@ contains
        P0%SpinZZ(i, tmp) = P0%SpinZZ(i, tmp) / S%F(i)
        P0%Den0  (i, tmp) = P0%Den0  (i, tmp) / S%F(i) * HALF
        P0%Den1  (i, tmp) = P0%Den1  (i, tmp) / S%F(i)
-       P0%Pair(i, tmp)   = P0%Pair(i, tmp) / S%F(i) * HALF
+       P0%Pair(i, tmp)   = P0%Pair(i, tmp) / S%F(i)
     end do
 
 !    if (P0%compSAF) then

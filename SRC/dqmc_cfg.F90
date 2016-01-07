@@ -88,9 +88,9 @@ module DQMC_Cfg
        &  "tausk  ", &    ! frequence of unequal time measurement                
        &  "tdm    ", &    ! compute time dependent measurement
        &  "flags  ", &    ! if to compute tdm quantities
+       &  "flagsFT", &    ! if to compute FT of tdm quantities
        &  "ntry2  ", &    ! global move in warmup, can differ from ntry in meas
        &  "FTphy0 ", &    ! if to compute FT for phy0  
-       &  "FTtdm  ", &    ! if to compute FT for tdm
        &  "SelfE  ", &    ! if to compute self-energy
        &  "Dsqy   "/)     ! if to compute curr-curr(qx=0,qy;iwn=0)
 
@@ -137,9 +137,9 @@ module DQMC_Cfg
        &  "10      ", &    ! tausk  
        &  "0       ", &    ! tdm
        &  "1       ", &    ! flags
+       &  "1       ", &    ! flagsFT
        &  "0       ", &    ! global warm
        &  "0       ", &    ! FTphy0
-       &  "0       ", &    ! FTtdm
        &  "0       ", &    ! SelfE
        &  "0"/)            ! Dsqy
  
@@ -186,9 +186,9 @@ module DQMC_Cfg
        &  TYPE_INTEGER, &    ! tausk  
        &  TYPE_INTEGER, &    ! tdm
        &  TYPE_INTEGER, &    ! flags
+       &  TYPE_INTEGER, &    ! flagsFT
        &  TYPE_INTEGER, &    ! global warm
        &  TYPE_INTEGER, &    ! FTphy0
-       &  TYPE_INTEGER, &    ! FTtdm
        &  TYPE_INTEGER, &    ! SelfE
        &  TYPE_INTEGER/)     ! Dsqy
 
@@ -235,9 +235,9 @@ module DQMC_Cfg
        &  .false.,&           ! tausk  
        &  .false.,&           ! tdm
        &  .true. ,&           ! flags
+       &  .true. ,&           ! flagsFT
        &  .false.,&           ! globalwarm
        &  .false.,&           ! FTphy0
-       &  .false.,&           ! FTtdm
        &  .false.,&           ! SelfE
        &  .false./)           ! Dsqy
 

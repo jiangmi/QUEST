@@ -25,14 +25,15 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter, ierr  
   character(len=50)   :: ofile  
-  integer             :: OPT,OPT1,OPT2  !,OPT3,OPT4
+  integer             :: OPT,OPT1,OPT2,OPT3  !,OPT3,OPT4
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
   real(wp)            :: randn(1)
   integer, pointer    :: flags(:)      ! 10 possible tdm1 quantities
+  integer, pointer    :: flagsFT(:)
   integer             :: nflag
-  integer             :: ntry2, FTphy0, FTtdm, SelfE, Dsqy
+  integer             :: ntry2, FTphy0,  SelfE, Dsqy
 
   call cpu_time(t1)  
 
@@ -55,7 +56,6 @@ program dqmc_ggeom
   call CFG_Get(cfg, "ntry2" , ntry2)
   call CFG_Get(cfg, "tdm"   , comp_tdm)
   call CFG_Get(cfg, "FTphy0", FTphy0)
-  call CFG_Get(cfg, "FTtdm" , FTtdm)
   call CFG_Get(cfg, "SelfE" , SelfE)
   call CFG_Get(cfg, "Dsqy"  , Dsqy)
 
@@ -82,8 +82,9 @@ program dqmc_ggeom
   if (comp_tdm > 0) then
      ! If to compute 8 possible tdm1 quantities
      call CFG_Get(cfg, "flags", nflag, flags)
+     call CFG_Get(cfg, "flagsFT", nflag, flagsFT)
      call DQMC_Gtau_Init(Hub, tau)
-     call DQMC_TDM1_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags) 
+     call DQMC_TDM1_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags, flagsFT) 
   endif
 
   call cpu_time(t2)
@@ -227,8 +228,9 @@ program dqmc_ggeom
     if (comp_tdm > 0) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
       call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
+      call DQMC_open_file('swave_'//adjustl(trim(ofile)),'replace', OPT2)
       if (Dsqy > 0) then
-        call DQMC_open_file('current_'//adjustl(trim(ofile)),'replace', OPT2)
+        call DQMC_open_file('current_'//adjustl(trim(ofile)),'replace', OPT3)
       endif
     endif
 
@@ -261,15 +263,22 @@ program dqmc_ggeom
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then
     call DQMC_TDM1_Print(tm, TDM_UNIT)
-    call DQMC_TDM1_Print_localGtau(tm, OPT1)
+ !   call DQMC_TDM1_Print_localGtau(tm, OPT1)
   endif
+
+! ==============  Fourier transform ============================================
+  !Compute Fourier transform
+  !Direct access to binned data; no need to be in the loop above
+  call DQMC_TDM1_GetKFT(tm, Hub)
+  call DQMC_TDM1_GetErrKFT(tm)
+  call DQMC_TDM1_PrintKFT(tm, TDM_UNIT, OPT1, OPT2)
 
 ! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
   !Direct access to binned data; no need to be in the loop above
   if (Dsqy > 0) then
     call DQMC_TDM1_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
     call DQMC_TDM1_currDs_Err(tm)
-    call DQMC_TDM1_currDs_Print(tm,OPT2)
+    call DQMC_TDM1_currDs_Print(tm,OPT3)
   endif
 
 ! ==============  Fourier transform ============================================
@@ -288,11 +297,9 @@ program dqmc_ggeom
   endif
 
   !In DQMC_TDM1_GetKFT determines if comp_tdm>0
-  if (FTtdm > 0)  then
-    call DQMC_TDM1_GetKFT(tm)
-    call DQMC_TDM1_GetErrKFT(tm)
-  endif
   if (SelfE > 0)  then
+    call DQMC_TDM1_GetKFTold(tm)
+    call DQMC_TDM1_GetErrKFTold(tm)
     call DQMC_TDM1_SelfEnergy(tm, tau)
   endif
 
@@ -303,10 +310,8 @@ program dqmc_ggeom
      call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)  ! k grid for spin/charge correlation
      call DQMC_Phy0_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
-  if (FTtdm > 0) then
-     call DQMC_TDM1_PrintKFT(tm, TDM_UNIT)
-  endif
-  if (SelfE > 0)  then
+  if (SelfE > 0) then
+     call DQMC_TDM1_PrintKFTold(tm, TDM_UNIT)
      call DQMC_TDM1_Print_SelfEnergy(tm, TDM_UNIT)
   endif
 

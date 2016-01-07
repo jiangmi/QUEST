@@ -1291,7 +1291,7 @@ contains
   ! Below print out tdm quantities separately (if needed)
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print_localGtau(T1, OPT1)
+  subroutine DQMC_TDM1_Print_local(T1, OPT1, OPT2)
     use dqmc_mpi
     !
     ! Purpose
@@ -1302,7 +1302,7 @@ contains
     ! =========
     !
     type(TDM1), intent(in)   :: T1                 ! T1
-    integer, intent(in)      :: OPT1!, OPT2
+    integer, intent(in)      :: OPT1, OPT2
 
     integer             :: i, j
     real(wp)            :: tmp(T1%L, 2)
@@ -1341,7 +1341,19 @@ contains
      ! write(OPT1,'(1x)')
       enddo
 
-  end subroutine DQMC_TDM1_Print_localGtau
+    ! Print local s-wave
+      do i = 1, T1%properties(IPAIR)%nclass
+        do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%properties(IPAIR)%values(i, j, T1%avg:T1%err)
+        enddo
+        title=pname(IPAIR)//" "//trim(adjustl(T1%properties(IPAIR)%clabel(i)))
+        if (index(title, " 0.000   0.000   0.000") > 0) then
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+        endif
+     ! write(OPT1,'(1x)')
+      enddo
+
+  end subroutine DQMC_TDM1_Print_local
 
   !--------------------------------------------------------------------!
 

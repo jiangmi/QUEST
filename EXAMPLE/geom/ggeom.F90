@@ -25,7 +25,7 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter, ierr  
   character(len=50)   :: ofile  
-  integer             :: OPT,OPT1,OPT2,OPT3  !,OPT3,OPT4
+  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
@@ -227,8 +227,10 @@ program dqmc_ggeom
     call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
     if (comp_tdm > 0) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
-      call DQMC_open_file('G_'//adjustl(trim(ofile)),'replace', OPT1)
-      call DQMC_open_file('swave_'//adjustl(trim(ofile)),'replace', OPT2)
+      call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
+      call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
+      call DQMC_open_file('Gr0_'//adjustl(trim(ofile)),'replace', OPT4)
+      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT5)
       if (Dsqy > 0) then
         call DQMC_open_file('current_'//adjustl(trim(ofile)),'replace', OPT3)
       endif
@@ -263,7 +265,7 @@ program dqmc_ggeom
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then
     call DQMC_TDM1_Print(tm, TDM_UNIT)
- !   call DQMC_TDM1_Print_localGtau(tm, OPT1)
+    call DQMC_TDM1_Print_local(tm, OPT4,OPT5)
   endif
 
 ! ==============  Fourier transform ============================================

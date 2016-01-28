@@ -223,18 +223,7 @@ program dqmc_ggeom
   ! ============================================================================================
   ! Print results at root
   if (qmc_sim%rank == qmc_sim%aggr_root) then
-
     call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
-    if (comp_tdm > 0) then
-      call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
-      call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
-      call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
-      call DQMC_open_file('Gr0_'//adjustl(trim(ofile)),'replace', OPT4)
-      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT5)
-      if (Dsqy > 0) then
-        call DQMC_open_file('current_'//adjustl(trim(ofile)),'replace', OPT3)
-      endif
-    endif
 
     write(OPT,'(a14,a3,a1,i2,a2,i2,a1,i2,a1,i2,a2,i4)') &
                "STARTING JOB: ", mons(values(2)), " ", values(3), "  ", &
@@ -264,8 +253,11 @@ program dqmc_ggeom
 
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then
+    if (qmc_sim%rank == qmc_sim%aggr_root) then
+      call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
+    endif
     call DQMC_TDM1_Print(tm, TDM_UNIT)
-    call DQMC_TDM1_Print_local(tm, OPT4,OPT5)
+    call DQMC_TDM1_Print_local(tm, ofile, OPT1, OPT2)
   endif
 
 ! ==============  Fourier transform ============================================
@@ -273,14 +265,14 @@ program dqmc_ggeom
   !Direct access to binned data; no need to be in the loop above
   call DQMC_TDM1_GetKFT(tm, Hub)
   call DQMC_TDM1_GetErrKFT(tm)
-  call DQMC_TDM1_PrintKFT(tm, TDM_UNIT, OPT1, OPT2)
+  call DQMC_TDM1_PrintKFT(tm, TDM_UNIT, ofile, OPT3, OPT4)
 
 ! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
   !Direct access to binned data; no need to be in the loop above
   if (Dsqy > 0) then
     call DQMC_TDM1_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
     call DQMC_TDM1_currDs_Err(tm)
-    call DQMC_TDM1_currDs_Print(tm,OPT3)
+    call DQMC_TDM1_currDs_Print(tm, ofile, OPT5, Dsqy)
   endif
 
 ! ==============  Fourier transform ============================================

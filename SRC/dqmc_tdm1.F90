@@ -110,8 +110,11 @@ module DQMC_TDM1
      real(wp), pointer :: sgn(:)
      type(tdmarray), pointer :: properties(:)
 
-     ! record the average of all local G(tau) for total N(w)
-     real(wp), pointer :: GtupAve(:,:), GtdnAve(:,:)
+     ! record the average of all local sum_r G(r, tau) for average N(w)
+     real(wp), pointer :: GtauAvg(:,:), GtupAvg(:,:), GtdnAvg(:,:)
+
+     ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
+     real(wp), pointer :: swaveAvg(:,:)
 
      ! record Chi_FM and Chi_AF
      ! Here directly compute them within the code, instead of Fourier transform
@@ -201,13 +204,22 @@ contains
        endif
     enddo
 
+    if (T1%flags(IGFUN) == 1) then
+      allocate(T1%GtauAvg(0:T1%L-1,T1%err))
+      T1%GtauAvg = 0.0_wp
+    endif
     if (T1%flags(IGFUP) == 1) then
-      allocate(T1%GtupAve(0:T1%L-1,T1%err))
-      T1%GtupAve = 0.0_wp
+      allocate(T1%GtupAvg(0:T1%L-1,T1%err))
+      T1%GtupAvg = 0.0_wp
     endif
     if (T1%flags(IGFDN) == 1) then
-      allocate(T1%GtdnAve(0:T1%L-1,T1%err))
-      T1%GtdnAve = 0.0_wp
+      allocate(T1%GtdnAvg(0:T1%L-1,T1%err))
+      T1%GtdnAvg = 0.0_wp
+    endif
+
+    if (T1%flags(IPAIR) == 1) then
+      allocate(T1%swaveAvg(0:T1%L-1,T1%err))
+      T1%swaveAvg = 0.0_wp
     endif
 
     allocate(T1%ChiXX(T1%err))
@@ -421,11 +433,17 @@ contains
     deallocate(T1%ftwfer)
     deallocate(T1%properties)
 
+    if (T1%flags(IGFUN) == 1) then
+      deallocate(T1%GtauAvg)
+    endif
     if (T1%flags(IGFUP) == 1) then
-      deallocate(T1%GtupAve)
+      deallocate(T1%GtupAvg)
     endif
     if (T1%flags(IGFDN) == 1) then
-      deallocate(T1%GtdnAve)
+      deallocate(T1%GtdnAvg)
+    endif
+    if (T1%flags(IPAIR) == 1) then
+      deallocate(T1%swaveAvg)
     endif
 
     deallocate(T1%rt)
@@ -1073,12 +1091,21 @@ contains
        endif
     enddo
 
-    ! get the sum of all local G(tau) for total N(w)
+    ! record the average of all local sum_r G(r, tau) for average N(w)
+    if (T1%flags(IGFUN) == 1) then
+      do j = 0, T1%L-1
+         do i = 1, T1%properties(IGFUN)%n    ! avg over n sites
+            k = T1%properties(IGFUN)%D(i,i)  ! local quantity
+            T1%GtauAvg(j, T1%idx) = T1%GtauAvg(j, T1%idx) &
+                   + T1%properties(IGFUN)%values(k,j,idx) / T1%properties(IGFUN)%n
+         end do
+      enddo
+    endif
     if (T1%flags(IGFUP) == 1) then
       do j = 0, T1%L-1
          do i = 1, T1%properties(IGFUP)%n
             k = T1%properties(IGFUP)%D(i,i)
-               T1%GtupAve(j, T1%idx) = T1%GtupAve(j, T1%idx) &
+            T1%GtupAvg(j, T1%idx) = T1%GtupAvg(j, T1%idx) &
                    + T1%properties(IGFUP)%values(k,j,idx) / T1%properties(IGFUP)%n
          end do
       enddo
@@ -1087,10 +1114,21 @@ contains
       do j = 0, T1%L-1
          do i = 1, T1%properties(IGFDN)%n
             k = T1%properties(IGFDN)%D(i,i)
-               T1%GtdnAve(j, T1%idx) = T1%GtdnAve(j, T1%idx) &
+            T1%GtdnAvg(j, T1%idx) = T1%GtdnAvg(j, T1%idx) &
                    + T1%properties(IGFDN)%values(k,j,idx) / T1%properties(IGFDN)%n
          end do
       end do
+    endif
+
+    ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
+    if (T1%flags(IPAIR) == 1) then
+      do j = 0, T1%L-1
+         do i = 1, T1%properties(IPAIR)%n    ! avg over n sites
+            k = T1%properties(IPAIR)%D(i,i)  ! local quantity
+            T1%swaveAvg(j, T1%idx) = T1%swaveAvg(j, T1%idx) &
+                   + T1%properties(IPAIR)%values(k,j,idx) / T1%properties(IPAIR)%n
+         end do
+      enddo
     endif
 
     T1%sgn(idx) = T1%sgn(idx)*factor
@@ -1121,6 +1159,7 @@ contains
 
 #   ifdef _QMC_MPI
       real(wp), pointer :: binptr(:,:), aveptr(:,:), errptr(:,:)
+      real(wp), pointer :: bins(:), aves(:), errs(:)
 #   endif
 
     if (.not.T1%compute) return
@@ -1149,22 +1188,40 @@ contains
          endif
        enddo
 
+       if (T1%flags(IGFUN) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%GtauAvg(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%GtauAvg(j, avg) = average
+           T1%GtauAvg(j, err) = error
+         enddo
+       endif
        if (T1%flags(IGFUP) == 1) then
          do j = 0, T1%L-1
-           data =  T1%GtupAve(j, 1:n)
+           data =  T1%GtupAvg(j, 1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%GtupAve(j, avg) = average
-           T1%GtupAve(j, err) = error
+           T1%GtupAvg(j, avg) = average
+           T1%GtupAvg(j, err) = error
          enddo
        endif
        if (T1%flags(IGFDN) == 1) then
          do j = 0, T1%L-1
-           data =  T1%GtdnAve(j, 1:n)
+           data =  T1%GtdnAvg(j, 1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%GtdnAve(j, avg) = average
-           T1%GtdnAve(j, err) = error
+           T1%GtdnAvg(j, avg) = average
+           T1%GtdnAvg(j, err) = error
          enddo
        endif
+
+       if (T1%flags(IPAIR) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%swaveAvg(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%swaveAvg(j, avg) = average
+           T1%swaveAvg(j, err) = error
+         enddo
+       endif
+
     else
 
        mpi_err = 0
@@ -1200,6 +1257,31 @@ contains
             endif
           enddo
 
+          if (T1%flags(IGFUN) == 1) then
+             bins => T1%GtauAvg(:, 1)
+             aves => T1%GtauAvg(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
+          if (T1%flags(IGFUP) == 1) then
+             bins => T1%GtupAvg(:, 1)
+             aves => T1%GtupAvg(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
+          if (T1%flags(IGFDN) == 1) then
+             bins => T1%GtdnAvg(:, 1)
+             aves => T1%GtdnAvg(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
+          if (T1%flags(IPAIR) == 1) then
+             bins => T1%swaveAvg(:, 1)
+             aves => T1%swaveAvg(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
+
           ! Compute y_i, note original binned values are updated from MC
           ! non-MPI would not update binned values
           ! as DQMC_SignJackKnife does not change data
@@ -1213,6 +1295,31 @@ contains
             endif
           enddo
 
+          if (T1%flags(IGFUN) == 1) then
+             bins => T1%GtauAvg(:, 1)
+             aves => T1%GtauAvg(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+          endif
+          if (T1%flags(IGFUP) == 1) then
+             bins => T1%GtupAvg(:, 1)
+             aves => T1%GtupAvg(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+          endif
+          if (T1%flags(IGFDN) == 1) then
+             bins => T1%GtdnAvg(:, 1)
+             aves => T1%GtdnAvg(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+          endif
+          if (T1%flags(IPAIR) == 1) then
+             bins => T1%swaveAvg(:, 1)
+             aves => T1%swaveAvg(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+          endif
+
           ! Compute avg = sum_x/sum_sgn
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
@@ -1220,6 +1327,24 @@ contains
                 aveptr =  aveptr / T1%sgn(avg) 
             endif
           enddo
+
+          if (T1%flags(IGFUN) == 1) then
+             aves => T1%GtauAvg(:, avg)
+             aves =  aves / T1%sgn(avg)
+          endif
+          if (T1%flags(IGFUP) == 1) then
+             aves => T1%GtupAvg(:, avg)
+             aves =  aves / T1%sgn(avg)
+          endif
+          if (T1%flags(IGFDN) == 1) then
+             aves => T1%GtdnAvg(:, avg)
+             aves =  aves / T1%sgn(avg)
+          endif
+          if (T1%flags(IPAIR) == 1) then
+             aves => T1%swaveAvg(:, avg)
+             aves =  aves / T1%sgn(avg)
+          endif
+
           T1%sgn(avg)  = T1%sgn(avg) / dble(nproc)
 
           ! Compute error: sum(y_i-avg_y)^2
@@ -1235,6 +1360,39 @@ contains
                 errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
             endif
           enddo
+
+          if (T1%flags(IGFUN) == 1) then
+             bins => T1%GtauAvg(:, 1)
+             aves => T1%GtauAvg(:, avg)
+             errs => T1%GtauAvg(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+          if (T1%flags(IGFUP) == 1) then
+             bins => T1%GtupAvg(:, 1)
+             aves => T1%GtupAvg(:, avg)
+             errs => T1%GtupAvg(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+          if (T1%flags(IGFDN) == 1) then
+             bins => T1%GtdnAvg(:, 1)
+             aves => T1%GtdnAvg(:, avg)
+             errs => T1%GtdnAvg(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+          if (T1%flags(IPAIR) == 1) then
+             bins => T1%swaveAvg(:, 1)
+             aves => T1%swaveAvg(:, avg)
+             errs => T1%swaveAvg(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
 
 #      endif
 
@@ -1291,7 +1449,7 @@ contains
   ! Below print out tdm quantities separately (if needed)
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print_local(T1, OPT1, OPT2)
+  subroutine DQMC_TDM1_Print_local(T1, ofile, OPT1, OPT2)
     use dqmc_mpi
     !
     ! Purpose
@@ -1302,12 +1460,13 @@ contains
     ! =========
     !
     type(TDM1), intent(in)   :: T1                 ! T1
-    integer, intent(in)      :: OPT1, OPT2
+    integer                  :: OPT1, OPT2
 
     integer             :: i, j
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
+    character(len=50)   :: ofile
 
     ! ... Executable ...
     if (.not.T1%compute .or. T1%flags(IGFUN) == 0) return
@@ -1318,16 +1477,41 @@ contains
        write(label(j),'(f10.5)') (j-1)*T1%dtau
     enddo
 
-    ! Print average of local G(tau) for total N(w)
-!    do j = 0, T1%L-1
-!       tmp(j+1, 1:2) = T1%GtupAve(j, T1%avg:T1%err)
-!    enddo
-!    call DQMC_Print_Array(0, T1%L, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+    ! Print average of local G(tau) for average N(w)
+    if (T1%flags(IGFUN) == 1) then
+      call DQMC_open_file('Gr0_'//adjustl(trim(ofile)),'replace', OPT1)
+      title="average local G(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%GtauAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+    endif
 
-!    do j = 0, T1%L-1
-!       tmp(j+1, 1:2) = T1%GtdnAve(j, T1%avg:T1%err)
-!    enddo
-!    call DQMC_Print_Array(0, T1%L, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+    if (T1%flags(IGFUP) == 1) then
+      title="average local Gup(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%GtupAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+    endif
+
+    if (T1%flags(IGFDN) == 1) then
+      title="average local Gdn(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%GtdnAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+    endif
+
+    ! Print average of sum_r pair(r,tau) for average pair susceptibility
+    if (T1%flags(IPAIR) == 1) then
+      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT2)
+      title="average local swave(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+    endif
 
     ! Print local G(tau)'s
       do i = 1, T1%properties(IGFUN)%nclass
@@ -2014,7 +2198,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_PrintKFT(T1, OPT, OPT1, OPT2)
+  subroutine DQMC_TDM1_PrintKFT(T1, OPT, ofile, OPT1, OPT2)
     use dqmc_mpi
     !
     ! Purpose
@@ -2025,12 +2209,13 @@ contains
     ! =========
     !
     type(TDM1), intent(in)   :: T1                 ! T1
-    integer, intent(in)      :: OPT, OPT1, OPT2
+    integer                  :: OPT, OPT1, OPT2
 
     integer             :: i, j, kx, ky, iprop
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
+    character(len=50)   :: ofile
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2057,9 +2242,11 @@ contains
 
                !print out k=0 Gtau and s-wave pairing correlation for maxent
                if (iprop==IGFUN .and. kx==0 .and. ky==0) then
+                  call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
                   call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
                endif
                if (iprop==IPAIR .and. kx==0 .and. ky==0) then
+                  call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
                   call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
                endif
 
@@ -2306,17 +2493,23 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_currDs_Print(T1, OPT)
+  subroutine DQMC_TDM1_currDs_Print(T1, ofile, OPT, Dsqy)
     use dqmc_mpi
 
     type(TDM1), intent(in)   :: T1                 ! T1
-    integer, intent(in)      :: OPT
+    integer                  :: OPT
+    integer,    intent(in)   :: Dsqy
 
     integer  :: i, j, k, ip, jp, iprop, Nq
     character(len=18) :: spline(3)
+    character(len=50) :: ofile
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
     if (qmc_sim%rank .ne. 0) return
+
+    if (Dsqy>0) then
+      call DQMC_open_file('current_'//adjustl(trim(ofile)),'replace', OPT)
+    endif
 
     Nq = 3
     spline(1) = "nospline for iwn=0"

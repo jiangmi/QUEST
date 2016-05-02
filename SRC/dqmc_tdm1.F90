@@ -1477,9 +1477,23 @@ contains
        write(label(j),'(f10.5)') (j-1)*T1%dtau
     enddo
 
-    ! Print average of local G(tau) for average N(w)
+
     if (T1%flags(IGFUN) == 1) then
       call DQMC_open_file('Gr0_'//adjustl(trim(ofile)),'replace', OPT1)
+
+      ! Print local G(tau)'s
+      do i = 1, T1%properties(IGFUN)%nclass
+        do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
+        enddo
+        title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
+        if (index(title, " 0.000   0.000   0.000") > 0) then
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+        endif
+        ! write(OPT1,'(1x)')
+      enddo
+
+      ! Print average of local G(tau) for average N(w)
       title="average local G(tau)"
       do j = 0, T1%L-1
          tmp(j+1, 1:2) = T1%GtauAvg(j, T1%avg:T1%err)
@@ -1503,29 +1517,12 @@ contains
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
 
-    ! Print average of sum_r pair(r,tau) for average pair susceptibility
+    !############################################################################
+
     if (T1%flags(IPAIR) == 1) then
       call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT2)
-      title="average local swave(tau)"
-      do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
-      enddo
-      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
-    endif
 
-    ! Print local G(tau)'s
-      do i = 1, T1%properties(IGFUN)%nclass
-        do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
-        enddo
-        title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
-        if (index(title, " 0.000   0.000   0.000") > 0) then
-          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
-        endif
-     ! write(OPT1,'(1x)')
-      enddo
-
-    ! Print local s-wave
+      ! Print local s-wave
       do i = 1, T1%properties(IPAIR)%nclass
         do j = 0, T1%L-1
           tmp(j+1, 1:2) = T1%properties(IPAIR)%values(i, j, T1%avg:T1%err)
@@ -1534,8 +1531,17 @@ contains
         if (index(title, " 0.000   0.000   0.000") > 0) then
           call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
         endif
-     ! write(OPT1,'(1x)')
+        ! write(OPT1,'(1x)')
       enddo
+
+      ! Print average of sum_r pair(r,tau) for average pair susceptibility
+      title="average local swave(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+    endif
+
 
   end subroutine DQMC_TDM1_Print_local
 

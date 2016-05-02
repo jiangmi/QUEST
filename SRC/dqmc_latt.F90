@@ -439,10 +439,12 @@ integer function hoptowho(iat,delta,jat,lattice)
  call get_inverse(lattice%scc,invscc)
  !determine position after hopping
  xxat(:)=cartpos(:,iat)+delta(:)
+
  !Try to determine whether xxat corresponds to a site
  do j=jat,lattice%nsites-1,lattice%natom
   !compute distance vector in units of the supercell vectors
   xx(:)=cartpos(:,j)-xxat(:)
+
   do i=1,rdim
     projk(i)=sum(xx(:)*invscc(i,:))
   enddo

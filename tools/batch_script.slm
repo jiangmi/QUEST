@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name="LATTICE-beBETA"
+#SBATCH --nodes=CPUS
+#SBATCH --ntasks-per-node=8
+#SBATCH --time=HOUR:MINUTE:00
+#SBATCH --output=out_LATTICE_beBETA_sSEED_mpiMPI.txt
+#SBATCH --error=error_LATTICE_beBETA_sSEED_mpiMPI.txt
+
+export CRAY_CUDA_PROXY=1
+
+date
+
+JOBS
+
+date

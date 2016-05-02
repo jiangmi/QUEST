@@ -1,0 +1,65 @@
+# ==========================
+# Geometry and output
+# ==========================
+ofile  = OUTPUT
+gfile  = GEOM
+
+# ==========================
+# Hubbard model
+# ==========================
+mu_up  =  MUval
+mu_dn  =  MUval
+L      =  Lval
+dtau   =  DTAUval
+bcond  =  0.0, 0.0, 0.0
+
+# ==========================
+# Hubbard-Stratnovich field
+# ==========================
+HSF     = HSFval    # -1 = random, 1 = from file
+HSFtype = 0         # 0 = discrete, 1 = continuous
+HSFin   = HSFout    # used for HSF = 1
+#HSFout  = HSFout   # setting this prints out HSF
+
+# ==========================
+# Met's algorithm
+# ==========================
+nwarm  = NWARMval
+npass  = NMEASval
+#nmeas  = -1
+ntry2  = NTRY2val
+ntry   = NTRYval
+tausk  = 10
+
+# ==========================                                                                                       
+# 8 tdm quantities order:                                                                                          
+# IGFUN,IGFUP,IGFDN,ISPXX                                                                                           
+# ISPZZ,IDENS,IPAIR,ICOND,ICONDup,ICONDdn                                                                                          
+# ==========================                                                                                       
+tdm    = TDMval
+flags  = 1,1,1,0,0,0,1,0,0,0
+flagsFT= 0,0,0,0,0,0,0,0,0,0
+SelfE  = SELFEval
+Dsqy   = DSQYval
+
+# ==========================
+# Fourier transform and
+# self-energy
+# ==========================
+FTphy0 = FTPHY0
+
+# ==========================
+# Measurements
+# ==========================
+nbin   = NBINval
+nhist  = 1
+seed   = SEEDval
+
+# ==========================
+# numerical
+# ==========================
+north  = NORTHval
+nwrap  = 12
+fixwrap = 1
+errrate = 0.01
+difflim = 0.001

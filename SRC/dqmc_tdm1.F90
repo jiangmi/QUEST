@@ -599,9 +599,8 @@ contains
     if (.not.T1%compute) return
 
     ! Below dt1 and dt2's length switch for two cases
-    ! Also factor=0.25 comes from two 0.5 factors
-    ! one is for double counting of site loops
-    ! the other for average G(i0,it) = (G(i0,it)+G(it,i0))*0.5,
+    ! 2*factor=0.5 for double counting of site loops
+    ! factor=0.25 in Gfun for average over up and dn,
     ! which only applies for it != i0, 
     dt = it - i0
     if (dt .gt. 0) then
@@ -680,10 +679,12 @@ contains
              k = T1%properties(ISPXX)%D(i,j)
              ! SxSx = (Si+ * Sj + Sj+ * Si)
              ! Si+ = c^+_i,up * c_i,dn
-             value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
-                  + up0t(i,j)*dnt0(j,i))/2
-             value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
-                  + up0t(j,i)*dnt0(i,j))/2
+             value1(k)  = value1(k) - up0t(j,i)*dnt0(i,j) 
+             value2(k)  = value2(k) - up0t(i,j)*dnt0(j,i) 
+           !  value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
+           !       + up0t(i,j)*dnt0(j,i))/2
+           !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
+           !       + up0t(j,i)*dnt0(i,j))/2
           end do
        end do
      endif
@@ -894,6 +895,13 @@ contains
      endif
 
     else
+
+    if (dt1/=0) then
+      write(*,*) "dt should be 0, error in tdm1.F90"
+      return
+    endif
+
+    write(*,*) "the case of dt=0"
 
      if (T1%flags(IGFUN) == 1) then
        value1  => T1%properties(IGFUN)%values(:, dt1, T1%tmp)

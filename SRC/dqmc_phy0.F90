@@ -109,17 +109,18 @@ module DQMC_Phy0
   integer, parameter :: P0_CDW       = 17
   integer, parameter :: P0_NNPROD    = 18
   integer, parameter :: P0_NNSUM     = 19
+  integer, parameter :: P0_PAIR      = 20
 
-  integer, parameter :: P0_PE                    = 20
-  integer, parameter :: P0_hopping_energy        = 21
-  integer, parameter :: P0_Kx                    = 22
-  integer, parameter :: P0_Kx_up                 = 23
-  integer, parameter :: P0_Kx_dn                 = 24
-  integer, parameter :: P0_double_occupancy      = 25
-  integer, parameter :: P0_magnetisation_squared = 26
+  integer, parameter :: P0_PE                    = 21
+  integer, parameter :: P0_hopping_energy        = 22
+  integer, parameter :: P0_Kx                    = 23
+  integer, parameter :: P0_Kx_up                 = 24
+  integer, parameter :: P0_Kx_dn                 = 25
+  integer, parameter :: P0_double_occupancy      = 26
+  integer, parameter :: P0_magnetisation_squared = 27
 
   integer, parameter :: P0_N_NO_SAF  = 12
-  integer, parameter :: P0_N         = 26
+  integer, parameter :: P0_N         = 27
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -147,6 +148,7 @@ module DQMC_Phy0
        "    CDW AF structure factor : ", &
        "Den*Den AF structure factor : ", &
        "Den+Den AF structure factor : ", &
+       " s-wave FM structure factor : ", &
        "           Potential energy : ", &
        "             Hopping energy : ", &
        "                      <-Kx> : ", &
@@ -740,6 +742,7 @@ contains
        P0%Den0(k, tmp)   = P0%Den0(k, tmp)   + var1
        P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var1
        P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
+       P0%Pair  (k, tmp) = P0%Pair  (k, tmp) - var1 + 1.d0
 
      !  P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + var1
      !  P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + var1
@@ -748,6 +751,7 @@ contains
     
     P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
     P0%meas(P0_SFER2,  tmp) = sum(P0%SpinZZ(:,tmp))
+    P0%meas(P0_PAIR,   tmp) = sum(P0%Pair(:,tmp))
 
     P0%meas(P0_CDW, tmp) = P0%meas(P0_NNPROD, tmp) !- P0%meas(P0_NNSUM, tmp)*P0%meas(P0_DENSITY,tmp)
     

@@ -1,4 +1,4 @@
-module DQMC_TDM1
+module DQMC_TDM
 #include "dqmc_include.h"
 
   ! 08/16/2015:
@@ -85,7 +85,7 @@ module DQMC_TDM1
                   "Cond_up  ", &
                   "Cond_dn  " /)
 
-  type TDM1
+  type TDM
      integer  :: L
      integer  :: nbin
      integer  :: avg
@@ -145,23 +145,23 @@ module DQMC_TDM1
      complex(wp), pointer :: GkwAvg(:,:,:,:,:), GkwErr(:,:,:,:,:)
      complex(wp), pointer :: SEavg(:,:,:,:,:), SEerr(:,:,:,:,:)
 
-  end type TDM1
+  end type TDM
  
 contains
 
  !--------------------------------------------------------------------!
   
-  subroutine DQMC_TDM1_Init(L, dtau, T1, nBin, S, Gwrap, flags, flagsFT)!, splinew0)
+  subroutine DQMC_TDM_Init(L, dtau, T1, nBin, S, Gwrap, flags, flagsFT)!, splinew0)
     use DQMC_Geom_Wrap
     !
     ! Purpose
     ! =======
-    !    This subroutine initializes TDM1. 
+    !    This subroutine initializes TDM. 
     !
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout)   :: T1      ! time dependent measurement
+    type(TDM), intent(inout)   :: T1      ! time dependent measurement
     integer, intent(in)         :: L       ! No of time slice
     integer, intent(in)         :: nBin    ! No of Bins
     integer, intent(in)         :: flags(NTDMARRAY), flagsFT(NTDMARRAY)
@@ -183,7 +183,7 @@ contains
     T1%tmp    =  nBin + 1
     T1%avg    =  nBin + 1
     T1%err    =  nBin + 2
-    T1%idx    =  1   ! initial value, increase in DQMC_TDM1_Avg
+    T1%idx    =  1   ! initial value, increase in DQMC_TDM_Avg
 
     T1%compute  = .true.
     T1%flags    = flags
@@ -195,13 +195,13 @@ contains
     ! # of k points for FT, only for square lattice !!!
     T1%NkFT = int(sqrt(real(S%nSite)))/2 + 1
 
-    call  DQMC_TDM1_InitFTw(T1)
+    call  DQMC_TDM_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
     allocate(T1%properties(NTDMARRAY))
 
     do i = 1, NTDMARRAY
        if (T1%flags(i)==1) then
-         call DQMC_TDM1_InitProp(T1, S, Gwrap, i)
+         call DQMC_TDM_InitProp(T1, S, Gwrap, i)
        endif
     enddo
 
@@ -251,11 +251,11 @@ contains
        enddo
     enddo
 
-  end subroutine DQMC_TDM1_Init
+  end subroutine DQMC_TDM_Init
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_InitFTw(T1)
+  subroutine DQMC_TDM_InitFTw(T1)
     !
     ! Purpose
     ! =======
@@ -267,7 +267,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1      ! TDM to be freed
+    type(TDM), intent(inout) :: T1      ! TDM to be freed
 
     integer :: iw, it, L
     real(wp) :: x, pi
@@ -296,11 +296,11 @@ contains
        enddo
     enddo
 
-  end subroutine DQMC_TDM1_InitFTw
+  end subroutine DQMC_TDM_InitFTw
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_InitProp(T1, S, Gwrap, iprop)
+  subroutine DQMC_TDM_InitProp(T1, S, Gwrap, iprop)
     use DQMC_Geom_Wrap
     !
     ! Purpose
@@ -309,7 +309,7 @@ contains
     !
     ! Arguments
     ! =========
-    type(TDM1), intent(inout) :: T1
+    type(TDM), intent(inout) :: T1
     type(Struct), intent(in)  :: S
     type(GeomWrap), intent(in):: Gwrap
     integer, intent(in)       :: iprop
@@ -398,20 +398,20 @@ contains
      if(associated(T1%properties(iprop)%valuesk)) &
          T1%properties(iprop)%valuesk = 0.0_wp
 
-  end subroutine DQMC_TDM1_InitProp
+  end subroutine DQMC_TDM_InitProp
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Free(T1)
+  subroutine DQMC_TDM_Free(T1)
     !
     ! Purpose
     ! =======
-    !    This subroutine frees TDM1.
+    !    This subroutine frees TDM.
     !
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1
+    type(TDM), intent(inout) :: T1
 
     integer :: i
 
@@ -454,11 +454,11 @@ contains
     deallocate(T1%hopup)
     deallocate(T1%hopdn)
 
-  end subroutine DQMC_TDM1_Free
+  end subroutine DQMC_TDM_Free
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Meas(T1, tau)
+  subroutine DQMC_TDM_Meas(T1, tau)
     !
     ! Purpose
     ! =======
@@ -468,7 +468,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout)   :: t1
+    type(TDM), intent(inout)   :: t1
     type(Gtau), intent(inout)   :: tau
     
     ! ... Local var ...
@@ -505,7 +505,7 @@ contains
           
           jt = tau%it_up; j0 = tau%i0_up
 
-          call DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+          call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
           ! Decrement index tau%it. If north is even do only north/2-1 decrements.
           do dt = 1, m-1+k
              call DQMC_change_gtau_time(tau, TPLUS, TAU_UP)
@@ -516,7 +516,7 @@ contains
              endif
 
              jt = tau%it_up; j0 = tau%i0_up
-             call DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+             call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
           enddo
 
           if (m .gt. 0) then
@@ -533,7 +533,7 @@ contains
                 call DQMC_Gtau_CopyUp(tau)
              endif
              jt = tau%it_up; j0 = tau%i0_up
-             call DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+             call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
                 
           enddo
 
@@ -567,11 +567,11 @@ contains
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
     T1%cnt = T1%cnt + 1
 
-  end subroutine DQMC_TDM1_Meas
+  end subroutine DQMC_TDM_Meas
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, it, i0)
+  subroutine DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, it, i0)
     !
     ! Purpose
     ! =======
@@ -581,7 +581,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout)    :: T1
+    type(TDM), intent(inout)    :: T1
     real(wp), intent(in)         :: up0t(:,:), upt0(:,:)
     real(wp), intent(in)         :: dnt0(:,:), dn0t(:,:)
     real(wp), intent(in)         :: up00(:,:), uptt(:,:)
@@ -898,7 +898,7 @@ contains
     else
 
     if (dt1/=0) then
-      write(*,*) "dt should be 0, error in tdm1.F90"
+      write(*,*) "dt should be 0, error in tdm.F90"
       return
     endif
 
@@ -1065,11 +1065,11 @@ contains
 
     endif
 
-  end subroutine DQMC_TDM1_Compute
+  end subroutine DQMC_TDM_Compute
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Avg(T1)
+  subroutine DQMC_TDM_Avg(T1)
     !
     ! Purpose
     ! =======
@@ -1079,7 +1079,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1                 ! T1
+    type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
     integer  :: nl, idx, i, j, k
@@ -1142,11 +1142,11 @@ contains
     T1%cnt = 0
     T1%idx = T1%idx + 1
 
-  end subroutine DQMC_TDM1_Avg
+  end subroutine DQMC_TDM_Avg
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetErr(T1)
+  subroutine DQMC_TDM_GetErr(T1)
     use dqmc_mpi
     !
     ! Purpose
@@ -1156,7 +1156,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1                 ! T1
+    type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
     integer   :: i, j, iprop
@@ -1405,12 +1405,12 @@ contains
 
     endif
 
-  end subroutine DQMC_TDM1_GetErr
+  end subroutine DQMC_TDM_GetErr
 
   !--------------------------------------------------------------------!
   ! print all tdm quantities
 
-  subroutine DQMC_TDM1_Print(T1, OPT)
+  subroutine DQMC_TDM_Print(T1, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -1420,7 +1420,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT
 
     integer             :: i, j, iprop
@@ -1450,13 +1450,13 @@ contains
       endif
     enddo
 
-  end subroutine DQMC_TDM1_Print
+  end subroutine DQMC_TDM_Print
 
   !--------------------------------------------------------------------!
   ! Below print out tdm quantities separately (if needed)
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print_local(T1, ofile, OPT1, OPT2)
+  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2)
     use dqmc_mpi
     !
     ! Purpose
@@ -1466,7 +1466,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer                  :: OPT1, OPT2
 
     integer             :: i, j
@@ -1550,11 +1550,11 @@ contains
     endif
 
 
-  end subroutine DQMC_TDM1_Print_local
+  end subroutine DQMC_TDM_Print_local
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Chi_Print(T1, OPT)
+  subroutine DQMC_TDM_Chi_Print(T1, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -1564,7 +1564,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT
     integer      :: nn
 
@@ -1610,7 +1610,7 @@ contains
       write(OPT,'(1x)')
     endif
 
-  end subroutine DQMC_TDM1_Chi_Print
+  end subroutine DQMC_TDM_Chi_Print
 
   !--------------------------------------------------------------------!
   ! Below three routines are old FT of tdm quantities
@@ -1619,9 +1619,9 @@ contains
   ! Now old FTk routines are only useful for SelfEnergy
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetKFTold(T1)
+  subroutine DQMC_TDM_GetKFTold(T1)
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
 
     integer              :: ip, it, n, nclass, np, nk, ibin
     integer,     pointer :: class(:,:)
@@ -1655,9 +1655,9 @@ contains
             do it = 0, T1%L-1
                ! 11/20/2015: note here for MPI run
                ! binned values() (only 1 bin) are not for MC, which has been
-               ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+               ! updated in JackKnife among procs in DQMC_TDM_GetErr
                ! avg value is already averaged over proc
-               ! see DQMC_TDM1_GetErr
+               ! see DQMC_TDM_GetErr
                value  =>  T1%properties(ip)%values(:,it,ibin)
                valuek =>  T1%properties(ip)%valueskold(:,it,ibin)
 
@@ -1670,15 +1670,15 @@ contains
       endif
     enddo ! Loop over properties
 
-  end subroutine DQMC_TDM1_GetKFTold
+  end subroutine DQMC_TDM_GetKFTold
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetErrKFTold(T1)
+  subroutine DQMC_TDM_GetErrKFTold(T1)
 
     use DQMC_MPI
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
 
     integer :: ip, it, n, nproc, i
 
@@ -1697,7 +1697,7 @@ contains
 
           do it = 0, T1%L-1
 
-             !Note that valueskold(avg) is known from DQMC_TDM1_GetKFT
+             !Note that valueskold(avg) is known from DQMC_TDM_GetKFT
              !in which FT from values(avg), here do not use JackKnife for simplicity
              !But valueskold(err) is unknown
              average  => T1%properties(ip)%valueskold(:,it,T1%avg)
@@ -1719,9 +1719,9 @@ contains
 #  ifdef _QMC_MPI
                ! 11/20/2015: note here for MPI run
                ! binned values() (only 1 bin) are not for MC, which has been
-               ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+               ! updated in JackKnife among procs in DQMC_TDM_GetErr
                ! avg value is already averaged over proc
-               ! see DQMC_TDM1_GetKFT
+               ! see DQMC_TDM_GetKFT
 
       do ip = 1, NTDMARRAY-1
         if (T1%flags(ip)==1) then
@@ -1731,7 +1731,7 @@ contains
           allocate(temp(n))
           
           do it = 0, T1%L-1
-             !Note that avg value is already averaged over proc in DQMC_TDM1_GetKFT
+             !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
              !and binval is JackKnifed among proc
              average  => T1%properties(ip)%valueskold(:,it,T1%avg)
              binval   => T1%properties(ip)%valueskold(:,it,1)
@@ -1754,11 +1754,11 @@ contains
     endif
 
 
-  end subroutine DQMC_TDM1_GetErrKFTold
+  end subroutine DQMC_TDM_GetErrKFTold
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_PrintKFTold(T1, OPT)
+  subroutine DQMC_TDM_PrintKFTold(T1, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -1768,7 +1768,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT
 
     integer             :: i, j, k, ip, jp, iprop
@@ -1811,15 +1811,15 @@ contains
       endif
     enddo
 
-  end subroutine DQMC_TDM1_PrintKFTold
+  end subroutine DQMC_TDM_PrintKFTold
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_SelfEnergy(T1, tau)
+  subroutine DQMC_TDM_SelfEnergy(T1, tau)
 
     use DQMC_MPI
 
-    type(TDM1), intent(inout) :: T1
+    type(TDM), intent(inout) :: T1
     type(gtau), intent(inout) :: tau
 
     real(wp),    allocatable  :: g0tau(:,:), tdmg0(:,:)
@@ -1953,9 +1953,9 @@ contains
 #  ifdef _QMC_MPI
             ! 11/20/2015: note here for MPI run
             ! binned values() (only 1 bin) are not for MC, which has been
-            ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+            ! updated in JackKnife among procs in DQMC_TDM_GetErr
             ! avg value is already averaged over proc
-            ! see DQMC_TDM1_GetKFT
+            ! see DQMC_TDM_GetKFT
 
             m = np*np*L
 
@@ -2026,15 +2026,15 @@ contains
        end subroutine invertG
 
 
-  end subroutine DQMC_TDM1_SelfEnergy
+  end subroutine DQMC_TDM_SelfEnergy
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print_SelfEnergy(T1, OPT)
+  subroutine DQMC_TDM_Print_SelfEnergy(T1, OPT)
 
     use DQMC_MPI
 
-    type(TDM1), intent(in)    :: T1
+    type(TDM), intent(in)    :: T1
     integer, intent(in)       :: OPT
 
     character(len=10)    :: label(T1%L)
@@ -2092,7 +2092,7 @@ contains
       endif
     enddo
 
-  end subroutine DQMC_TDM1_Print_SelfEnergy
+  end subroutine DQMC_TDM_Print_SelfEnergy
 
   !--------------------------------------------------------------------!
   ! Below three routines for new FT of tdm quantities
@@ -2102,14 +2102,14 @@ contains
   ! Now old FTk routines are only useful for SelfEnergy
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetKFT(T1, Hub)
+  subroutine DQMC_TDM_GetKFT(T1, Hub)
     use DQMC_Hubbard
     ! For MPI run
     ! binned values() (only 1 bin) are not from MC, which has been
-    ! updated in JackKnife among procs in DQMC_TDM1_GetErr
-    ! avg value is already averaged over proc, similar to DQMC_TDM1_GetKFT
+    ! updated in JackKnife among procs in DQMC_TDM_GetErr
+    ! avg value is already averaged over proc, similar to DQMC_TDM_GetKFT
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
 
     integer              :: i, j, ip, kx, ky, n, nclass, ibin
@@ -2167,15 +2167,15 @@ contains
        endif
     enddo
 
-  end subroutine DQMC_TDM1_GetKFT
+  end subroutine DQMC_TDM_GetKFT
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetErrKFT(T1)
+  subroutine DQMC_TDM_GetErrKFT(T1)
 
     use DQMC_MPI
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
 
     integer :: ip, it, n, nproc, i
 
@@ -2194,7 +2194,7 @@ contains
 
           do it = 0, T1%L-1
 
-             !Note that valuesk(avg) is known from DQMC_TDM1_GetKFT
+             !Note that valuesk(avg) is known from DQMC_TDM_GetKFT
              !in which FT from values(avg), here do not use JackKnife for simplicity
              !But valuesk(err) is unknown
              average  => T1%properties(ip)%valuesk(:,:,it,T1%avg)
@@ -2215,9 +2215,9 @@ contains
 #  ifdef _QMC_MPI
       ! 11/20/2015: note here for MPI run
       ! binned values() (only 1 bin) are not for MC, which has been
-      ! updated in JackKnife among procs in DQMC_TDM1_GetErr
+      ! updated in JackKnife among procs in DQMC_TDM_GetErr
       ! avg value is already averaged over proc
-      ! see DQMC_TDM1_GetKFT
+      ! see DQMC_TDM_GetKFT
 
       do ip = 1, NTDMARRAY
         if (T1%flagsFT(ip)==1) then
@@ -2227,7 +2227,7 @@ contains
           allocate(temp(0:T1%NkFT-1,0:T1%NkFT-1))
           
           do it = 0, T1%L-1
-             !Note that avg value is already averaged over proc in DQMC_TDM1_GetKFT
+             !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
              !and binval is JackKnifed among proc
              average  => T1%properties(ip)%valuesk(:,:,it,T1%avg)
              binval   => T1%properties(ip)%valuesk(:,:,it,1)
@@ -2249,11 +2249,11 @@ contains
     endif
 
 
-  end subroutine DQMC_TDM1_GetErrKFT
+  end subroutine DQMC_TDM_GetErrKFT
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_PrintKFT(T1, OPT, ofile, OPT1, OPT2)
+  subroutine DQMC_TDM_PrintKFT(T1, OPT, ofile, OPT1, OPT2)
     use dqmc_mpi
     !
     ! Purpose
@@ -2263,7 +2263,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer                  :: OPT, OPT1, OPT2
 
     integer             :: i, j, kx, ky, iprop
@@ -2310,14 +2310,14 @@ contains
       endif
     enddo
 
-  end subroutine DQMC_TDM1_PrintKFT
+  end subroutine DQMC_TDM_PrintKFT
 
   !--------------------------------------------------------------------!
   ! Below three routines for curr-curr(qx=0,qy;iwn) is estimated by 
   ! linear extrapolation of two smallest qy
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_currDs(T1,Hub)
+  subroutine DQMC_TDM_currDs(T1,Hub)
     use DQMC_Hubbard
     ! curr-curr(qx=0,qy;iwn) is estimated by linear extrapolation of two smallest qy
     ! same as RTScode dishbpar2.f, only need cos real part for FT coefficients
@@ -2325,10 +2325,10 @@ contains
 
     ! For MPI run
     ! binned values() (only 1 bin) are not from MC, which has been
-    ! updated in JackKnife among procs in DQMC_TDM1_GetErr
-    ! avg value is already averaged over proc, similar to DQMC_TDM1_GetKFT
+    ! updated in JackKnife among procs in DQMC_TDM_GetErr
+    ! avg value is already averaged over proc, similar to DQMC_TDM_GetKFT
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
 
     integer              :: i, j, k, n, nclass, ibin, Nq
@@ -2449,15 +2449,15 @@ contains
 
     enddo     ! Loop over bins
 
-  end subroutine DQMC_TDM1_currDs
+  end subroutine DQMC_TDM_currDs
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_currDs_Err(T1)
+  subroutine DQMC_TDM_currDs_Err(T1)
 
     use DQMC_MPI
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
 
     integer :: n, nproc, i, j, s, Nq
 
@@ -2469,7 +2469,7 @@ contains
 
     if (nproc .eq. 1) then
 
-       !Note that values(avg) is known from DQMC_TDM1_GetErr, values(err) is unknown
+       !Note that values(avg) is known from DQMC_TDM_GetErr, values(err) is unknown
        !in which FT from values(avg), here do not use JackKnife for simplicity
 
        ! loop over nospline, qwspline, wqspline
@@ -2505,8 +2505,8 @@ contains
 #   ifdef _QMC_MPI
       ! 12/27/2015: note here for MPI run
       ! binned values() (only 1 bin) are not for MC, which has been
-      ! updated in JackKnife among procs in DQMC_TDM1_GetErr
-      ! avg value is already averaged over proc, see DQMC_TDM1_GetKFT
+      ! updated in JackKnife among procs in DQMC_TDM_GetErr
+      ! avg value is already averaged over proc, see DQMC_TDM_GetKFT
 
       Nq = 3
       allocate(temp(0:Nq))  ! two lowest qy 
@@ -2544,14 +2544,14 @@ contains
 
     endif
 
-  end subroutine DQMC_TDM1_currDs_Err
+  end subroutine DQMC_TDM_currDs_Err
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_currDs_Print(T1, ofile, OPT, Dsqy)
+  subroutine DQMC_TDM_currDs_Print(T1, ofile, OPT, Dsqy)
     use dqmc_mpi
 
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer                  :: OPT
     integer,    intent(in)   :: Dsqy
 
@@ -2633,6 +2633,6 @@ contains
     write(OPT,'(a50)') " "
   enddo
   
-  end subroutine DQMC_TDM1_currDs_Print
+  end subroutine DQMC_TDM_currDs_Print
 
-end module DQMC_TDM1
+end module DQMC_TDM

@@ -339,7 +339,7 @@ contains
     P0%initFT = .false.
 
     ! 12/27/2015:
-    ! The following is the same as in tdm1.F90
+    ! The following is the same as in tdm.F90
     ! IMPORTANT: the indices of Gtau(1:nsites) and hamilt(0:nsites-1) are different
     ! Note difference from rt etc. in dqmc_hamilt.F90
     ! So switch the values to from 1 to nSite, instead of 0 to nSite-1

@@ -1,4 +1,4 @@
-module DQMC_TDM1
+module DQMC_TDM
 #include "dqmc_include.h"
 
   use DQMC_UTIL
@@ -67,7 +67,7 @@ module DQMC_TDM1
                   "S-wave      "  /)
 !                  "Conductivity" /)
 
-  type TDM1
+  type TDM
      integer  :: L
      integer  :: nbin
      integer  :: avg
@@ -87,23 +87,23 @@ module DQMC_TDM1
      complex(wp), pointer :: ftwfer(:,:) 
      complex(wp), pointer :: ftwbos(:,:) 
 
-  end type TDM1
+  end type TDM
   
 contains
 
  !--------------------------------------------------------------------!
   
-  subroutine DQMC_TDM1_Init(L, dtau, T1, nBin, S, Gwrap)
+  subroutine DQMC_TDM_Init(L, dtau, T1, nBin, S, Gwrap)
     use DQMC_Geom_Wrap
     !
     ! Purpose
     ! =======
-    !    This subroutine initializes TDM1. 
+    !    This subroutine initializes TDM. 
     !
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1      ! time dependent measurement
+    type(TDM), intent(inout) :: T1      ! time dependent measurement
     integer, intent(in)       :: L       ! No of time slice
     integer, intent(in)       :: nBin    ! No of Bins
     real(wp), intent(in)      :: dtau
@@ -131,17 +131,17 @@ contains
     ! initialize values
     T1%sgn   = ZERO
 
-    call  DQMC_TDM1_InitFTw(T1)
+    call  DQMC_TDM_InitFTw(T1)
     allocate(T1%properties(NTDMARRAY))
     do i = 1, NTDMARRAY
-       call DQMC_TDM1_InitProp(T1, S, Gwrap, i)
+       call DQMC_TDM_InitProp(T1, S, Gwrap, i)
     enddo
     
-  end subroutine DQMC_TDM1_Init
+  end subroutine DQMC_TDM_Init
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_InitFTw(T1)
+  subroutine DQMC_TDM_InitFTw(T1)
     !
     ! Purpose
     ! =======
@@ -153,7 +153,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1      ! TDM to be freed
+    type(TDM), intent(inout) :: T1      ! TDM to be freed
 
     integer :: iw, it, L
     real(wp) :: x, pi
@@ -182,11 +182,11 @@ contains
        enddo
     enddo
 
-  end subroutine DQMC_TDM1_InitFTw
+  end subroutine DQMC_TDM_InitFTw
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_InitProp(T1, S, Gwrap, iprop)
+  subroutine DQMC_TDM_InitProp(T1, S, Gwrap, iprop)
     use DQMC_Geom_Wrap
     !
     ! Purpose
@@ -195,7 +195,7 @@ contains
     !
     ! Arguments
     ! =========
-    type(TDM1), intent(inout) :: T1
+    type(TDM), intent(inout) :: T1
     type(Struct), intent(in)  :: S
     type(GeomWrap), intent(in):: Gwrap
     integer, intent(in)       :: iprop
@@ -300,20 +300,20 @@ contains
      if(associated(T1%properties(iprop)%valuesk)) &
          T1%properties(iprop)%valuesk = 0.0_wp
 
-  end subroutine DQMC_TDM1_InitProp
+  end subroutine DQMC_TDM_InitProp
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Free(T1)
+  subroutine DQMC_TDM_Free(T1)
     !
     ! Purpose
     ! =======
-    !    This subroutine frees TDM1.
+    !    This subroutine frees TDM.
     !
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1
+    type(TDM), intent(inout) :: T1
 
     integer :: i
 
@@ -333,11 +333,11 @@ contains
     deallocate(T1%ftwfer)
     deallocate(T1%properties)
 
-  end subroutine DQMC_TDM1_Free
+  end subroutine DQMC_TDM_Free
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Meas(T1, tau)
+  subroutine DQMC_TDM_Meas(T1, tau)
     !
     ! Purpose
     ! =======
@@ -347,7 +347,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout)   :: t1
+    type(TDM), intent(inout)   :: t1
     type(Gtau), intent(inout)   :: tau
     
     ! ... Local var ...
@@ -389,7 +389,7 @@ contains
              call DQMC_Gtau_DumpA(tau, TAU_DN, it, i0)
           
           jt = tau%it_up; j0 = tau%i0_up
-          call DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+          call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
 
           ! Decrement index tau%it. If north is even do only north/2-1 decrements.
           do dt = 1, m-1+k
@@ -401,7 +401,7 @@ contains
              endif
 
              jt = tau%it_up; j0 = tau%i0_up
-             call DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+             call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
           enddo
 
           if (m .gt. 0) then
@@ -418,7 +418,7 @@ contains
                 call DQMC_Gtau_CopyUp(tau)
              endif
              jt = tau%it_up; j0 = tau%i0_up
-             call DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+             call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
                 
           enddo
 
@@ -447,11 +447,11 @@ contains
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
     T1%cnt = T1%cnt + 1
 
-  end subroutine DQMC_TDM1_Meas
+  end subroutine DQMC_TDM_Meas
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, it, i0)
+  subroutine DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, it, i0)
     !
     ! Purpose
     ! =======
@@ -461,7 +461,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout)    :: T1
+    type(TDM), intent(inout)    :: T1
     real(wp), intent(in)         :: up0t(:,:), upt0(:,:)
     real(wp), intent(in)         :: dnt0(:,:), dn0t(:,:)
     real(wp), intent(in)         :: up00(:,:), uptt(:,:)
@@ -660,11 +660,11 @@ contains
 
     endif
 
-  end subroutine DQMC_TDM1_Compute
+  end subroutine DQMC_TDM_Compute
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Avg(T1)
+  subroutine DQMC_TDM_Avg(T1)
     !
     ! Purpose
     ! =======
@@ -674,7 +674,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1                 ! T1
+    type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
     integer  :: nl, idx, i
@@ -695,11 +695,11 @@ contains
     T1%cnt = 0
     T1%idx = T1%idx + 1
 
-  end subroutine DQMC_TDM1_Avg
+  end subroutine DQMC_TDM_Avg
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetErr(T1)
+  subroutine DQMC_TDM_GetErr(T1)
     use dqmc_mpi
     !
     ! Purpose
@@ -709,7 +709,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(inout) :: T1                 ! T1
+    type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
     integer   :: i, j, iprop
@@ -796,11 +796,11 @@ contains
 
     endif
 
-  end subroutine DQMC_TDM1_GetErr
+  end subroutine DQMC_TDM_GetErr
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print(T1, OPT)
+  subroutine DQMC_TDM_Print(T1, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -810,7 +810,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT
 
     integer             :: i, j, iprop
@@ -838,11 +838,11 @@ contains
        enddo
     enddo
 
-  end subroutine DQMC_TDM1_Print
+  end subroutine DQMC_TDM_Print
 
 !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Print1(T1, OPT1, OPT2, OPT3, OPT4)
+  subroutine DQMC_TDM_Print1(T1, OPT1, OPT2, OPT3, OPT4)
     use dqmc_mpi
     !
     ! Purpose
@@ -852,7 +852,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT1, OPT2, OPT3, OPT4
     ! OPT4 records the results:
     ! S+S-(beta/2) for cc, cf, ff in PAM model
@@ -918,11 +918,11 @@ contains
       endif
     enddo
 
-  end subroutine DQMC_TDM1_Print1
+  end subroutine DQMC_TDM_Print1
 
  !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_Chi_Print(T1, OPT, OPT1)
+  subroutine DQMC_TDM_Chi_Print(T1, OPT, OPT1)
     use dqmc_mpi
     !
     ! Purpose
@@ -932,7 +932,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT,OPT1
     integer      :: nn
 
@@ -1050,13 +1050,13 @@ write(OPT,*) "F",F(i)
 
    enddo ! end of iprop loop
 
-  end subroutine DQMC_TDM1_Chi_Print
+  end subroutine DQMC_TDM_Chi_Print
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetKFT(T1)
+  subroutine DQMC_TDM_GetKFT(T1)
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
 
     integer :: ip, it, n, nclass, np, nk, ibin
     integer, pointer :: class(:,:)
@@ -1096,15 +1096,15 @@ write(OPT,*) "F",F(i)
 
     enddo ! Loop over properties
 
-  end subroutine DQMC_TDM1_GetKFT
+  end subroutine DQMC_TDM_GetKFT
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_GetErrKFT(T1)
+  subroutine DQMC_TDM_GetErrKFT(T1)
 
     use DQMC_MPI
 
-    type(tdm1), intent(inout) :: T1
+    type(tdm), intent(inout) :: T1
 
     integer :: ip, it, n, nproc, i
 
@@ -1172,11 +1172,11 @@ write(OPT,*) "F",F(i)
     endif
 
 
-  end subroutine DQMC_TDM1_GetErrKFT
+  end subroutine DQMC_TDM_GetErrKFT
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_PrintKFT(T1, OPT)
+  subroutine DQMC_TDM_PrintKFT(T1, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -1186,7 +1186,7 @@ write(OPT,*) "F",F(i)
     ! Arguments
     ! =========
     !
-    type(TDM1), intent(in)   :: T1                 ! T1
+    type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)      :: OPT
 
     integer             :: i, j, k, ip, jp, iprop
@@ -1226,15 +1226,15 @@ write(OPT,*) "F",F(i)
        enddo
     enddo
 
-  end subroutine DQMC_TDM1_PrintKFT
+  end subroutine DQMC_TDM_PrintKFT
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM1_SelfEnergy(T1, tau, OPT)
+  subroutine DQMC_TDM_SelfEnergy(T1, tau, OPT)
 
     use DQMC_MPI
 
-    type(TDM1), intent(in)    :: T1
+    type(TDM), intent(in)    :: T1
     type(gtau), intent(inout) :: tau
     integer, intent(in)       :: OPT
 
@@ -1423,8 +1423,8 @@ write(OPT,*) "F",F(i)
        end subroutine invertG
 
 
-  end subroutine DQMC_TDM1_SelfEnergy
+  end subroutine DQMC_TDM_SelfEnergy
 
   !--------------------------------------------------------------------!
 
-end module DQMC_TDM1
+end module DQMC_TDM

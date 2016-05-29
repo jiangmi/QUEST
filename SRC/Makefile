@@ -34,7 +34,7 @@ dqmc_2dperl.o : dqmc_cfg.o dqmc_hubbard.o
 dqmc_kbonds.o : dqmc_reclatt.o dqmc_symm.o
 dqmc_tdm.o : dqmc_struct.o dqmc_gtau.o
 dqmc_gtau.o : dqmc_matb.o dqmc_hubbard.o
-dqmc_hubbard.o : dqmc_cfg.o dqmc_phy0.o dqmc_phy2.o
+dqmc_hubbard.o : dqmc_cfg.o dqmc_phy.o
 dqmc_phy.o : dqmc_struct.o
 dqmc_gfun.o : dqmc_matb.o dqmc_seqb.o
 dqmc_seqb.o : dqmc_matb.o

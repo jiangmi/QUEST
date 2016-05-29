@@ -1,4 +1,4 @@
-module DQMC_Phy0
+module DQMC_Phy
 #include "dqmc_include.h"
 
   use DQMC_UTIL
@@ -39,11 +39,11 @@ module DQMC_Phy0
   !
   ! List of subroutines
   ! ===================
-  !    1. DQMC_Phy0_Init(P0, nClass, nBin, nHist)
-  !    2. DQMC_Phy0_Normalize(P0, u)
-  !    3. DQMC_Phy0_Print(P0, S, OPT)
-  !    4. DQMC_Phy0_GetErr(P0)
-  !    5. DQMC_Phy0_Dump(P0, idx, opt)
+  !    1. DQMC_Phy_Init(P0, nClass, nBin, nHist)
+  !    2. DQMC_Phy_Normalize(P0, u)
+  !    3. DQMC_Phy_Print(P0, S, OPT)
+  !    4. DQMC_Phy_GetErr(P0)
+  !    5. DQMC_Phy_Dump(P0, idx, opt)
   !    6. DQMC_PHY0_Hist(n, nBin, over, under, H, list, GetIndex)
   !    7. DQMC_Meas0(n, P0, G_up, G_dn, mu, t, sgnup, sgndn, S, up, dn)
   !
@@ -52,7 +52,7 @@ module DQMC_Phy0
   !
   ! Data Structure and Parameters
   ! =============================
-  !    The data type Phy0 is consisted of two parts: the measurements
+  !    The data type Phy is consisted of two parts: the measurements
   !    and the histograms. 
   !    
   !    The measurements are put into bins and then analysized in the end.
@@ -162,7 +162,7 @@ module DQMC_Phy0
        "                Avg dn sign : "/)
 
 
-  type Phy0
+  type Phy
      ! Measurement part
      integer  :: nClass                     ! Number of distinct 
                                             ! autocorrelction terms
@@ -214,19 +214,19 @@ module DQMC_Phy0
      integer, ALLOCATABLE :: rt(:), lf(:), top(:), bot(:)
      complex*16, ALLOCATABLE  :: hopup(:,:), hopdn(:,:)
 
-  end type Phy0
+  end type Phy
 
 contains
 
   ! Subroutines
   ! ==================================================================
   
-  subroutine DQMC_Phy0_Init(P0, S, beta, nBin, WS, Gwrap)
+  subroutine DQMC_Phy_Init(P0, S, beta, nBin, WS, Gwrap)
     use DQMC_Geom_Wrap
     !
     ! Purpose
     ! =======
-    !    This subroutine initializes Phy0.
+    !    This subroutine initializes Phy.
     !
     !  Pre-assumption
     ! ==============
@@ -235,7 +235,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(Phy0), intent(inout) :: P0      ! Phy0 to be initialized
+    type(Phy), intent(inout) :: P0      ! Phy to be initialized
     type(Struct), intent(in)  :: S
     integer, intent(in)       :: nBin    ! No of bins
     real(wp), intent(in)      :: beta
@@ -362,20 +362,20 @@ contains
        enddo
     enddo
 
-   end subroutine DQMC_Phy0_Init
+   end subroutine DQMC_Phy_Init
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy0_Free(P0)
+  subroutine DQMC_Phy_Free(P0)
     !
     ! Purpose
     ! =======
-    !    This subroutine frees Phy0.
+    !    This subroutine frees Phy.
     !
     ! Arguments
     ! =========
     !
-    type(Phy0), intent(inout) :: P0      ! Phy0 to be freed
+    type(Phy), intent(inout) :: P0      ! Phy to be freed
 
     ! ... Executable ...
     if (P0%init) then
@@ -402,11 +402,11 @@ contains
     deallocate(P0%hopup)
     deallocate(P0%hopdn)
 
-  end subroutine DQMC_Phy0_Free
+  end subroutine DQMC_Phy_Free
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy0_Meas(n, P0, G_up, G_dn, U, mu_up, mu_dn, t_up, t_dn, sgnup, sgndn, S)
+  subroutine DQMC_Phy_Meas(n, P0, G_up, G_dn, U, mu_up, mu_dn, t_up, t_dn, sgnup, sgndn, S)
     ! Called by DQMC_Hub_FullMeas in dqmc_hubbard.F90
     !
     ! Purpose
@@ -418,7 +418,7 @@ contains
     ! =========
     !
     integer, intent(in)          :: n            ! Number of sites
-    type(Phy0), intent(inout)    :: P0           ! Phy0
+    type(Phy), intent(inout)    :: P0           ! Phy
     real(wp), intent(in)         :: G_up(n,n)    ! Green's function
     real(wp), intent(in)         :: G_dn(n,n)    ! for spin up and down
     real(wp), intent(in)         :: sgnup, sgndn ! Sgn for det(G_up) det(G_dn)
@@ -792,11 +792,11 @@ contains
     P0%sign(P0_SGNDN, idx) =  P0%sign(P0_SGNDN, idx) + sgndn
     P0%cnt = P0%cnt + 1
 
-  end subroutine DQMC_Phy0_Meas
+  end subroutine DQMC_Phy_Meas
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy0_Avg(P0)
+  subroutine DQMC_Phy_Avg(P0)
     !
     ! Purpose
     ! =======
@@ -811,7 +811,7 @@ contains
     ! Arguments
     ! =========
     !
-    type(Phy0), intent(inout) :: P0     ! Phy0
+    type(Phy), intent(inout) :: P0     ! Phy
     
     ! ... local scalar ...
     real(wp) :: factor
@@ -822,7 +822,7 @@ contains
 
     ! compute the normalization factor = 1/cnt
     if (P0%cnt == 0) then
-       call DQMC_Error("Phy0 normalize: cnt = 0", 0)
+       call DQMC_Error("Phy normalize: cnt = 0", 0)
     end if
     factor = ONE / P0%cnt
 
@@ -853,11 +853,11 @@ contains
     ! reset the counter
     p0%cnt = 0
 
-  end subroutine DQMC_Phy0_Avg
+  end subroutine DQMC_Phy_Avg
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy0_GetErr(P0)
+  subroutine DQMC_Phy_GetErr(P0)
     use dqmc_mpi
     !
     ! Purpose
@@ -868,7 +868,7 @@ contains
     ! Argument
     ! ========
     !
-    type(Phy0), intent(inout) :: P0
+    type(Phy), intent(inout) :: P0
 
     ! ... Local Scalar ...
     integer  :: i, n
@@ -1044,11 +1044,11 @@ contains
 
   endif
 
-  end subroutine DQMC_Phy0_GetErr
+  end subroutine DQMC_Phy_GetErr
   
   !--------------------------------------------------------------------!
   
-  subroutine DQMC_Phy0_Print(P0, S, OPT)
+  subroutine DQMC_Phy_Print(P0, S, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -1060,12 +1060,12 @@ contains
     !  Pre-assumption
     ! ===============
     !    OPT is a file handle
-    !    DQMC_Phy0_GetErr was called.
+    !    DQMC_Phy_GetErr was called.
     !
     ! Arguments
     ! =========
     !
-    type(Phy0), intent(in)    :: P0   ! Phy0
+    type(Phy), intent(in)    :: P0   ! Phy
     type(Struct), intent(in)  :: S    ! Underline lattice structure
     integer, intent(in)       :: OPT  ! Output file handle
 
@@ -1118,12 +1118,12 @@ contains
     call DQMC_Print_RealArray(0, nClass, "Pairing correlation function:", &
          S%clabel, P0%Pair(:, avg:avg), P0%Pair(:, err:err), OPT)
     
-  end subroutine DQMC_Phy0_Print
+  end subroutine DQMC_Phy_Print
   
   !====================================================================!
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy0_GetFT(P0, class, phase, ft_wgt_t, ft_wgt_g, nkt, nkg, na, nt)
+  subroutine DQMC_Phy_GetFT(P0, class, phase, ft_wgt_t, ft_wgt_g, nkt, nkg, na, nt)
     !
     ! Purpose
     ! =======
@@ -1148,7 +1148,7 @@ contains
     integer, intent(in)    :: phase(na*nt,na*nt)  !classes of pairs of sites
     complex*16, intent(in), target :: ft_wgt_t(nt, nkt)      !fourier weights : exp(ikr)
     complex*16, intent(in), target :: ft_wgt_g(nt, nkg)    !fourier weights : exp(ikr)
-    type(Phy0), intent(inout) :: P0                  !container
+    type(Phy), intent(inout) :: P0                  !container
 
     ! ... Local variables ...
     real(wp) :: rwork(3*na), phcurr
@@ -1253,11 +1253,11 @@ contains
 
     enddo ! Loop over properties
 
-  end subroutine DQMC_Phy0_GetFT
+  end subroutine DQMC_Phy_GetFT
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy0_GetErrFT(P0)
+  subroutine DQMC_Phy_GetErrFT(P0)
     use dqmc_mpi
     !
     ! Purpose
@@ -1266,12 +1266,12 @@ contains
     !
     !  Pre-assumption
     ! ===============
-    !    DQMC_Phy0_GetFT was called.
+    !    DQMC_Phy_GetFT was called.
     !
     ! Arguments
     ! =========
     !
-    type(Phy0), intent(inout) :: P0                  !container
+    type(Phy), intent(inout) :: P0                  !container
 
     integer :: err, avg, n, m, nbin, i, nproc
 
@@ -1314,11 +1314,11 @@ contains
   
     endif
 
-  end  subroutine DQMC_Phy0_GetErrFT
+  end  subroutine DQMC_Phy_GetErrFT
 
   !--------------------------------------------------------------------!
   
-  subroutine DQMC_Phy0_PrintFT(P0, na, nkt, nkg, OPT)
+  subroutine DQMC_Phy_PrintFT(P0, na, nkt, nkg, OPT)
 
     use dqmc_mpi
     !
@@ -1330,12 +1330,12 @@ contains
     !  Pre-assumption
     ! ===============
     !    OPT is a file handle
-    !    DQMC_Phy0_GetErrFT was called.
+    !    DQMC_Phy_GetErrFT was called.
     !
     ! Arguments
     ! =========
     !
-    type(Phy0), intent(in)    :: P0        ! Phy0
+    type(Phy), intent(in)    :: P0        ! Phy
     integer, intent(in)       :: OPT       ! Output file handle
     integer, intent(in)       :: na        ! number of sites in unit cell
     integer, intent(in)       :: nkt, nkg  ! number of non-equivalent k-points
@@ -1519,6 +1519,6 @@ contains
 
     deallocate(clabel)
 
-  end subroutine DQMC_Phy0_PrintFT
+  end subroutine DQMC_Phy_PrintFT
 
-end module DQMC_Phy0
+end module DQMC_Phy

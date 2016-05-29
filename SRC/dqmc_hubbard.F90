@@ -3,8 +3,7 @@ module DQMC_Hubbard
 
   use DQMC_UTIL
   use DQMC_CFG
-  use DQMC_PHY0
-  use DQMC_PHY2
+  use DQMC_PHY
   use _DQMC_MATB
   use DQMC_SEQB
   use DQMC_GFUN
@@ -119,10 +118,9 @@ module DQMC_Hubbard
 
      ! Part 3: Physical measurements
      ! =============================
-     type(Phy0)   :: P0                ! Meas0
-     type(Phy2)   :: P2                ! MeasPair
+     type(Phy)    :: P0                ! Meas0
      integer      :: nMeas             
-     integer      :: tausk             ! Frequency of performing Phy0 measurement 
+     integer      :: tausk             ! Frequency of performing Phy measurement 
      logical      :: meas2
 
      ! Part 4: Working space
@@ -582,8 +580,7 @@ contains
 
     temp = Hub%dtau * Hub%L
 
-    call DQMC_Phy0_Init(Hub%P0, Hub%S, temp, nBin, Hub%WS, Gwrap)
-    call DQMC_Phy2_Init(Hub%P2, nBin, Hub%S, Hub%WS, Hub%meas2)
+    call DQMC_Phy_Init(Hub%P0, Hub%S, temp, nBin, Hub%WS, Gwrap)
 
     ! Initialize simulation range
     Hub%n_start = 1
@@ -611,8 +608,7 @@ contains
     call DQMC_Gfun_Free(Hub%G_up)
     call DQMC_Gfun_Free(Hub%G_dn)
 
-    call DQMC_Phy0_Free(Hub%P0)
-    call DQMC_Phy2_Free(Hub%P2)
+    call DQMC_Phy_Free(Hub%P0)
 
     if (associated(Hub%V_up)) deallocate(Hub%V_up)
     if (.not.Hub%neg_u .and. associated(Hub%V_dn)) deallocate(Hub%V_dn)
@@ -987,8 +983,7 @@ contains
     call DQMC_Hub_OutputParam(Hub, OPT)
     write(OPT, FMT_DBLINE)
 
-    call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
-    call DQMC_Phy2_Print(Hub%P2, Hub%S%wlabel, OPT)
+    call DQMC_Phy_Print(Hub%P0, Hub%S, OPT)
 
   end subroutine DQMC_Hub_Print
 
@@ -1130,16 +1125,8 @@ contains
              endif
 
              ! Basic measurement
-             call DQMC_Phy0_Meas(Hub%n, Hub%P0, Hub%G_up%GS, Hub%G_dn%GS, Hub%U, &
+             call DQMC_Phy_Meas(Hub%n, Hub%P0, Hub%G_up%GS, Hub%G_dn%GS, Hub%U, &
                   Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
-
-             if (Hub%meas2) then
-                ! Pair measurement
-                r = sgn_up*sgn_dn
-                call DQMC_Phy2_Meas(n, Hub%P2%M1, Hub%P2%M2, &
-                     Hub%P2, Hub%S%B, Hub%G_up%GS, Hub%G_dn%GS, r)
-             end if
-
           endif
 
        end if
@@ -1720,16 +1707,8 @@ contains
           end if
           
           ! Basic measurement
-          call DQMC_Phy0_Meas(Hub%n, Hub%P0, G_up, G_dn, &
+          call DQMC_Phy_Meas(Hub%n, Hub%P0, G_up, G_dn, &
                Hub%U, Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
-          if (Hub%meas2) then
-             ! Pair measurement
-             r = sgn_up*sgn_dn
-             call DQMC_Phy2_Meas(n, Hub%P2%M1, Hub%P2%M2, &
-                  Hub%P2, Hub%S%B, G_up, G_dn, r)
-             
-             ! Reset the counter
-          end if
           cnt = nMeas0
        end if
        
@@ -1974,7 +1953,7 @@ contains
     !      1. Compute Green function.
     !      2. Perform warmup sweep.
     !      3. Perform actual sweep.
-    !      4. Analyze the measurement. (see DQMC_Phy0)
+    !      4. Analyze the measurement. (see DQMC_Phy)
     !
     ! Arguments
     ! =========
@@ -2010,21 +1989,11 @@ contains
 
        ! Accumulate results for each bin
        if (Info==1) write(*,'(a,2i6)') ' Measurement Sweep, bin, iter : ', i, j
-       call DQMC_Phy0_Avg(Hub%P0)
-       if (Hub%meas2) then
-          if(Hub%P2%diagonalize)then
-            call DQMC_Phy2_Avg(Hub%P2, Hub%S)
-          else
-            call DQMC_Phy2_Avg(Hub%P2, Hub%S%W)
-          endif
-       end if
+       call DQMC_Phy_Avg(Hub%P0)
     end do
 
     ! Get average result
-    call DQMC_Phy0_GetErr(Hub%P0)
-    if (Hub%meas2) then
-       call DQMC_Phy2_GetErr(Hub%P2)
-    end if
+    call DQMC_Phy_GetErr(Hub%P0)
 
   end subroutine DQMC_Hub_Run
   
@@ -2100,15 +2069,8 @@ contains
            call DQMC_GetG_2nd_order(G_dn_local, Hub%B_dn)
         endif
 
-        call DQMC_Phy0_Meas(Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
+        call DQMC_Phy_Meas(Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
            Hub%mu_up, Hub%mu_up, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
-
-        if (Hub%meas2) then
-           ! Pair measurement
-           call DQMC_Phy2_Meas(Hub%n, Hub%P2%M1, Hub%P2%M2, Hub%P2, Hub%S%B, &
-              G_up_local%GS, G_dn_local%GS, sgn_up*sgn_dn)
-        end if
-
      enddo
 
      call DQMC_Gfun_Free(G_up_local)
@@ -2177,14 +2139,8 @@ contains
      endif
      
      ! Basic measurement
-     call DQMC_Phy0_Meas(Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
+     call DQMC_Phy_Meas(Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
         Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
-
-     if (Hub%meas2) then
-        ! Pair measurement
-        call DQMC_Phy2_Meas(Hub%n, Hub%P2%M1, Hub%P2%M2, Hub%P2, Hub%S%B, &
-           G_up_local%GS, G_dn_local%GS, sgn_up*sgn_dn)
-     end if
 
      call DQMC_Gfun_Free(G_up_local)
      call DQMC_Gfun_Free(G_dn_local)

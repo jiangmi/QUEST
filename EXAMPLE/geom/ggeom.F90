@@ -154,17 +154,8 @@ program dqmc_ggeom
         end do
 
         ! Accumulate results for each bin
-        call DQMC_Phy0_Avg(Hub%P0)
+        call DQMC_Phy_Avg(Hub%P0)
         call DQMC_tdm1_Avg(tm)
-
-        if (Hub%meas2) then
-           if(Hub%P2%diagonalize)then
-             call DQMC_Phy2_Avg(Hub%P2, Hub%S)
-           else
-             call DQMC_Phy2_Avg(Hub%P2, Hub%S%W)
-           endif
-        end if
-
      end do
   endif  ! for if nIter  = Hub%nPass/Hub%tausk/nBin > 0
 
@@ -191,26 +182,14 @@ program dqmc_ggeom
            endif
         enddo
 
-        call DQMC_Phy0_Avg(Hub%P0)
+        call DQMC_Phy_Avg(Hub%P0)
         call DQMC_TDM1_Avg(tm)
-
-        if (Hub%meas2) then
-           if(Hub%P2%diagonalize)then
-             call DQMC_Phy2_Avg(Hub%P2, Hub%S)
-           else
-             call DQMC_Phy2_Avg(Hub%P2, Hub%S%W)
-           endif
-        end if
-
      enddo
   endif ! for if (Hub%nWarm + Hub%nPass == 0)
 
   !Compute average and error
-  call DQMC_Phy0_GetErr(Hub%P0)
+  call DQMC_Phy_GetErr(Hub%P0)
   call DQMC_TDM1_GetErr(tm)
-  if (Hub%meas2) then
-     call DQMC_Phy2_GetErr(Hub%P2)
-  end if
 
   call cpu_time(t4)
   if (qmc_sim%rank == qmc_sim%aggr_root) then
@@ -249,7 +228,7 @@ program dqmc_ggeom
 
   !Print P0 results: determine if qmc_sim%rank==0 in subroutines
   call DQMC_Hub_OutputParam(Hub, OPT)
-  call DQMC_Phy0_Print(Hub%P0, Hub%S, OPT)
+  call DQMC_Phy_Print(Hub%P0, Hub%S, OPT)
 
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then
@@ -287,7 +266,7 @@ program dqmc_ggeom
 
     call DQMC_phy0_GetFT(Hub%P0, Hub%S%D, Hub%S%gf_phase, Gwrap%RecipLattice%FourierC, &
                          Gwrap%GammaLattice%FourierC, nkt, nkg, na, nt)
-    call DQMC_Phy0_GetErrFT(Hub%P0)
+    call DQMC_Phy_GetErrFT(Hub%P0)
   endif
 
   !In DQMC_TDM1_GetKFT determines if comp_tdm>0
@@ -302,7 +281,7 @@ program dqmc_ggeom
      !Print info on k-points and construct clabel, in dqmc_geom_wrap.F90
      call DQMC_Print_HeaderFT(Gwrap, OPT, .true.)   ! k grid for Green function
      call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)  ! k grid for spin/charge correlation
-     call DQMC_Phy0_PrintFT(Hub%P0, na, nkt, nkg, OPT)
+     call DQMC_Phy_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
   if (SelfE > 0) then
      call DQMC_TDM1_PrintKFTold(tm, TDM_UNIT)

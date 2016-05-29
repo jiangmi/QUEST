@@ -33,8 +33,7 @@ module DQMC_STRUCT
   !      there are 5 elements in D whose distance class is indexed i.
   !
   !   4. Phase (P) is also an NxN matrix, which is used in computing
-  !      some phiscal measurements and Green's function. See DQMC_Phy0
-  !      and DQMC_Phy2 for more details.
+  !      some phiscal measurements and Green's function. 
   !
   !   5. Neighborhood (N) is a NxB array, where B is the maximum
   !      number of neighbors (=max_nbr).  
@@ -44,7 +43,6 @@ module DQMC_STRUCT
   !
   !   6. Wave (W) is a BxB matrix where B is the maximum number of
   !      neighbors. This function is used in computing pair measurements.
-  !      See DQMC_Phy2 for more details.
   !
   !  Data Type
   !  =========

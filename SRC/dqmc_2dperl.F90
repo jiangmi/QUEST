@@ -98,15 +98,7 @@ contains
           end do
 
           ! Accumulate results for each bin
-          call DQMC_Phy0_Avg(Hub%P0)
-
-          if (Hub%meas2) then
-             if(Hub%P2%diagonalize)then
-               call DQMC_Phy2_Avg(Hub%P2, Hub%S)
-             else
-               call DQMC_Phy2_Avg(Hub%P2, Hub%S%W)
-             endif
-          end if
+          call DQMC_Phy_Avg(Hub%P0)
        end do
     else
       write(*,*) " Error : The number of measurement sweeps npass/(nbin*tausk) in each bin is less than zero!"
@@ -117,10 +109,7 @@ contains
 
 
     !Compute average and error
-    call DQMC_Phy0_GetErr(Hub%P0)
-    if (Hub%meas2) then
-       call DQMC_Phy2_GetErr(Hub%P2)
-    end if
+    call DQMC_Phy_GetErr(Hub%P0)
 
     ! Prepare output file
     call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)

@@ -7,7 +7,7 @@ program dqmc_ggeom
   use dqmc_geom_wrap
   use dqmc_hubbard
   use dqmc_mpi
-  use dqmc_tdm1
+  use dqmc_tdm
 
   implicit none
 
@@ -18,7 +18,7 @@ program dqmc_ggeom
   type(config)        :: cfg
   type(Hubbard)       :: Hub
   type(GeomWrap)      :: Gwrap
-  type(tdm1)          :: tm
+  type(tdm)           :: tm
   type(Gtau)          :: tau
   character(len=slen) :: gfile
   logical             :: tformat
@@ -30,10 +30,10 @@ program dqmc_ggeom
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
   real(wp)            :: randn(1)
-  integer, pointer    :: flags(:)      ! 10 possible tdm1 quantities
+  integer, pointer    :: flags(:)      ! 10 possible tdm quantities
   integer, pointer    :: flagsFT(:)
   integer             :: nflag
-  integer             :: ntry2, FTphy0,  SelfE, Dsqy
+  integer             :: ntry2, FTphy,  SelfE, Dsqy
 
   call cpu_time(t1)  
 
@@ -55,7 +55,7 @@ program dqmc_ggeom
   !Get some input variables
   call CFG_Get(cfg, "ntry2" , ntry2)
   call CFG_Get(cfg, "tdm"   , comp_tdm)
-  call CFG_Get(cfg, "FTphy0", FTphy0)
+  call CFG_Get(cfg, "FTphy ", FTphy)
   call CFG_Get(cfg, "SelfE" , SelfE)
   call CFG_Get(cfg, "Dsqy"  , Dsqy)
 
@@ -80,11 +80,11 @@ program dqmc_ggeom
 
   ! Initialize time dependent properties if comp_tdm > 0
   if (comp_tdm > 0) then
-     ! If to compute 8 possible tdm1 quantities
+     ! If to compute 8 possible tdm quantities
      call CFG_Get(cfg, "flags", nflag, flags)
      call CFG_Get(cfg, "flagsFT", nflag, flagsFT)
      call DQMC_Gtau_Init(Hub, tau)
-     call DQMC_TDM1_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags, flagsFT) 
+     call DQMC_TDM_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags, flagsFT) 
   endif
 
   call cpu_time(t2)
@@ -141,7 +141,7 @@ program dqmc_ggeom
               ! Measure equal-time properties
               call DQMC_Hub_FullMeas(Hub, tau%nnb, tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
               ! Measure time-dependent properties
-              call DQMC_TDM1_Meas(tm, tau)
+              call DQMC_TDM_Meas(tm, tau)
            else if (comp_tdm == 0) then
               call DQMC_Hub_Meas(Hub, slice)
            endif
@@ -155,7 +155,7 @@ program dqmc_ggeom
 
         ! Accumulate results for each bin
         call DQMC_Phy_Avg(Hub%P0)
-        call DQMC_tdm1_Avg(tm)
+        call DQMC_tdm_Avg(tm)
      end do
   endif  ! for if nIter  = Hub%nPass/Hub%tausk/nBin > 0
 
@@ -176,20 +176,20 @@ program dqmc_ggeom
               call DQMC_Hub_FullMeas(Hub, tau%nb, &
                  tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
               ! Measure time-dependent properties. Reuses fullg when possible. 
-              call DQMC_TDM1_Meas(tm, tau)
+              call DQMC_TDM_Meas(tm, tau)
            else if (comp_tdm == 0) then
               call DQMC_Hub_Meas(Hub, slice)
            endif
         enddo
 
         call DQMC_Phy_Avg(Hub%P0)
-        call DQMC_TDM1_Avg(tm)
+        call DQMC_TDM_Avg(tm)
      enddo
   endif ! for if (Hub%nWarm + Hub%nPass == 0)
 
   !Compute average and error
   call DQMC_Phy_GetErr(Hub%P0)
-  call DQMC_TDM1_GetErr(tm)
+  call DQMC_TDM_GetErr(tm)
 
   call cpu_time(t4)
   if (qmc_sim%rank == qmc_sim%aggr_root) then
@@ -235,63 +235,63 @@ program dqmc_ggeom
     if (qmc_sim%rank == qmc_sim%aggr_root) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
     endif
-    call DQMC_TDM1_Print(tm, TDM_UNIT)
-    call DQMC_TDM1_Print_local(tm, ofile, OPT1, OPT2)
+    call DQMC_TDM_Print(tm, TDM_UNIT)
+    call DQMC_TDM_Print_local(tm, ofile, OPT1, OPT2)
   endif
 
 ! ==============  Fourier transform ============================================
   !Compute Fourier transform
   !Direct access to binned data; no need to be in the loop above
-  call DQMC_TDM1_GetKFT(tm, Hub)
-  call DQMC_TDM1_GetErrKFT(tm)
-  call DQMC_TDM1_PrintKFT(tm, TDM_UNIT, ofile, OPT3, OPT4)
+  call DQMC_TDM_GetKFT(tm, Hub)
+  call DQMC_TDM_GetErrKFT(tm)
+  call DQMC_TDM_PrintKFT(tm, TDM_UNIT, ofile, OPT3, OPT4)
 
 ! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
   !Direct access to binned data; no need to be in the loop above
   if (Dsqy > 0) then
-    call DQMC_TDM1_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
-    call DQMC_TDM1_currDs_Err(tm)
-    call DQMC_TDM1_currDs_Print(tm, ofile, OPT5, Dsqy)
+    call DQMC_TDM_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
+    call DQMC_TDM_currDs_Err(tm)
+    call DQMC_TDM_currDs_Print(tm, ofile, OPT5, Dsqy)
   endif
 
 ! ==============  Fourier transform ============================================
   !Compute Fourier transform
   !Direct access to binned data; no need to be in the loop above
-  if (FTphy0 > 0) then
+  if (FTphy > 0) then
     !Aliases for Fourier transform
     na  =  Gwrap%lattice%natom
     nt  =  Gwrap%lattice%ncell
     nkt =  Gwrap%RecipLattice%nclass_k
     nkg =  Gwrap%GammaLattice%nclass_k
 
-    call DQMC_phy0_GetFT(Hub%P0, Hub%S%D, Hub%S%gf_phase, Gwrap%RecipLattice%FourierC, &
+    call DQMC_phy_GetFT(Hub%P0, Hub%S%D, Hub%S%gf_phase, Gwrap%RecipLattice%FourierC, &
                          Gwrap%GammaLattice%FourierC, nkt, nkg, na, nt)
     call DQMC_Phy_GetErrFT(Hub%P0)
   endif
 
-  !In DQMC_TDM1_GetKFT determines if comp_tdm>0
+  !In DQMC_TDM_GetKFT determines if comp_tdm>0
   if (SelfE > 0)  then
-    call DQMC_TDM1_GetKFTold(tm)
-    call DQMC_TDM1_GetErrKFTold(tm)
-    call DQMC_TDM1_SelfEnergy(tm, tau)
+    call DQMC_TDM_GetKFTold(tm)
+    call DQMC_TDM_GetErrKFTold(tm)
+    call DQMC_TDM_SelfEnergy(tm, tau)
   endif
 
   !Printing: determine if qmc_sim%rank==0 in subroutines
-  if (FTphy0 > 0) then
+  if (FTphy > 0) then
      !Print info on k-points and construct clabel, in dqmc_geom_wrap.F90
      call DQMC_Print_HeaderFT(Gwrap, OPT, .true.)   ! k grid for Green function
      call DQMC_Print_HeaderFT(Gwrap, OPT, .false.)  ! k grid for spin/charge correlation
      call DQMC_Phy_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
   if (SelfE > 0) then
-     call DQMC_TDM1_PrintKFTold(tm, TDM_UNIT)
-     call DQMC_TDM1_Print_SelfEnergy(tm, TDM_UNIT)
+     call DQMC_TDM_PrintKFTold(tm, TDM_UNIT)
+     call DQMC_TDM_Print_SelfEnergy(tm, TDM_UNIT)
   endif
 
 ! =========== End Fourier transform ============================================
 
   ! Clean up the used storage
-  call DQMC_TDM1_Free(tm)
+  call DQMC_TDM_Free(tm)
   call DQMC_Hub_Free(Hub)
   call DQMC_Config_Free(cfg)
   

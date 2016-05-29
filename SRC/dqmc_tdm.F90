@@ -183,7 +183,7 @@ contains
     T1%tmp    =  nBin + 1
     T1%avg    =  nBin + 1
     T1%err    =  nBin + 2
-    T1%idx    =  1
+    T1%idx    =  1   ! initial value, increase in DQMC_TDM1_Avg
 
     T1%compute  = .true.
     T1%flags    = flags
@@ -901,8 +901,6 @@ contains
       write(*,*) "dt should be 0, error in tdm1.F90"
       return
     endif
-
-    write(*,*) "the case of dt=0"
 
      if (T1%flags(IGFUN) == 1) then
        value1  => T1%properties(IGFUN)%values(:, dt1, T1%tmp)

@@ -12,16 +12,16 @@ do_submit = True
 delete_help_file = True # if True, delete all current jobs_*, out, err files
 
 Ncell = 2  # e.g. 5 supercell = 10x10 lattice
-mus = [0.2]#, 0.4, 0.6]
+mus = [0.36]
 
 Us = [-6]
-Ds = [0.6]
-tp = 0.2
+Ds = [0.3]
+tp = 0.4
 
 seeds = [3234567]#, 3234567]#, 3234567, 4234567, 5234567, 6234567, 7234567, 8234567, 9234567]
 
 dtaus   = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-Ls      = [10]
+Ls      = [20]
 #Ls      = [20, 30, 40, 50, 60, 70, 80]#, 100, 120, 140]
 ntry    = [1,4,4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
 ntry2   = [1,3,3,3,3,3,3,3,3,3,3,3,3,2,2,2,2,2]
@@ -29,13 +29,13 @@ ntry2   = [1,3,3,3,3,3,3,3,3,3,3,3,3,2,2,2,2,2]
 tdm = 1
 HSF = -1      # -1 = random, 1 = from file 
 nbin = 10      # only applies for non-MPI run
-FTphy0 = 1    # if do FT for phy0
-FTtdm = 1
+FTphy = 0    # if do FT for phy0
+FTtdm = 0
 SelfE  = 0    # if self-energy
 Dsqy   = 0    # from curr-curr correlation
 
 hours   = [0, 24, 24, 24, 24, 24, 24, 10, 3, 3, 3, 5, 6, 5, 6, 7, 8]
-minutes = [10, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0,0, 0, 0, 0]
+minutes = [12, 0, 0, 0, 0, 0, 0, 0,0, 0, 0, 0,0, 0, 0, 0]
 
 CPUS = [1]  
 
@@ -59,9 +59,9 @@ def prepare_input_file(filename, outputname, i, s, m):
     text = text.replace("GEOM"      , str(geomfile))
 
     if(Ls[i] >= 50):
-        text = text.replace("NMEASval"    , str(2000))
+        text = text.replace("NMEASval"    , str(2500))
     else:
-        text = text.replace("NMEASval"    , str(2000))
+        text = text.replace("NMEASval"    , str(2500))
 
     if(Ls[i] >= 50):
         text = text.replace("NWARMval"   , str(1000))
@@ -83,7 +83,7 @@ def prepare_input_file(filename, outputname, i, s, m):
     text = text.replace("HSFval"    , str(HSF))
     text = text.replace("NBINval"   , str(nbin))
 
-    text = text.replace("FTPHY0" , str(FTphy0))
+    text = text.replace("FTPHY" , str(FTphy))
     text = text.replace("SELFEval" , str(SelfE))
     text = text.replace("DSQYval" ,  str(Dsqy))
 
@@ -127,8 +127,8 @@ for iD in range(0, len(Ds)):
    
         for m in range(0, len(mus)):
  
-	    lattice  = "U"+str(Us[iU])+"_D"+str(Ds[iD])+"_tp"+str(tp)+"_mu"+str(mus[m])
-       	    geomfile = "geomU"+str(Us[iU])+"_D"+str(Ds[iD])+"_tp"+str(tp)
+	    lattice  = "U"+str(Us[iU])+"_D"+str(Ds[iD])+"_tp"+str(tp)+"_mu"+str(mus[m])+"_N"+str(8*Ncell**3)
+       	    geomfile = "geomU"+str(Us[iU])+"_D"+str(Ds[iD])+"_tp"+str(tp)+"_N"+str(8*Ncell**3)
             print lattice  
 
             cmd = "cp g_template" + " "+ geomfile

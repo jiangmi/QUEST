@@ -46,7 +46,7 @@ Dsqy   = DSQYval
 # Fourier transform and
 # self-energy
 # ==========================
-FTphy0 = FTPHY0
+FTphy = FTPHY
 
 # ==========================
 # Measurements

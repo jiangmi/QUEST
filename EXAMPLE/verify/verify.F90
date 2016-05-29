@@ -3,13 +3,13 @@ program dqmc_verify
   use DQMC_2DPERL
   use DQMC_Hubbard
   use DQMC_Struct
-  use DQMC_Phy0
+  use DQMC_Phy
   ! Chia-Chen: 09/06/2011
   ! MPI module is require in order to run verity in QUEST 1.0.8
   ! This is because :
   ! 1) We need to get the correct numebr of processors
-  !    in DQMC_Phy0_Avg() even for serial runs.
-  ! 2) The new DQMC_Phy0_Avg() can use multiprocessors
+  !    in DQMC_Phy_Avg() even for serial runs.
+  ! 2) The new DQMC_Phy_Avg() can use multiprocessors
   !    to calculate observable averages and errors.
   use DQMC_MPI 
   implicit none
@@ -119,7 +119,7 @@ program dqmc_verify
         tmp2 = exp(TWO * mu(i) * beta)
         tmp3 = ONE / (ONE + TWO * tmp1 + tmp2)
         rho = TWO * (tmp1 + tmp2) * tmp3
-        call DQMC_Phy0_GetResult(Hub%P0, P0_DENSITY, name, avg, err)
+        call DQMC_Phy_GetResult(Hub%P0, P0_DENSITY, name, avg, err)
         call Display("          Density : ", rho, avg, err)
      
         ! 2. One-site energy 
@@ -131,7 +131,7 @@ program dqmc_verify
         !    
         energy_total  = U(j) * tmp2 * tmp3 - (mu(i) + 0.5d0 * U(j)) * rho + 0.25d0 * U(j)
 
-        call DQMC_Phy0_GetResult(Hub%P0, P0_ENERGY, name, avg, err)
+        call DQMC_Phy_GetResult(Hub%P0, P0_ENERGY, name, avg, err)
         call Display("          Energy : ", energy_total, avg, err)
      
         ! 3. One-site occupancy
@@ -141,7 +141,7 @@ program dqmc_verify
         !          1+2*exp((U/2+mu)*beta)+exp(2*mu*beta)
         !
         one_site_occupancy = tmp2 * tmp3 * Hub%U(1)
-        call DQMC_Phy0_GetResult(Hub%P0, P0_NUD, name, avg, err)
+        call DQMC_Phy_GetResult(Hub%P0, P0_NUD, name, avg, err)
         call Display(" Double occupancy : ", one_site_occupancy, avg, err)
 
         write(STDOUT, FMT_DBLINE) 
@@ -201,7 +201,7 @@ program dqmc_verify
            rho = rho + TWO*x(k)
         end do
         rho = rho / N
-        call DQMC_Phy0_GetResult(Hub%P0, P0_DENSITY, name, avg, err)
+        call DQMC_Phy_GetResult(Hub%P0, P0_DENSITY, name, avg, err)
         call Display("          Density : ", rho, avg, err)
         
      
@@ -212,7 +212,7 @@ program dqmc_verify
         !                      exp(beta*x_k)+1
         !
         one_site_occupancy = -t(j) * TWO * dot_product(lambda, x) / N - mu(i) * rho
-        call DQMC_Phy0_GetResult(Hub%P0, P0_ENERGY, name, avg, err)
+        call DQMC_Phy_GetResult(Hub%P0, P0_ENERGY, name, avg, err)
         call Display("          Energy : ", one_site_occupancy, avg, err)
              
         write(STDOUT, FMT_DBLINE) 
@@ -273,11 +273,11 @@ contains
   !                    Supporting subroutines                     !
   !===============================================================!
   
-  subroutine DQMC_Phy0_GetResult(P0, meas, name, avg, err)
+  subroutine DQMC_Phy_GetResult(P0, meas, name, avg, err)
     !
     ! Get results of measurements
     !
-    type(Phy0), intent(in) :: P0
+    type(Phy), intent(in) :: P0
     integer, intent(in)    :: meas
     character(*), intent(inout) :: name
     real(wp), intent(inout):: avg, err
@@ -286,6 +286,6 @@ contains
     avg  = P0%meas(meas, P0%avg)
     err  = P0%meas(meas, P0%err)
 
-  end subroutine DQMC_Phy0_GetResult
+  end subroutine DQMC_Phy_GetResult
 
 end program dqmc_verify

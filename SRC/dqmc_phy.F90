@@ -174,7 +174,7 @@ module DQMC_Phy
                                             ! current bin
      integer  :: idx                        ! current bin index
 
-     integer   :: n                         ! number of sites
+     integer   :: n                         ! total number of sites
      real(wp)  :: beta                      ! Inverse Temperature
     
      ! Scalar array

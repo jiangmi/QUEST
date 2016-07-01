@@ -193,10 +193,7 @@ contains
     T1%sgn   = ZERO
 
     ! # of k points for FT, only for square lattice !!!
-   ! T1%NkFT = int(sqrt(real(S%nSite)))/2
-
-    ! # of k points for FT, only for cubic lattice !!!
-    T1%NkFT = int(real(S%nSite)**(1.0/3.0))/2
+    T1%NkFT = int(sqrt(real(S%nSite)))/2 
 
     call  DQMC_TDM_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
@@ -681,10 +678,14 @@ contains
           do j = 1,  T1%properties(ISPXX)%n
              ! k is the distance index of site i and site j
              k = T1%properties(ISPXX)%D(i,j)
-             ! SxSx = (Si+ * Sj + Sj * Si+) with Si+ = c^+_i,up * c_i,dn
-             ! Si+ * Sj + Sj * Si+ is for average over spin
-             value1(k) = value1(k) - (up0t(j,i)*dnt0(i,j) + dn0t(j,i)*upt0(i,j))*0.5_wp
-             value2(k) = value2(k) - (up0t(i,j)*dnt0(j,i) + dn0t(i,j)*upt0(j,i))*0.5_wp
+             ! SxSx = (Si+ * Sj + Sj+ * Si)
+             ! Si+ = c^+_i,up * c_i,dn
+             value1(k)  = value1(k) - up0t(j,i)*dnt0(i,j) 
+             value2(k)  = value2(k) - up0t(i,j)*dnt0(j,i) 
+           !  value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
+           !       + up0t(i,j)*dnt0(j,i))/2
+           !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
+           !       + up0t(j,i)*dnt0(i,j))/2
           end do
        end do
      endif
@@ -940,7 +941,8 @@ contains
           do j = 1,  T1%properties(ISPXX)%n
              ! k is the distance index of site i and site j
              k = T1%properties(ISPXX)%D(i,j)
-             value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) + dn0t(j,i)*upt0(i,j))
+             value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
+                  + up0t(i,j)*dnt0(j,i))
           end do
        end do
      endif
@@ -2309,6 +2311,93 @@ contains
     enddo
 
   end subroutine DQMC_TDM_PrintKFT
+
+  !--------------------------------------------------------------------!                                                       
+                                                                                                                               
+  subroutine DQMC_TDM_PrintKFT_allBins(T1, OPT, ofile, OPT1, OPT2)
+    use dqmc_mpi
+    !
+    ! Purpose                                                                                                                  
+    ! =======
+    !    This subroutine prints properties to file                                                                             
+    !    to print out all binned Gtau(k) and s-wave pairing correlation(k) 
+    !    for Sandvik's new analytical continuation method
+    !
+    ! Arguments
+    ! =========                                                                                                                
+    !
+    type(TDM), intent(in)   :: T1                 ! T1                                                                         
+    integer                 :: OPT, OPT1, OPT2                                                                                
+                                                                                                                               
+    integer             :: i, j, kx, ky, iprop, ibin
+    real(wp)            :: tmp(T1%L, 2)                                                                                        
+    character(len=10)   :: label(T1%L)
+    character(len=slen) :: title                                                                                               
+    character(len=50)   :: ofile                                                                                               
+  
+    ! ... Executable ...                                                                                                       
+    if (.not.T1%compute) return
+  
+    if (qmc_sim%rank .ne. 0) return                                                                                            
+    
+    do j = 1, T1%L
+       write(label(j),'(f10.5)') (j-1)*T1%dtau
+       label(j) = adjustl(label(j))                                                                                            
+    enddo                                                                                                                      
+
+    do iprop = 1, NTDMARRAY
+       if (T1%flagsFT(iprop)==1) then
+         if (.not.associated(T1%properties(iprop)%valuesk)) cycle                                                              
+         do kx = 0, T1%NkFT-1
+            do ky = 0, T1%NkFT-1                                                                                               
+               do j = 0, T1%L-1                                                                                                
+                  tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, j, T1%avg:T1%err)                                       
+               enddo
+               write(title,'(a5,i3,a5,i3)') 'kx=',kx,'ky=',ky                                                                  
+               title=pname(iprop)//" "//trim(adjustl(title))
+               call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)                                    
+               write(OPT,'(1x)')
+            enddo
+         enddo
+      endif
+    enddo
+
+    !print out all binned Gtau(k) and s-wave pairing correlation(k) for Sandvik's new analytical continuation method                                              
+    if (T1%flagsFT(IGFUN)==1) then                                                                  
+       call DQMC_open_file('Gk_bin_'//adjustl(trim(ofile)),'replace', OPT1)                                            
+
+       ! bin-by-bin, for each bin, print kx,ky first and then G(tau)
+       do ibin = 1, T1%nBin
+         do kx = 0, T1%NkFT-1
+           do ky = 0, T1%NkFT-1                                                                                               
+             write(OPT1,'(i3,i3)') kx, ky
+             do j = 0, T1%L-1                                                                                                
+                write(OPT1,'(e16.8)')  T1%properties(IGFUN)%valuesk(kx, ky, j, ibin)                                       
+             enddo
+             write(OPT1,'(1x)')
+             enddo
+          enddo
+       enddo
+    endif
+
+    if (T1%flagsFT(IPAIR)==1) then           
+       call DQMC_open_file('swavek_bin_'//adjustl(trim(ofile)),'replace', OPT2)        
+
+       ! bin-by-bin, for each bin, print kx,ky first and then s-wave(tau)                                                           
+       do ibin = 1, T1%nBin 
+         do kx = 0, T1%NkFT-1                                                                                                  
+           do ky = 0, T1%NkFT-1                                                                                                
+             write(OPT2,'(i3,i3)') kx, ky                                                                                      
+             do j = 0, T1%L-1                                                                                                  
+                write(OPT2,'(e16.8)')  T1%properties(IPAIR)%valuesk(kx, ky, j, ibin)                                           
+             enddo                                                                                                             
+             write(OPT2,'(1x)')                                                                                                 
+             enddo
+          enddo
+       enddo
+    endif
+  
+  end subroutine DQMC_TDM_PrintKFT_allBins  
 
   !--------------------------------------------------------------------!
   ! Below three routines for curr-curr(qx=0,qy;iwn) is estimated by 

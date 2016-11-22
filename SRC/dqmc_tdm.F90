@@ -49,7 +49,7 @@ module DQMC_TDM
 
      real(wp),    pointer :: values(:,:,:)
      complex(wp), pointer :: valueskold(:,:,:) ! old FT, now only for selfE
-     real(wp),    pointer :: valuesk(:,:,:,:)  !(kx,ky,tau,bin)
+     real(wp),    pointer :: valuesk(:,:,:,:,:)  !(kx,ky,kz,tau,bin)
 
      real(wp),    pointer :: tlink(:,:)
 
@@ -103,7 +103,7 @@ module DQMC_TDM
      ! input file specifies if computing FT of correlation functions
      integer  :: flagsFT(NTDMARRAY)
 
-     ! # of k points for FT (0:L/2,0:L/2) = 1+L/2
+     ! # of k points for FT (0:L/2,0:L/2,0:L/2) = 1+L/2
      integer  :: NkFT
 
      real(wp) :: dtau
@@ -192,11 +192,8 @@ contains
     allocate(T1%sgn(nBin+2))
     T1%sgn   = ZERO
 
-    ! # of k points for FT, only for square lattice !!!
-   ! T1%NkFT = int(sqrt(real(S%nSite)))/2
-
     ! # of k points for FT, only for cubic lattice !!!
-    T1%NkFT = int(real(S%nSite)**(1.0/3.0))/2
+    T1%NkFT = int(real(S%nSite)**(1.0/3.0))
 
     call  DQMC_TDM_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
@@ -341,7 +338,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
 
        case(ISPXX, ISPZZ, IDENS, IPAIR)
 
@@ -363,7 +360,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
 
@@ -387,7 +384,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
 
         ! used in meas for average, for conductivity, renormalized by lattice size
         ! Below two lines are original for nClass=1 due to only q=0 components
@@ -681,10 +678,14 @@ contains
           do j = 1,  T1%properties(ISPXX)%n
              ! k is the distance index of site i and site j
              k = T1%properties(ISPXX)%D(i,j)
-             ! SxSx = (Si+ * Sj + Sj * Si+) with Si+ = c^+_i,up * c_i,dn
-             ! Si+ * Sj + Sj * Si+ is for average over spin
-             value1(k) = value1(k) - (up0t(j,i)*dnt0(i,j) + dn0t(j,i)*upt0(i,j))*0.5_wp
-             value2(k) = value2(k) - (up0t(i,j)*dnt0(j,i) + dn0t(i,j)*upt0(j,i))*0.5_wp
+             ! SxSx = (Si+ * Sj + Sj+ * Si)
+             ! Si+ = c^+_i,up * c_i,dn
+             value1(k)  = value1(k) - up0t(j,i)*dnt0(i,j) 
+             value2(k)  = value2(k) - up0t(i,j)*dnt0(j,i) 
+           !  value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
+           !       + up0t(i,j)*dnt0(j,i))/2
+           !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
+           !       + up0t(j,i)*dnt0(i,j))/2
           end do
        end do
      endif
@@ -940,7 +941,8 @@ contains
           do j = 1,  T1%properties(ISPXX)%n
              ! k is the distance index of site i and site j
              k = T1%properties(ISPXX)%D(i,j)
-             value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) + dn0t(j,i)*upt0(i,j))
+             value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
+                  + up0t(i,j)*dnt0(j,i))
           end do
        end do
      endif
@@ -2110,12 +2112,12 @@ contains
     type(tdm), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
 
-    integer              :: i, j, ip, kx, ky, n, nclass, ibin
+    integer              :: i, j, ip, kx, ky, kz, n, nclass, ibin
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
     real(wp),    pointer :: value(:), valuek(:)
-    real(wp)             :: twopi, L, qx, qy, factor
-    real(wp),    pointer :: ql(:,:,:)
+    real(wp)             :: twopi, L, qx, qy, qz, factor
+    real(wp),    pointer :: ql(:,:,:,:)
 
     if (.not.T1%compute) return
 
@@ -2125,21 +2127,24 @@ contains
     F        => Hub%S%F
     vec      => Hub%S%vecClass
     twopi    =  2.d0*acos(-1.0_wp)
-    L        =  sqrt(real(n))  ! for square lattice only!!!
+    L        =  T1%NkFT
 
-    allocate(ql(0:T1%NkFT-1, 0:T1%NkFT-1, nclass))
+    allocate(ql(0:T1%NkFT-1, 0:T1%NkFT-1, 0:T1%NkFT-1, nclass))
 
     ! for averaging weighted summation of sum_ly exp(i*qy*ly) * curr-curr
     factor = 1.d0/n
 
     !Prepare FT coefficients
-    do kx = 0, T1%NkFT-1
-       do ky = 0, T1%NkFT-1
-          do i = 1, nclass
-             qx = kx*twopi/L
-             qy = ky*twopi/L
+    do kx = 0, L-1
+       do ky = 0, L-1
+          do kz = 0, L-1
+             do i = 1, nclass
+                qx = kx*twopi/L
+                qy = ky*twopi/L
+                qz = kz*twopi/L
 
-             ql(kx,ky,i) = F(i) * dcos(qx*vec(i,1)+qy*vec(i,2))
+                ql(kx,ky,kz,i) = F(i) * dcos(qx*vec(i,1)+qy*vec(i,2)+qz*vec(i,3))
+             enddo
           enddo
        enddo
     enddo
@@ -2150,12 +2155,14 @@ contains
          if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
          do ibin = T1%avg, 1, -1
-            do kx = 0, T1%NkFT-1
-               do ky = 0, T1%NkFT-1
-                  do i = 1, nclass
-                     value  =>  T1%properties(ip)%values(i,:,ibin)
-                     valuek =>  T1%properties(ip)%valuesk(kx,ky,:,ibin)
-                     valuek = valuek + ql(kx,ky,i)*value
+            do kx = 0, L-1
+               do ky = 0, L-1
+                  do kz = 0, L-1
+                     do i = 1, nclass
+                        value  =>  T1%properties(ip)%values(i,:,ibin)
+                        valuek =>  T1%properties(ip)%valuesk(kx,ky,kz,:,ibin)
+                        valuek = valuek + ql(kx,ky,kz,i)*value
+                     enddo
                   enddo
                enddo
             enddo
@@ -2177,7 +2184,7 @@ contains
 
     integer :: ip, it, n, nproc, i
 
-    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
+    real(wp), pointer  :: average(:,:,:), binval(:,:,:), error(:,:,:), temp(:,:,:)
  
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
@@ -2195,11 +2202,11 @@ contains
              !Note that valuesk(avg) is known from DQMC_TDM_GetKFT
              !in which FT from values(avg), here do not use JackKnife for simplicity
              !But valuesk(err) is unknown
-             average  => T1%properties(ip)%valuesk(:,:,it,T1%avg)
-             error    => T1%properties(ip)%valuesk(:,:,it,T1%err)
+             average  => T1%properties(ip)%valuesk(:,:,:,it,T1%avg)
+             error    => T1%properties(ip)%valuesk(:,:,:,it,T1%err)
 
              do i = 1, T1%nbin
-                binval => T1%properties(ip)%valuesk(:,:,it,i)
+                binval => T1%properties(ip)%valuesk(:,:,:,it,i)
                 error  = error + (average-binval)**2
              enddo 
 
@@ -2222,16 +2229,16 @@ contains
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
     
           n = T1%NkFT*T1%NkFT
-          allocate(temp(0:T1%NkFT-1,0:T1%NkFT-1))
+          allocate(temp(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1))
           
           do it = 0, T1%L-1
              !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
              !and binval is JackKnifed among proc
-             average  => T1%properties(ip)%valuesk(:,:,it,T1%avg)
-             binval   => T1%properties(ip)%valuesk(:,:,it,1)
+             average  => T1%properties(ip)%valuesk(:,:,:,it,T1%avg)
+             binval   => T1%properties(ip)%valuesk(:,:,:,it,1)
 
              !Compute error: sum(y_i-avg_y)^2
-             error  => T1%properties(ip)%valuesk(:,:,it,T1%err)
+             error  => T1%properties(ip)%valuesk(:,:,:,it,T1%err)
              temp   =  (average-binval)**2
 
              call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
@@ -2264,7 +2271,7 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1
     integer                  :: OPT, OPT1, OPT2
 
-    integer             :: i, j, kx, ky, iprop
+    integer             :: i, j, kx, ky, kz, iprop
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
@@ -2285,23 +2292,25 @@ contains
          if (.not.associated(T1%properties(iprop)%valuesk)) cycle
          do kx = 0, T1%NkFT-1
             do ky = 0, T1%NkFT-1
-               do j = 0, T1%L-1
-                  tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, j, T1%avg:T1%err)
-               enddo
-               write(title,'(a5,i3,a5,i3)') 'kx=',kx,'ky=',ky
-               title=pname(iprop)//" "//trim(adjustl(title))
-               call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-               write(OPT,'(1x)')
+               do kz = 0, T1%NkFT-1
+                  do j = 0, T1%L-1
+                     tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, kz, j, T1%avg:T1%err)
+                  enddo
+                  write(title,'(a5,i3,a5,i3,a5,i3)') 'kx=',kx,'ky=',ky,'kz=',kz
+                  title=pname(iprop)//" "//trim(adjustl(title))
+                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+                  write(OPT,'(1x)')
 
-               !print out k=0 Gtau and s-wave pairing correlation for maxent
-               if (iprop==IGFUN .and. kx==0 .and. ky==0) then
-                  call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
-                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
-               endif
-               if (iprop==IPAIR .and. kx==0 .and. ky==0) then
-                  call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
-                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
-               endif
+                  !print out k=0 Gtau and s-wave pairing correlation for maxent
+                  if (iprop==IGFUN .and. kx==0 .and. ky==0 .and. kz==0) then
+                     call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
+                     call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+                  endif
+                  if (iprop==IPAIR .and. kx==0 .and. ky==0 .and. kz==0) then
+                     call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
+                     call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+                  endif
+               enddo
 
             enddo
          enddo
@@ -2309,6 +2318,99 @@ contains
     enddo
 
   end subroutine DQMC_TDM_PrintKFT
+
+  !--------------------------------------------------------------------!                                                       
+                                                                                                                               
+  subroutine DQMC_TDM_PrintKFT_allBins(T1, OPT, ofile, OPT1, OPT2)
+    use dqmc_mpi
+    !
+    ! Purpose                                                                                                                  
+    ! =======
+    !    This subroutine prints properties to file                                                                             
+    !    to print out all binned Gtau(k) and s-wave pairing correlation(k) 
+    !    for Sandvik's new analytical continuation method
+    !
+    ! Arguments
+    ! =========                                                                                                                
+    !
+    type(TDM), intent(in)   :: T1                 ! T1                                                                         
+    integer                 :: OPT, OPT1, OPT2                                                                                
+                                                                                                                               
+    integer             :: i, j, kx, ky, kz, iprop, ibin
+    real(wp)            :: tmp(T1%L, 2)                                                                                        
+    character(len=10)   :: label(T1%L)
+    character(len=slen) :: title                                                                                               
+    character(len=50)   :: ofile                                                                                               
+  
+    ! ... Executable ...                                                                                                       
+    if (.not.T1%compute) return
+  
+    if (qmc_sim%rank .ne. 0) return                                                                                            
+    
+    do j = 1, T1%L
+       write(label(j),'(f10.5)') (j-1)*T1%dtau
+       label(j) = adjustl(label(j))                                                                                            
+    enddo                                                                                                                      
+
+    do iprop = 1, NTDMARRAY
+       if (T1%flagsFT(iprop)==1) then
+         if (.not.associated(T1%properties(iprop)%valuesk)) cycle                                                              
+         do kx = 0, T1%NkFT-1
+            do ky = 0, T1%NkFT-1             
+               do kz = 0, T1%NkFT-1                                                                                  
+                  do j = 0, T1%L-1                                                                                                
+                     tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, kz, j, T1%avg:T1%err)                                       
+                  enddo
+                  write(title,'(a5,i3,a5,i3,a5,i3)') 'kx=',kx,'ky=',ky,'kz=',kz                                                                  
+                  title=pname(iprop)//" "//trim(adjustl(title))
+                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)                                    
+                  write(OPT,'(1x)')
+               enddo
+            enddo
+         enddo
+      endif
+    enddo
+
+    !print out all binned Gtau(k) and s-wave pairing correlation(k) for Sandvik's new analytical continuation method                                              
+    if (T1%flagsFT(IGFUN)==1) then                                                                  
+       call DQMC_open_file('Gk_bin_'//adjustl(trim(ofile)),'replace', OPT1)                                            
+
+       ! bin-by-bin, for each bin, print kx,ky,kz first and then G(tau)
+       do ibin = 1, T1%nBin
+         do kx = 0, T1%NkFT-1
+           do ky = 0, T1%NkFT-1                  
+              do kz = 0, T1%NkFT-1                                                                             
+                write(OPT1,'(i3,i3,i3)') kx, ky, kz
+                do j = 0, T1%L-1                                                                                                
+                  write(OPT1,'(e16.8)')  T1%properties(IGFUN)%valuesk(kx, ky, kz, j, ibin)                                       
+                enddo
+
+              enddo  
+           enddo
+         enddo
+       enddo
+    endif
+
+    if (T1%flagsFT(IPAIR)==1) then           
+       call DQMC_open_file('swavek_bin_'//adjustl(trim(ofile)),'replace', OPT2)        
+
+       ! bin-by-bin, for each bin, print kx,ky first and then s-wave(tau)                                                           
+       do ibin = 1, T1%nBin 
+         do kx = 0, T1%NkFT-1                                                                                                  
+           do ky = 0, T1%NkFT-1              
+             do kz = 0, T1%NkFT-1                                                                                  
+               write(OPT2,'(i3,i3,i3)') kx, ky, kz                                                                                      
+               do j = 0, T1%L-1                                                                                                  
+                 write(OPT2,'(e16.8)')  T1%properties(IPAIR)%valuesk(kx, ky, kz, j, ibin)                                           
+               enddo                                                                                                             
+
+             enddo
+           enddo
+         enddo
+       enddo
+    endif
+  
+  end subroutine DQMC_TDM_PrintKFT_allBins  
 
   !--------------------------------------------------------------------!
   ! Below three routines for curr-curr(qx=0,qy;iwn) is estimated by 

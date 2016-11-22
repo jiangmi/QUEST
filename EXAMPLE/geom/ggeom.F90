@@ -244,7 +244,8 @@ program dqmc_ggeom
   !Direct access to binned data; no need to be in the loop above
   call DQMC_TDM_GetKFT(tm, Hub)
   call DQMC_TDM_GetErrKFT(tm)
-  call DQMC_TDM_PrintKFT(tm, TDM_UNIT, ofile, OPT3, OPT4)
+!  call DQMC_TDM_PrintKFT(tm, TDM_UNIT, ofile, OPT3, OPT4)
+  call DQMC_TDM_PrintKFT_allBins(tm, TDM_UNIT, ofile, OPT3, OPT4)
 
 ! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
   !Direct access to binned data; no need to be in the loop above

@@ -49,7 +49,7 @@ module DQMC_TDM
 
      real(wp),    pointer :: values(:,:,:)
      complex(wp), pointer :: valueskold(:,:,:) ! old FT, now only for selfE
-     real(wp),    pointer :: valuesk(:,:,:,:,:)  !(kx,ky,kz,tau,bin)
+     real(wp),    pointer :: valuesk(:,:,:,:)  !(kx,ky,tau,bin)
 
      real(wp),    pointer :: tlink(:,:)
 
@@ -103,7 +103,7 @@ module DQMC_TDM
      ! input file specifies if computing FT of correlation functions
      integer  :: flagsFT(NTDMARRAY)
 
-     ! # of k points for FT (0:L/2,0:L/2,0:L/2) = 1+L/2
+     ! # of k points for FT (0:L/2,0:L/2) = 1+L/2
      integer  :: NkFT
 
      real(wp) :: dtau
@@ -112,6 +112,9 @@ module DQMC_TDM
 
      ! record the average of all local sum_r G(r, tau) for average N(w)
      real(wp), pointer :: GtauAvg(:,:), GtupAvg(:,:), GtdnAvg(:,:)
+
+     ! record the average of all local sum_r spin-xx(r, tau) for average spin-xx susceptibility
+     real(wp), pointer :: spinxxAvg(:,:)
 
      ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
      real(wp), pointer :: swaveAvg(:,:)
@@ -192,8 +195,8 @@ contains
     allocate(T1%sgn(nBin+2))
     T1%sgn   = ZERO
 
-    ! # of k points for FT, only for cubic lattice !!!
-    T1%NkFT = int(real(S%nSite)**(1.0/3.0))
+    ! # of k points for FT, only for square lattice !!!
+    T1%NkFT = int(sqrt(real(S%nSite)))/2 
 
     call  DQMC_TDM_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
@@ -216,6 +219,11 @@ contains
     if (T1%flags(IGFDN) == 1) then
       allocate(T1%GtdnAvg(0:T1%L-1,T1%err))
       T1%GtdnAvg = 0.0_wp
+    endif
+
+    if (T1%flags(ISPXX) == 1) then
+      allocate(T1%spinxxAvg(0:T1%L-1,T1%err))
+      T1%spinxxAvg = 0.0_wp
     endif
 
     if (T1%flags(IPAIR) == 1) then
@@ -338,7 +346,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
 
        case(ISPXX, ISPZZ, IDENS, IPAIR)
 
@@ -360,7 +368,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
 
@@ -384,7 +392,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
 
         ! used in meas for average, for conductivity, renormalized by lattice size
         ! Below two lines are original for nClass=1 due to only q=0 components
@@ -442,6 +450,9 @@ contains
     endif
     if (T1%flags(IGFDN) == 1) then
       deallocate(T1%GtdnAvg)
+    endif
+    if (T1%flags(ISPXX) == 1) then
+      deallocate(T1%spinxxAvg)
     endif
     if (T1%flags(IPAIR) == 1) then
       deallocate(T1%swaveAvg)
@@ -1127,6 +1138,17 @@ contains
       end do
     endif
 
+    ! record the average of all local sum_r spin-xx(r, tau) for average spin-xx susceptibility
+    if (T1%flags(ISPXX) == 1) then
+      do j = 0, T1%L-1
+         do i = 1, T1%properties(ISPXX)%n    ! avg over n sites
+            k = T1%properties(ISPXX)%D(i,i)  ! local quantity
+            T1%spinxxAvg(j, T1%idx) = T1%spinxxAvg(j, T1%idx) &
+                   + T1%properties(ISPXX)%values(k,j,idx) / T1%properties(ISPXX)%n
+         end do
+      enddo
+    endif
+
     ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
     if (T1%flags(IPAIR) == 1) then
       do j = 0, T1%L-1
@@ -1220,6 +1242,15 @@ contains
          enddo
        endif
 
+       if (T1%flags(ISPXX) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%spinxxAvg(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%spinxxAvg(j, avg) = average
+           T1%spinxxAvg(j, err) = error
+         enddo
+       endif
+
        if (T1%flags(IPAIR) == 1) then
          do j = 0, T1%L-1
            data =  T1%swaveAvg(j, 1:n)
@@ -1282,6 +1313,12 @@ contains
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
+          if (T1%flags(ISPXX) == 1) then
+             bins => T1%spinxxAvg(:, 1)
+             aves => T1%spinxxAvg(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
           if (T1%flags(IPAIR) == 1) then
              bins => T1%swaveAvg(:, 1)
              aves => T1%swaveAvg(:, avg)
@@ -1320,6 +1357,12 @@ contains
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
           endif
+          if (T1%flags(ISPXX) == 1) then
+             bins => T1%spinxxAvg(:, 1)
+             aves => T1%spinxxAvg(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+          endif
           if (T1%flags(IPAIR) == 1) then
              bins => T1%swaveAvg(:, 1)
              aves => T1%swaveAvg(:, avg)
@@ -1345,6 +1388,10 @@ contains
           endif
           if (T1%flags(IGFDN) == 1) then
              aves => T1%GtdnAvg(:, avg)
+             aves =  aves / T1%sgn(avg)
+          endif
+          if (T1%flags(ISPXX) == 1) then
+             aves => T1%spinxxAvg(:, avg)
              aves =  aves / T1%sgn(avg)
           endif
           if (T1%flags(IPAIR) == 1) then
@@ -1388,6 +1435,14 @@ contains
              bins => T1%GtdnAvg(:, 1)
              aves => T1%GtdnAvg(:, avg)
              errs => T1%GtdnAvg(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+          if (T1%flags(ISPXX) == 1) then
+             bins => T1%spinxxAvg(:, 1)
+             aves => T1%spinxxAvg(:, avg)
+             errs => T1%swaveAvg(:, err)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
@@ -1456,7 +1511,7 @@ contains
   ! Below print out tdm quantities separately (if needed)
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2)
+  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2, OPT3)
     use dqmc_mpi
     !
     ! Purpose
@@ -1467,7 +1522,7 @@ contains
     ! =========
     !
     type(TDM), intent(in)   :: T1                 ! T1
-    integer                  :: OPT1, OPT2
+    integer                 :: OPT1, OPT2, OPT3
 
     integer             :: i, j
     real(wp)            :: tmp(T1%L, 2)
@@ -1483,7 +1538,6 @@ contains
     do j = 1, T1%L
        write(label(j),'(f10.5)') (j-1)*T1%dtau
     enddo
-
 
     if (T1%flags(IGFUN) == 1) then
       call DQMC_open_file('Gr0_'//adjustl(trim(ofile)),'replace', OPT1)
@@ -1525,9 +1579,32 @@ contains
     endif
 
     !############################################################################
+    if (T1%flags(ISPXX) == 1) then
+      call DQMC_open_file('spinxx_r0_'//adjustl(trim(ofile)),'replace', OPT2)
 
+      ! Print local spin-xx correlation
+      do i = 1, T1%properties(ISPXX)%nclass
+        do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%properties(ISPXX)%values(i, j, T1%avg:T1%err)
+        enddo
+        title=pname(ISPXX)//" "//trim(adjustl(T1%properties(ISPXX)%clabel(i)))
+        if (index(title, " 0.000   0.000   0.000") > 0) then
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+        endif
+        ! write(OPT1,'(1x)')
+      enddo
+
+      ! Print average of sum_r spin-xx(r,tau) for average spin-xx susceptibility
+      title="average local spin-xx(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%spinxxAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+    endif
+
+    !############################################################################
     if (T1%flags(IPAIR) == 1) then
-      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT2)
+      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT3)
 
       ! Print local s-wave
       do i = 1, T1%properties(IPAIR)%nclass
@@ -1536,7 +1613,7 @@ contains
         enddo
         title=pname(IPAIR)//" "//trim(adjustl(T1%properties(IPAIR)%clabel(i)))
         if (index(title, " 0.000   0.000   0.000") > 0) then
-          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
         endif
         ! write(OPT1,'(1x)')
       enddo
@@ -1546,9 +1623,8 @@ contains
       do j = 0, T1%L-1
          tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
       enddo
-      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
     endif
-
 
   end subroutine DQMC_TDM_Print_local
 
@@ -2112,12 +2188,12 @@ contains
     type(tdm), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
 
-    integer              :: i, j, ip, kx, ky, kz, n, nclass, ibin
+    integer              :: i, j, ip, kx, ky, n, nclass, ibin
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
     real(wp),    pointer :: value(:), valuek(:)
-    real(wp)             :: twopi, L, qx, qy, qz, factor
-    real(wp),    pointer :: ql(:,:,:,:)
+    real(wp)             :: twopi, L, qx, qy, factor
+    real(wp),    pointer :: ql(:,:,:)
 
     if (.not.T1%compute) return
 
@@ -2127,24 +2203,21 @@ contains
     F        => Hub%S%F
     vec      => Hub%S%vecClass
     twopi    =  2.d0*acos(-1.0_wp)
-    L        =  T1%NkFT
+    L        =  sqrt(real(n))  ! for square lattice only!!!
 
-    allocate(ql(0:T1%NkFT-1, 0:T1%NkFT-1, 0:T1%NkFT-1, nclass))
+    allocate(ql(0:T1%NkFT-1, 0:T1%NkFT-1, nclass))
 
     ! for averaging weighted summation of sum_ly exp(i*qy*ly) * curr-curr
     factor = 1.d0/n
 
     !Prepare FT coefficients
-    do kx = 0, L-1
-       do ky = 0, L-1
-          do kz = 0, L-1
-             do i = 1, nclass
-                qx = kx*twopi/L
-                qy = ky*twopi/L
-                qz = kz*twopi/L
+    do kx = 0, T1%NkFT-1
+       do ky = 0, T1%NkFT-1
+          do i = 1, nclass
+             qx = kx*twopi/L
+             qy = ky*twopi/L
 
-                ql(kx,ky,kz,i) = F(i) * dcos(qx*vec(i,1)+qy*vec(i,2)+qz*vec(i,3))
-             enddo
+             ql(kx,ky,i) = F(i) * dcos(qx*vec(i,1)+qy*vec(i,2))
           enddo
        enddo
     enddo
@@ -2155,14 +2228,12 @@ contains
          if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
          do ibin = T1%avg, 1, -1
-            do kx = 0, L-1
-               do ky = 0, L-1
-                  do kz = 0, L-1
-                     do i = 1, nclass
-                        value  =>  T1%properties(ip)%values(i,:,ibin)
-                        valuek =>  T1%properties(ip)%valuesk(kx,ky,kz,:,ibin)
-                        valuek = valuek + ql(kx,ky,kz,i)*value
-                     enddo
+            do kx = 0, T1%NkFT-1
+               do ky = 0, T1%NkFT-1
+                  do i = 1, nclass
+                     value  =>  T1%properties(ip)%values(i,:,ibin)
+                     valuek =>  T1%properties(ip)%valuesk(kx,ky,:,ibin)
+                     valuek = valuek + ql(kx,ky,i)*value
                   enddo
                enddo
             enddo
@@ -2184,7 +2255,7 @@ contains
 
     integer :: ip, it, n, nproc, i
 
-    real(wp), pointer  :: average(:,:,:), binval(:,:,:), error(:,:,:), temp(:,:,:)
+    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
  
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
@@ -2202,11 +2273,11 @@ contains
              !Note that valuesk(avg) is known from DQMC_TDM_GetKFT
              !in which FT from values(avg), here do not use JackKnife for simplicity
              !But valuesk(err) is unknown
-             average  => T1%properties(ip)%valuesk(:,:,:,it,T1%avg)
-             error    => T1%properties(ip)%valuesk(:,:,:,it,T1%err)
+             average  => T1%properties(ip)%valuesk(:,:,it,T1%avg)
+             error    => T1%properties(ip)%valuesk(:,:,it,T1%err)
 
              do i = 1, T1%nbin
-                binval => T1%properties(ip)%valuesk(:,:,:,it,i)
+                binval => T1%properties(ip)%valuesk(:,:,it,i)
                 error  = error + (average-binval)**2
              enddo 
 
@@ -2229,16 +2300,16 @@ contains
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
     
           n = T1%NkFT*T1%NkFT
-          allocate(temp(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%NkFT-1))
+          allocate(temp(0:T1%NkFT-1,0:T1%NkFT-1))
           
           do it = 0, T1%L-1
              !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
              !and binval is JackKnifed among proc
-             average  => T1%properties(ip)%valuesk(:,:,:,it,T1%avg)
-             binval   => T1%properties(ip)%valuesk(:,:,:,it,1)
+             average  => T1%properties(ip)%valuesk(:,:,it,T1%avg)
+             binval   => T1%properties(ip)%valuesk(:,:,it,1)
 
              !Compute error: sum(y_i-avg_y)^2
-             error  => T1%properties(ip)%valuesk(:,:,:,it,T1%err)
+             error  => T1%properties(ip)%valuesk(:,:,it,T1%err)
              temp   =  (average-binval)**2
 
              call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
@@ -2271,7 +2342,7 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1
     integer                  :: OPT, OPT1, OPT2
 
-    integer             :: i, j, kx, ky, kz, iprop
+    integer             :: i, j, kx, ky, iprop
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
@@ -2292,25 +2363,23 @@ contains
          if (.not.associated(T1%properties(iprop)%valuesk)) cycle
          do kx = 0, T1%NkFT-1
             do ky = 0, T1%NkFT-1
-               do kz = 0, T1%NkFT-1
-                  do j = 0, T1%L-1
-                     tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, kz, j, T1%avg:T1%err)
-                  enddo
-                  write(title,'(a5,i3,a5,i3,a5,i3)') 'kx=',kx,'ky=',ky,'kz=',kz
-                  title=pname(iprop)//" "//trim(adjustl(title))
-                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-                  write(OPT,'(1x)')
-
-                  !print out k=0 Gtau and s-wave pairing correlation for maxent
-                  if (iprop==IGFUN .and. kx==0 .and. ky==0 .and. kz==0) then
-                     call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
-                     call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
-                  endif
-                  if (iprop==IPAIR .and. kx==0 .and. ky==0 .and. kz==0) then
-                     call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
-                     call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
-                  endif
+               do j = 0, T1%L-1
+                  tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, j, T1%avg:T1%err)
                enddo
+               write(title,'(a5,i3,a5,i3)') 'kx=',kx,'ky=',ky
+               title=pname(iprop)//" "//trim(adjustl(title))
+               call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+               write(OPT,'(1x)')
+
+               !print out k=0 Gtau and s-wave pairing correlation for maxent
+               if (iprop==IGFUN .and. kx==0 .and. ky==0) then
+                  call DQMC_open_file('Gk0_'//adjustl(trim(ofile)),'replace', OPT1)
+                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
+               endif
+               if (iprop==IPAIR .and. kx==0 .and. ky==0) then
+                  call DQMC_open_file('swave_k0_'//adjustl(trim(ofile)),'replace', OPT2)
+                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
+               endif
 
             enddo
          enddo
@@ -2336,7 +2405,7 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1                                                                         
     integer                 :: OPT, OPT1, OPT2                                                                                
                                                                                                                                
-    integer             :: i, j, kx, ky, kz, iprop, ibin
+    integer             :: i, j, kx, ky, iprop, ibin
     real(wp)            :: tmp(T1%L, 2)                                                                                        
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title                                                                                               
@@ -2356,16 +2425,14 @@ contains
        if (T1%flagsFT(iprop)==1) then
          if (.not.associated(T1%properties(iprop)%valuesk)) cycle                                                              
          do kx = 0, T1%NkFT-1
-            do ky = 0, T1%NkFT-1             
-               do kz = 0, T1%NkFT-1                                                                                  
-                  do j = 0, T1%L-1                                                                                                
-                     tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, kz, j, T1%avg:T1%err)                                       
-                  enddo
-                  write(title,'(a5,i3,a5,i3,a5,i3)') 'kx=',kx,'ky=',ky,'kz=',kz                                                                  
-                  title=pname(iprop)//" "//trim(adjustl(title))
-                  call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)                                    
-                  write(OPT,'(1x)')
+            do ky = 0, T1%NkFT-1                                                                                               
+               do j = 0, T1%L-1                                                                                                
+                  tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, j, T1%avg:T1%err)                                       
                enddo
+               write(title,'(a5,i3,a5,i3)') 'kx=',kx,'ky=',ky                                                                  
+               title=pname(iprop)//" "//trim(adjustl(title))
+               call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)                                    
+               write(OPT,'(1x)')
             enddo
          enddo
       endif
@@ -2375,19 +2442,17 @@ contains
     if (T1%flagsFT(IGFUN)==1) then                                                                  
        call DQMC_open_file('Gk_bin_'//adjustl(trim(ofile)),'replace', OPT1)                                            
 
-       ! bin-by-bin, for each bin, print kx,ky,kz first and then G(tau)
+       ! bin-by-bin, for each bin, print kx,ky first and then G(tau)
        do ibin = 1, T1%nBin
          do kx = 0, T1%NkFT-1
-           do ky = 0, T1%NkFT-1                  
-              do kz = 0, T1%NkFT-1                                                                             
-                write(OPT1,'(i3,i3,i3)') kx, ky, kz
-                do j = 0, T1%L-1                                                                                                
-                  write(OPT1,'(e16.8)')  T1%properties(IGFUN)%valuesk(kx, ky, kz, j, ibin)                                       
-                enddo
-
-              enddo  
-           enddo
-         enddo
+           do ky = 0, T1%NkFT-1                                                                                               
+             write(OPT1,'(i3,i3)') kx, ky
+             do j = 0, T1%L-1                                                                                                
+                write(OPT1,'(e16.8)')  T1%properties(IGFUN)%valuesk(kx, ky, j, ibin)                                       
+             enddo
+             write(OPT1,'(1x)')
+             enddo
+          enddo
        enddo
     endif
 
@@ -2397,16 +2462,14 @@ contains
        ! bin-by-bin, for each bin, print kx,ky first and then s-wave(tau)                                                           
        do ibin = 1, T1%nBin 
          do kx = 0, T1%NkFT-1                                                                                                  
-           do ky = 0, T1%NkFT-1              
-             do kz = 0, T1%NkFT-1                                                                                  
-               write(OPT2,'(i3,i3,i3)') kx, ky, kz                                                                                      
-               do j = 0, T1%L-1                                                                                                  
-                 write(OPT2,'(e16.8)')  T1%properties(IPAIR)%valuesk(kx, ky, kz, j, ibin)                                           
-               enddo                                                                                                             
-
+           do ky = 0, T1%NkFT-1                                                                                                
+             write(OPT2,'(i3,i3)') kx, ky                                                                                      
+             do j = 0, T1%L-1                                                                                                  
+                write(OPT2,'(e16.8)')  T1%properties(IPAIR)%valuesk(kx, ky, j, ibin)                                           
+             enddo                                                                                                             
+             write(OPT2,'(1x)')                                                                                                 
              enddo
-           enddo
-         enddo
+          enddo
        enddo
     endif
   

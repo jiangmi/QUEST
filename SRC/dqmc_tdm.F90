@@ -49,7 +49,7 @@ module DQMC_TDM
 
      real(wp),    pointer :: values(:,:,:)
      complex(wp), pointer :: valueskold(:,:,:) ! old FT, now only for selfE
-     real(wp),    pointer :: valuesk(:,:,:,:)  !(kx,ky,tau,bin)
+     real(wp),    pointer :: valuesk(:,:,:,:)  ! (kx,ky,tau,bin)
 
      real(wp),    pointer :: tlink(:,:)
 
@@ -105,6 +105,12 @@ module DQMC_TDM
 
      ! # of k points for FT (0:L/2,0:L/2) = 1+L/2
      integer  :: NkFT
+
+     ! TODO: following should be parameters in input
+     integer  :: norb      ! number of orbitals realized here as # of layers in unit cell
+     integer  :: npercell  ! number of sites in unit cell, 4 for 2-Fe unit cell for iron-SC
+                           ! or ionic Hubbard model etc.
+     real(wp), pointer :: chi_q_orb(:,:,:,:)  ! chi_q=0(tau,orbital,orbital,bin)
 
      real(wp) :: dtau
      real(wp), pointer :: sgn(:)
@@ -197,6 +203,11 @@ contains
 
     ! # of k points for FT, only for square lattice !!!
     T1%NkFT = int(sqrt(real(S%nSite)))/2 
+
+    T1%norb = 3     ! number of orbitals realized here as # of layers in unit cell
+    T1%npercell = 4
+
+    allocate(T1%chi_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
 
     call  DQMC_TDM_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
@@ -437,6 +448,8 @@ contains
          deallocate(T1%properties(i)%valuesk)
        endif
     enddo
+
+    deallocate(T1%chi_q_orb)
 
     deallocate(T1%ftwbos)
     deallocate(T1%ftwfer)
@@ -1629,66 +1642,6 @@ contains
   end subroutine DQMC_TDM_Print_local
 
   !--------------------------------------------------------------------!
-
-  subroutine DQMC_TDM_Chi_Print(T1, OPT)
-    use dqmc_mpi
-    !
-    ! Purpose
-    ! =======
-    !    This subroutine prints temporal sum of correlation for computing Chi
-    !
-    ! Arguments
-    ! =========
-    !
-    type(TDM), intent(in)   :: T1                 ! T1
-    integer, intent(in)      :: OPT
-    integer      :: nn
-
-    integer             :: i, j, iprop
-    real(wp)            :: tmp(T1%properties(ISPXX)%nclass, 2)
-    character(len=30)   :: label(T1%properties(ISPXX)%nclass)
-    character(len=slen) :: title
-
-    nn = T1%properties(ISPXX)%nclass
-
-    ! ... Executable ...
-    if (.not.T1%compute) return
-
-    if (qmc_sim%rank .ne. 0) return
-
-    if (T1%flags(ISPXX) == 1) then
-      do j = 1, nn
-         write(label(j),*) trim(adjustl(T1%properties(ISPXX)%clabel(j)))
-      enddo
-      do i = 1, nn
-         ! sum over all tau's components 
-         tmp(i, 1) = sum(T1%properties(ISPXX)%values(i, 0:T1%L-1, T1%avg))
-         ! Note that tmp(i,2) is in fact wrong (it is sum of error)
-         tmp(i, 2) = sum(T1%properties(ISPXX)%values(i, 0:T1%L-1, T1%err))
-      enddo
-      title = pname(ISPXX)
-      call DQMC_Print_RealArray(0, nn, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-      write(OPT,'(1x)')
-    endif
-
-    if (T1%flags(ISPZZ) == 1) then
-      do j = 1, nn
-         write(label(j),*) trim(adjustl(T1%properties(ISPZZ)%clabel(j)))
-      enddo
-      do i = 1, nn
-         ! sum over all tau's components 
-         tmp(i, 1) = sum(T1%properties(ISPZZ)%values(i, 0:T1%L-1, T1%avg))
-         ! Note that tmp(i,2) is in fact wrong (it is sum of error)
-         tmp(i, 2) = sum(T1%properties(ISPZZ)%values(i, 0:T1%L-1, T1%err))
-      enddo
-      title = pname(ISPZZ)
-      call DQMC_Print_RealArray(0, nn, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-      write(OPT,'(1x)')
-    endif
-
-  end subroutine DQMC_TDM_Chi_Print
-
-  !--------------------------------------------------------------------!
   ! Below three routines are old FT of tdm quantities
   ! 1/4/2016:
   ! old FTk considering intersite correlation within unit cells
@@ -2169,6 +2122,187 @@ contains
     enddo
 
   end subroutine DQMC_TDM_Print_SelfEnergy
+
+  !--------------------------------------------------------------------!
+  ! 2/14/2017:
+  ! Below three routines for orbital-dependent spin chi(q,tau)
+  ! further chi(q,iw) and others are computed in outside python scripts
+  ! Orbital is realized as different layer in the unit cell
+  ! Here chi(q) is computed independent on FT routines for any unit cell
+  ! Very similar to DQMC_TDM_GetKFT below
+  !--------------------------------------------------------------------!
+  subroutine DQMC_TDM_Chi_q_orbital(T1, Hub)
+    use DQMC_Hubbard
+    use dqmc_mpi
+    ! For MPI run
+    ! binned values() (only 1 bin) are not from MC, which has been
+    ! updated in JackKnife among procs in DQMC_TDM_GetErr
+    ! avg value is already averaged over proc, similar to DQMC_TDM_GetKFT
+
+    type(TDM), intent(in)     :: T1                 
+    type(Hubbard), intent(in) :: Hub
+    integer              :: OPT
+    integer              :: n, nclass, lsize
+
+    integer              :: i, j, k, iprop, b1, b2, ibin
+    integer,     pointer :: F(:)
+    real(wp),    pointer :: vec(:,:)
+    real(wp),    pointer :: values(:)
+    real(wp),    pointer :: valueschi(:)
+    character(label_len) :: label
+    real                 :: a(T1%properties(ISPXX)%nclass,4)
+    character(len=slen)  :: title
+    character(len=50)    :: ofile
+
+    ! ... Executable ...
+    if (.not.T1%compute) return
+
+    n        =  Hub%S%nsite  
+    nclass   =  Hub%S%nclass
+    F        => Hub%S%F
+    vec      => Hub%S%vecClass
+
+    lsize = sqrt(real(n/T1%norb))  ! linear lattice size
+
+!    do i = 1, nclass
+!write(*,"(f4.1,f4.1,f4.1,a30,i2)") vec(i,1), vec(i,2), vec(i,3), "frequency of this separation",F(i)
+!    enddo
+
+    if (T1%flags(ISPXX) == 1) then
+      do i = 1, nclass
+        write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
+        read(label(1:3)  ,*) a(i,1)
+        b1 = floor(a(i,1)/real(T1%npercell))
+        b2 = b1+int(vec(i,3))
+!write(*,'(a5,i2,a5,i2)') "b1=", b1, "b2=", b2
+
+        do ibin = T1%avg, 1, -1
+          values    => T1%properties(ISPXX)%values(i,:,ibin)
+          valueschi => T1%chi_q_orb(:,b1,b2,ibin)
+          valueschi = valueschi + F(i)*values
+          valueschi => T1%chi_q_orb(:,b2,b1,ibin)
+          valueschi = valueschi + F(i)*values
+        enddo
+      enddo
+      T1%chi_q_orb = T1%chi_q_orb/(lsize*lsize)
+    endif
+
+  end subroutine DQMC_TDM_Chi_q_orbital
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM_Chi_q_orbital_GetErr(T1)
+
+    use DQMC_MPI
+
+    type(tdm), intent(inout) :: T1
+
+    integer :: ip, it, n, nproc, i
+
+    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
+ 
+    !Loop over properties to Fourier transform
+    nproc = qmc_sim%size
+
+    if (.not.T1%compute) return
+
+    if (nproc .eq. 1) then
+
+          do it = 0, T1%L-1
+
+             !Note that chi_q_orb(avg) is known from DQMC_TDM_Chi_q_orb
+             !in which FT from chi_q_orb(avg), here do not need JackKnife again
+             !But chi_q_orb(err) is unknown
+             average  => T1%chi_q_orb(it,:,:,T1%avg)
+             error    => T1%chi_q_orb(it,:,:,T1%err)
+             do i = 1, T1%nbin
+                binval => T1%chi_q_orb(it,:,:,i)
+                error  = error + (average-binval)**2
+             enddo 
+             error = error* dble(T1%nbin-1)/dble(T1%nbin)
+          enddo
+    else
+
+#  ifdef _QMC_MPI
+      ! 11/20/2015: note here for MPI run
+      ! binned values() (only 1 bin) are not for MC, which has been
+      ! updated in JackKnife among procs in DQMC_TDM_Chi_q_orb_GetErr
+      ! avg value is already averaged over proc
+
+          n = T1%norb*T1%norb
+          allocate(temp(0:T1%norb-1,0:T1%norb-1))
+          do it = 0, T1%L-1
+             !Note that avg value is already averaged over proc in DQMC_TDM_Chi_q_orb_GetKFT
+             !and binval is JackKnifed among proc
+             average  => T1%chi_q_orb(it,:,:,T1%avg)
+             binval   => T1%chi_q_orb(it,:,:,1)
+
+             !Compute error: sum(y_i-avg_y)^2
+             error  => T1%chi_q_orb(it,:,:,T1%err)
+             temp   =  (average-binval)**2
+
+             call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
+             error  = error*dble(nproc-1)/dble(nproc)
+          enddo
+          deallocate(temp)
+#  endif
+    endif
+
+
+  end subroutine DQMC_TDM_Chi_q_orbital_GetErr
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM_Print_Chi_q_orbital(T1, OPT, ofile)
+    use dqmc_mpi
+    !
+    ! Purpose
+    ! =======
+    !    This subroutine prints properties to file
+    !
+    ! Arguments
+    ! =========
+    !
+    type(TDM), intent(in)   :: T1                 ! T1
+    integer                 :: OPT
+    real(wp)                :: chiv
+
+    integer             :: i, j, t
+    character(len=50)   :: ofile
+
+    ! ... Executable ...
+    if (.not.T1%compute) return
+
+    if (qmc_sim%rank .ne. 0) return
+
+    call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT)
+
+    ! first calculate and print chi(q, iwm=0) static chi using Composite Simpson's rule
+    write(OPT,"(a)") "  b  b    chi(q=0,iwm=0)"
+    do i = 0, T1%norb-1
+      do j = i, T1%norb-1
+        chiv = 0.0
+        do t = 1, T1%L/2-1
+          chiv = chiv + T1%chi_q_orb(2*t-2, i, j, T1%avg) + 4.*T1%chi_q_orb(2*t-1, i, j, T1%avg) + T1%chi_q_orb(2*t, i, j, T1%avg)
+        enddo
+        ! special term for chi(beta) = chi(0)
+        chiv = chiv + T1%chi_q_orb(T1%L-2, i, j, T1%avg) + 4.*T1%chi_q_orb(T1%L-1, i, j, T1%avg) + T1%chi_q_orb(0, i, j, T1%avg)
+        write(OPT,'(2(i3),f16.9)') i, j, T1%dtau*chiv/3.0
+      enddo
+    enddo
+
+    ! Then print out chi(q,tau)
+    write(OPT,"(a)") "====================================================="
+    write(OPT,"(a)") "  b  b   tau         avg             err"
+    do i = 0, T1%norb-1
+      do j = i, T1%norb-1
+        do t = 0, T1%L-1
+          write(OPT,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chi_q_orb(t, i, j, T1%avg), T1%chi_q_orb(t, i, j, T1%err)
+        enddo
+      enddo
+    enddo
+
+  end subroutine DQMC_TDM_Print_Chi_q_orbital
 
   !--------------------------------------------------------------------!
   ! Below three routines for new FT of tdm quantities

@@ -141,7 +141,7 @@ module DQMC_Cfg
        &  "0       ", &    ! global warm
        &  "0       ", &    ! FTphy
        &  "0       ", &    ! SelfE
-       &  "0"/)            ! Dsqy
+       &  "0       "/)            ! Dsqy
  
   ! parameter type
   integer, parameter :: PARAM_TYPE(N_Param) = &

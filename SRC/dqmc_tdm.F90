@@ -184,8 +184,7 @@ contains
     type(GeomWrap), intent(in)  :: Gwrap
 
     ! ... local variables ...
-    integer     :: i,j,Ly
-    real(wp)    :: qy 
+    integer     :: i,j
 
     ! ... Executable ...
 
@@ -206,9 +205,9 @@ contains
     T1%sgn   = ZERO
 
     ! # of k points for FT, only for square lattice !!!
-    T1%NkFT = int(sqrt(real(S%nSite)))/2 
-
     T1%norb = 3     ! number of orbitals realized here as # of sites in unit cell
+    T1%NkFT = int(sqrt(real(S%nSite/T1%norb)))/2 
+
     T1%npercell = 3
 
     allocate(T1%chixx_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
@@ -359,7 +358,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
        case(ISPXX, ISPZZ, IDENS, IPAIR)
 
@@ -381,7 +380,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
 
@@ -405,7 +404,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT-1,0:T1%NkFT-1,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
         ! used in meas for average, for conductivity, renormalized by lattice size
         ! Below two lines are original for nClass=1 due to only q=0 components
@@ -633,9 +632,9 @@ contains
     ! ... Local scalar ...
 
     character(label_len) :: label
-    integer  :: i, j, k, dt, dt1, dt2, nclass, b1, b2
+    integer  :: i, j, k, dt, dt1, dt2, b1, b2
     real*8   :: a,b,c,d  
-    real(wp), pointer :: value1(:), value2(:), value3(:), value4(:)
+    real(wp), pointer :: value1(:), value2(:)
     real(wp) :: factor
     real     :: band(T1%properties(ISPXX)%nclass,4)
 
@@ -730,15 +729,16 @@ contains
            !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
            !       + up0t(j,i)*dnt0(i,j))/2
 
-             ! below accumulate chi_xx(q=0)
-             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-             read(label(1:3),*) band(k,1)
-             read(label(4:6),*) band(k,2)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
+! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+!             ! below accumulate chi_xx(q=0)
+!             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+!             read(label(1:3),*) band(k,1)
+!             read(label(4:6),*) band(k,2)
+!             b1 = int(band(k,1))
+!             b2 = int(band(k,2))
 
-             T1%chi_q0_orb(dt1,b1,b2,T1%tmp) = T1%chi_q0_orb(dt1,b1,b2,T1%tmp) - up0t(j,i)*dnt0(i,j)
-             T1%chi_q0_orb(dt2,b1,b2,T1%tmp) = T1%chi_q0_orb(dt2,b1,b2,T1%tmp) - up0t(i,j)*dnt0(j,i)
+!             T1%chi_q0_orb(dt1,b1,b2,T1%tmp) = T1%chi_q0_orb(dt1,b1,b2,T1%tmp) - up0t(j,i)*dnt0(i,j)
+!             T1%chi_q0_orb(dt2,b1,b2,T1%tmp) = T1%chi_q0_orb(dt2,b1,b2,T1%tmp) - up0t(i,j)*dnt0(j,i)
           end do
        end do
      endif
@@ -997,15 +997,16 @@ contains
              value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
                   + up0t(i,j)*dnt0(j,i))
 
-             ! below accumulate chi_xx(q=0)
-             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-             read(label(1:3)  ,*) band(k,1)
-             read(label(4:6)  ,*) band(k,2)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
+! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+!             ! below accumulate chi_xx(q=0)
+!             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+!             read(label(1:3)  ,*) band(k,1)
+!             read(label(4:6)  ,*) band(k,2)
+!             b1 = int(band(k,1))
+!             b2 = int(band(k,2))
 
-             T1%chi_q0_orb(dt1,b1,b2,T1%tmp) = T1%chi_q0_orb(dt1,b1,b2,T1%tmp) - (up0t(j,i)*dnt0(i,j) &
-                  + up0t(i,j)*dnt0(j,i))
+!             T1%chi_q0_orb(dt1,b1,b2,T1%tmp) = T1%chi_q0_orb(dt1,b1,b2,T1%tmp) - (up0t(j,i)*dnt0(i,j) &
+!                  + up0t(i,j)*dnt0(j,i))
           end do
        end do
      endif
@@ -1163,13 +1164,14 @@ contains
        endif
     enddo
 
-    do i = 0, T1%norb-1
-      do j = 0, T1%norb-1
-        do k = 0, T1%L-1
-          T1%chi_q0_orb(k,i,j,idx) = T1%chi_q0_orb(k,i,j,idx) * factor
-        enddo
-      enddo
-    enddo
+! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+!    do i = 0, T1%norb-1
+!      do j = 0, T1%norb-1
+!        do k = 0, T1%L-1
+!          T1%chi_q0_orb(k,i,j,idx) = T1%chi_q0_orb(k,i,j,idx) * factor
+!        enddo
+!      enddo
+!    enddo
  
     ! record the average of all local sum_r G(r, tau) for average N(w)
     if (T1%flags(IGFUN) == 1) then
@@ -1279,16 +1281,17 @@ contains
          endif
        enddo
 
-       do i = 0, T1%norb-1
-         do j = 0, T1%norb-1
-           do k = 0, T1%L-1
-             data =  T1%chi_q0_orb(k,i,j,1:n)
-             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chi_q0_orb(k,i,j,avg) = average
-             T1%chi_q0_orb(k,i,j,err) = error
-           enddo
-         enddo
-       enddo
+! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+!       do i = 0, T1%norb-1
+!         do j = 0, T1%norb-1
+!           do k = 0, T1%L-1
+!             data =  T1%chi_q0_orb(k,i,j,1:n)
+!             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+!             T1%chi_q0_orb(k,i,j,avg) = average
+!             T1%chi_q0_orb(k,i,j,err) = error
+!           enddo
+!         enddo
+!       enddo
 
        if (T1%flags(IGFUN) == 1) then
          do j = 0, T1%L-1
@@ -1515,7 +1518,7 @@ contains
           if (T1%flags(ISPXX) == 1) then
              bins => T1%spinxxAvg(:, 1)
              aves => T1%spinxxAvg(:, avg)
-             errs => T1%swaveAvg(:, err)
+             errs => T1%spinxxAvg(:, err)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
@@ -1578,16 +1581,17 @@ contains
       endif
     enddo
 
+! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
     !print out chi(q,tau)
-    write(OPT,"(a)") "====================================================="
-    write(OPT,"(a)") "  b  b   tau         chi_xx(q=0)             err"
-    do i = 0, T1%norb-1
-      do j = i, T1%norb-1
-        do t = 0, T1%L-1
-          write(OPT,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chi_q0_orb(t, i, j, T1%avg), T1%chi_q0_orb(t, i, j, T1%err)
-        enddo
-      enddo
-    enddo
+!    write(OPT,"(a)") "====================================================="
+!    write(OPT,"(a)") "  b  b   tau         chi_xx(q=0)             err"
+!    do i = 0, T1%norb-1
+!      do j = i, T1%norb-1
+!        do t = 0, T1%L-1
+!          write(OPT,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chi_q0_orb(t, i, j, T1%avg), T1%chi_q0_orb(t, i, j, T1%err)
+!        enddo
+!      enddo
+!    enddo
 
   end subroutine DQMC_TDM_Print
 
@@ -2213,18 +2217,15 @@ contains
 
     type(TDM), intent(in)     :: T1                 
     type(Hubbard), intent(in) :: Hub
-    integer              :: OPT
     integer              :: n, nclass, lsize
 
-    integer              :: i, j, k, t, iprop, b1, b2, ibin
+    integer              :: i, j, k, t, b1, b2, ibin
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
     real(wp),    pointer :: values(:)
     character(label_len) :: label
     real                 :: a(T1%properties(ISPXX)%nclass,4)
     real(wp)             :: chiv
-    character(len=slen)  :: title
-    character(len=50)    :: ofile
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2325,7 +2326,7 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer :: ip, it, n, nproc, i, j
+    integer :: it, n, nproc, i
 
     real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
  
@@ -2388,11 +2389,13 @@ contains
       ! updated in JackKnife among procs in DQMC_TDM_Chi_q_orb_GetErr
       ! avg value is already averaged over proc
 
+        if (T1%flags(ISPXX) == 1) then
           n = T1%norb*T1%norb
           allocate(temp(0:T1%norb-1,0:T1%norb-1))
           do it = 0, T1%L-1
-             !Note that avg value is already averaged over proc in DQMC_TDM_Chi_q_orb_GetKFT
-             !and binval is JackKnifed among proc
+             !Note that chi_q_orb(avg) is known from DQMC_TDM_Chi_q_orb
+             !in which FT from chi_q_orb(avg), here do not need JackKnife again
+             !But chi_q_orb(err) is unknown
              average  => T1%chixx_q_orb(it,:,:,T1%avg)
              binval   => T1%chixx_q_orb(it,:,:,1)
 
@@ -2402,9 +2405,23 @@ contains
 
              call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
              error  = error*dble(nproc-1)/dble(nproc)
-           enddo
+          enddo
 
-           do it = 0, T1%L-1
+          ! get error for chixx_q0_iw0_orb below
+          average  => T1%chixx_q0_iw0_orb(:,:,T1%avg)
+          error    => T1%chixx_q0_iw0_orb(:,:,T1%err)
+          temp   =  (average-binval)**2
+
+          call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
+          error  = error*dble(nproc-1)/dble(nproc)
+
+          deallocate(temp)
+        endif
+
+        if (T1%flags(ISPZZ) == 1) then
+          n = T1%norb*T1%norb
+          allocate(temp(0:T1%norb-1,0:T1%norb-1))
+          do it = 0, T1%L-1
              average  => T1%chizz_q_orb(it,:,:,T1%avg)
              binval   => T1%chizz_q_orb(it,:,:,1)
 
@@ -2414,8 +2431,19 @@ contains
 
              call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
              error  = error*dble(nproc-1)/dble(nproc)
-           enddo
-           deallocate(temp)
+          enddo
+
+          ! get error for chizz_q0_iw0_orb below
+          average  => T1%chizz_q0_iw0_orb(:,:,T1%avg)
+          error    => T1%chizz_q0_iw0_orb(:,:,T1%err)
+          temp   =  (average-binval)**2
+
+          call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
+          error  = error*dble(nproc-1)/dble(nproc)
+
+          deallocate(temp)
+        endif
+
 #  endif
     endif
 
@@ -2424,7 +2452,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Print_Chi_q_orbital(T1, OPT, ofile)
+  subroutine DQMC_TDM_Print_Chi_q_orbital(T1, OPT1, OPT2, ofile)
     use dqmc_mpi
     !
     ! Purpose
@@ -2435,7 +2463,7 @@ contains
     ! =========
     !
     type(TDM), intent(in)   :: T1                 ! T1
-    integer                 :: OPT
+    integer                 :: OPT1, OPT2
 
     integer             :: i, j, t
     character(len=50)   :: ofile
@@ -2445,47 +2473,43 @@ contains
 
     if (qmc_sim%rank .ne. 0) return
 
-    call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT)
-
     ! first print chi(q, iwm=0) static chi using Composite Simpson's rule
     if (T1%flags(ISPZZ) == 1) then
-      write(OPT,"(a)") "  b  b    chi_zz(q=0,iwm=0)         err"
+      call DQMC_open_file('chizz_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
+      write(OPT1,"(a)") "  b  b    chi_zz(q=0,iwm=0)         err"
+
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT,'(2(i3),2(f16.9))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
+          write(OPT1,'(2(i3),2(f16.9))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
         enddo
       enddo
-    endif
 
-    if (T1%flags(ISPXX) == 1) then
-      write(OPT,"(a)") "  b  b    chi_xx(q=0,iwm=0)         err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          write(OPT,'(2(i3),2(f16.9))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
-        enddo
-      enddo
-    endif
-
-    ! Then print out chi(q,tau)
-    if (T1%flags(ISPZZ) == 1) then
-      write(OPT,"(a)") "====================================================="
-      write(OPT,"(a)") "  b  b   tau         chi_zz             err"
+      ! Then print out chi(q,tau)
+      write(OPT1,"(a)") "  b  b   tau         chi_zz             err"
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
+            write(OPT1,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo
     endif
 
     if (T1%flags(ISPXX) == 1) then
-      write(OPT,"(a)") "====================================================="
-      write(OPT,"(a)") "  b  b   tau         chi_xx             err"
+      call DQMC_open_file('chixx_q0_orb_'//adjustl(trim(ofile)),'replace', OPT2)
+      write(OPT2,"(a)") "  b  b    chi_xx(q=0,iwm=0)         err"
+      do i = 0, T1%norb-1
+        do j = i, T1%norb-1
+          write(OPT2,'(2(i3),2(f16.9))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
+        enddo
+      enddo
+
+      ! Then print out chi(q,tau)
+      write(OPT2,"(a)") "  b  b   tau         chi_xx             err"
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
+            write(OPT2,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo
@@ -2511,7 +2535,7 @@ contains
     type(tdm), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
 
-    integer              :: i, j, ip, kx, ky, n, nclass, ibin
+    integer              :: i, ip, kx, ky, n, nclass, ibin
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
     real(wp),    pointer :: value(:), valuek(:)
@@ -2526,16 +2550,16 @@ contains
     F        => Hub%S%F
     vec      => Hub%S%vecClass
     twopi    =  2.d0*acos(-1.0_wp)
-    L        =  sqrt(real(n))  ! for square lattice only!!!
+    L        =  sqrt(real(n/T1%norb))  ! for square lattice only!!!
 
-    allocate(ql(0:T1%NkFT-1, 0:T1%NkFT-1, nclass))
+    allocate(ql(0:T1%NkFT, 0:T1%NkFT, nclass))
 
     ! for averaging weighted summation of sum_ly exp(i*qy*ly) * curr-curr
     factor = 1.d0/n
 
     !Prepare FT coefficients
-    do kx = 0, T1%NkFT-1
-       do ky = 0, T1%NkFT-1
+    do kx = 0, T1%NkFT
+       do ky = 0, T1%NkFT
           do i = 1, nclass
              qx = kx*twopi/L
              qy = ky*twopi/L
@@ -2551,8 +2575,8 @@ contains
          if (.not.associated(T1%properties(ip)%valuesk)) cycle
 
          do ibin = T1%avg, 1, -1
-            do kx = 0, T1%NkFT-1
-               do ky = 0, T1%NkFT-1
+            do kx = 0, T1%NkFT
+               do ky = 0, T1%NkFT
                   do i = 1, nclass
                      value  =>  T1%properties(ip)%values(i,:,ibin)
                      valuek =>  T1%properties(ip)%valuesk(kx,ky,:,ibin)
@@ -2622,8 +2646,8 @@ contains
         if (T1%flagsFT(ip)==1) then
           if (.not.associated(T1%properties(ip)%valuesk)) cycle
     
-          n = T1%NkFT*T1%NkFT
-          allocate(temp(0:T1%NkFT-1,0:T1%NkFT-1))
+          n = (T1%NkFT+1)**2
+          allocate(temp(0:T1%NkFT,0:T1%NkFT))
           
           do it = 0, T1%L-1
              !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
@@ -2665,7 +2689,7 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1
     integer                  :: OPT, OPT1, OPT2
 
-    integer             :: i, j, kx, ky, iprop
+    integer             :: j, kx, ky, iprop
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
@@ -2684,8 +2708,8 @@ contains
     do iprop = 1, NTDMARRAY
        if (T1%flagsFT(iprop)==1) then
          if (.not.associated(T1%properties(iprop)%valuesk)) cycle
-         do kx = 0, T1%NkFT-1
-            do ky = 0, T1%NkFT-1
+         do kx = 0, T1%NkFT
+            do ky = 0, T1%NkFT
                do j = 0, T1%L-1
                   tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, j, T1%avg:T1%err)
                enddo
@@ -2728,7 +2752,7 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1                                                                         
     integer                 :: OPT, OPT1, OPT2                                                                                
                                                                                                                                
-    integer             :: i, j, kx, ky, iprop, ibin
+    integer             :: j, kx, ky, iprop, ibin
     real(wp)            :: tmp(T1%L, 2)                                                                                        
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title                                                                                               
@@ -2747,8 +2771,8 @@ contains
     do iprop = 1, NTDMARRAY
        if (T1%flagsFT(iprop)==1) then
          if (.not.associated(T1%properties(iprop)%valuesk)) cycle                                                              
-         do kx = 0, T1%NkFT-1
-            do ky = 0, T1%NkFT-1                                                                                               
+         do kx = 0, T1%NkFT
+            do ky = 0, T1%NkFT                                                                                               
                do j = 0, T1%L-1                                                                                                
                   tmp(j+1, 1:2) = T1%properties(iprop)%valuesk(kx, ky, j, T1%avg:T1%err)                                       
                enddo
@@ -2767,8 +2791,8 @@ contains
 
        ! bin-by-bin, for each bin, print kx,ky first and then G(tau)
        do ibin = 1, T1%nBin
-         do kx = 0, T1%NkFT-1
-           do ky = 0, T1%NkFT-1                                                                                               
+         do kx = 0, T1%NkFT
+           do ky = 0, T1%NkFT                                                                                               
              write(OPT1,'(i3,i3)') kx, ky
              do j = 0, T1%L-1                                                                                                
                 write(OPT1,'(e16.8)')  T1%properties(IGFUN)%valuesk(kx, ky, j, ibin)                                       
@@ -2784,8 +2808,8 @@ contains
 
        ! bin-by-bin, for each bin, print kx,ky first and then s-wave(tau)                                                           
        do ibin = 1, T1%nBin 
-         do kx = 0, T1%NkFT-1                                                                                                  
-           do ky = 0, T1%NkFT-1                                                                                                
+         do kx = 0, T1%NkFT                                                                                                  
+           do ky = 0, T1%NkFT                                                                                               
              write(OPT2,'(i3,i3)') kx, ky                                                                                      
              do j = 0, T1%L-1                                                                                                  
                 write(OPT2,'(e16.8)')  T1%properties(IPAIR)%valuesk(kx, ky, j, ibin)                                           
@@ -2817,7 +2841,7 @@ contains
     type(tdm), intent(inout) :: T1
     type(Hubbard), intent(in) :: Hub
 
-    integer              :: i, j, k, n, nclass, ibin, Nq
+    integer              :: i, k, n, nclass, ibin, Nq
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
     real(wp),    pointer :: value(:)
@@ -2945,7 +2969,7 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer :: n, nproc, i, j, s, Nq
+    integer :: nproc, i, j, s, Nq
 
     real(wp), pointer  :: average(:), binval(:), error(:), temp(:)
 
@@ -3041,7 +3065,7 @@ contains
     integer                  :: OPT
     integer,    intent(in)   :: Dsqy
 
-    integer  :: i, j, k, ip, jp, iprop, Nq
+    integer  :: i, j, Nq
     character(len=18) :: spline(3)
     character(len=50) :: ofile
 

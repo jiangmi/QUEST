@@ -5,9 +5,9 @@
 
 # Intel Fortran compiler
 # ----------------------
-FC = mpiifort
-FC_FLAGS = -m64 -O3 -unroll  -warn all
-NOOPT_FLAGS = -O0 -warn all
+FC = ftn
+FC_FLAGS = -O3 -unroll-aggressive -qopt-prefetch
+
 
 # MAGMA library path
 # ------------------
@@ -32,7 +32,7 @@ NOOPT_FLAGS = -O0 -warn all
 
 # Intel C++ compiler
 # ------------------
-CXX = mpiicpc
+CXX = CC
 CXX_FLAGS = -m64 -O3 -Wall -unroll# $(CUDAINC) $(MAGMAINC)
 
 # C++ libraries
@@ -42,7 +42,6 @@ CXXLIB = -lstdc++ #-lrt
 # Path to Intel MKL library
 # -------------------------
 #MKLPATH = $(MKLROOT)/lib/intel64
-MKLPATH = /opt/intel/mkl/lib/intel64
 
 LAPACKLIB = -L$(MKLPATH) -mkl:sequential -lpthread 
 
@@ -74,6 +73,6 @@ RANLIB     = ranlib
 #    -D_OpenBC : use open boundary condition
 #
 
-PRG_FLAGS = -D_CKB -D_QMC_MPI #-DDQMC_ASQRD  # -DDQMC_PROFILE -DDQMC_CUDA -D_CKBP -D_SXX
+PRG_FLAGS = -D_CKB #-D_QMC_MPI #-DDQMC_ASQRD  # -DDQMC_PROFILE -DDQMC_CUDA -D_CKBP -D_SXX
 
 FLAGS = $(FC_FLAGS) $(PRG_FLAGS)

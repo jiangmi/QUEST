@@ -23,9 +23,9 @@ program dqmc_ggeom
   character(len=slen) :: gfile
   logical             :: tformat
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
-  integer             :: nBin, nIter, ierr  
+  integer             :: nBin, nIter
   character(len=50)   :: ofile  
-  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7
+  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT8
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
@@ -243,14 +243,14 @@ program dqmc_ggeom
 ! similar to Fourier transform but only q=0 term
   call DQMC_TDM_Chi_q_orbital(tm, Hub)
   call DQMC_TDM_Chi_q_orbital_GetErr(tm)
-  call DQMC_TDM_Print_Chi_q_orbital(tm, OPT4, ofile)
+  call DQMC_TDM_Print_Chi_q_orbital(tm, OPT4, OPT5, ofile)
 
 ! ==============  Fourier transform ============================================
   !Compute Fourier transform
   !Direct access to binned data; no need to be in the loop above
   call DQMC_TDM_GetKFT(tm, Hub)
   call DQMC_TDM_GetErrKFT(tm)
-  call DQMC_TDM_PrintKFT(tm, TDM_UNIT, ofile, OPT5, OPT6)
+  call DQMC_TDM_PrintKFT(tm, TDM_UNIT, ofile, OPT6, OPT7)
 !  call DQMC_TDM_PrintKFT_allBins(tm, TDM_UNIT, ofile, OPT5, OPT6)
 
 ! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
@@ -258,7 +258,7 @@ program dqmc_ggeom
   if (Dsqy > 0) then
     call DQMC_TDM_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
     call DQMC_TDM_currDs_Err(tm)
-    call DQMC_TDM_currDs_Print(tm, ofile, OPT7, Dsqy)
+    call DQMC_TDM_currDs_Print(tm, ofile, OPT8, Dsqy)
   endif
 
 ! ==============  Fourier transform ============================================

@@ -1,6 +1,18 @@
 module DQMC_TDM
 #include "dqmc_include.h"
 
+  ! 11/22/2017 (comments on DQMC_TDM_GetKFTold):
+  ! DQMC_TDM_GetKFTold does calculates the orbital (in one unit cell) dependent
+  ! FT of tdm quantities; but DQMC_TDM_GetKFT does not so be careful for new one
+
+  ! Also, if compare SzSz(k, b1,b2,tau) and SxSx(k, b1,b2,tau) with 
+  ! chizz and chixx computed in DQMC_TDM_Chi_q_orbital
+  ! they are equal for b1=b2 but chizz = 2*SzSz(k, b1,b2,tau) for b1!=b2
+  ! the reason is that DQMC_TDM_Chi_q_orbital uses F(class), which treats
+  ! site pair (0,1) and (1,0) the same thing but DQMC_TDM_GetKFTold treats them
+  ! as different orbital dependent quantities, namely 
+  ! SzSz(k, b1,b2,tau) different from SzSz(k, b2,b1,tau) althought they are equal  
+
   ! 08/16/2015:
   ! Add features of conductivity calculation using the standard definition
   ! instead of Simone's tricks using link correlation

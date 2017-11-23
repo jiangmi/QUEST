@@ -16,7 +16,7 @@ module DQMC_Cfg
   character, parameter :: COMMA   = ","
 
   ! string length
-  integer, parameter :: slen = 50
+  integer, parameter :: slen = 80
   integer, parameter :: llen = 256
   integer, parameter :: alen = 10    ! array limit
 

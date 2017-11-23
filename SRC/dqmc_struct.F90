@@ -651,7 +651,7 @@ contains
   end subroutine DQMC_Geom_Read_Def
 
   !---------------------------------------------------------------------!
-  
+  ! not used. see dqmc_symm.F90 for setting F 
   subroutine DQMC_Geom_Discover_F(n, D, F)
     !
     ! Purpose

@@ -1616,7 +1616,7 @@ contains
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
-    character(len=50)   :: ofile
+    character(len=80)   :: ofile
 
     ! ... Executable ...
     if (.not.T1%compute .or. T1%flags(IGFUN) == 0) return
@@ -2209,6 +2209,7 @@ contains
   subroutine DQMC_TDM_Chi_q_orbital(T1, Hub)
     use DQMC_Hubbard
     use dqmc_mpi
+    ! run after DQMC_TDM_GetErr in ggeom.F90
     ! Note that avg values of SPXX and SPZZ are known in DQMC_TDM_GetErr
     ! For MPI run
     ! binned values() (only 1 bin) are not from MC, which has been
@@ -2244,8 +2245,6 @@ contains
         write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
         read(label(1:3)  ,*) a(k,1)
         read(label(4:6)  ,*) a(k,2)
-!write(*,*) label
-!write(*,*) a(k,1), a(k,2)
         !b1 = floor(a(k,1)/real(T1%npercell))
         !b2 = b1+int(vec(k,3))
         b1 = int(a(k,1))
@@ -2466,7 +2465,7 @@ contains
     integer                 :: OPT1, OPT2
 
     integer             :: i, j, t
-    character(len=50)   :: ofile
+    character(len=slen)   :: ofile
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2693,7 +2692,7 @@ contains
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
-    character(len=50)   :: ofile
+    character(len=slen)   :: ofile
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2756,7 +2755,7 @@ contains
     real(wp)            :: tmp(T1%L, 2)                                                                                        
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title                                                                                               
-    character(len=50)   :: ofile                                                                                               
+    character(len=slen)   :: ofile                                                                                               
   
     ! ... Executable ...                                                                                                       
     if (.not.T1%compute) return
@@ -3067,7 +3066,7 @@ contains
 
     integer  :: i, j, Nq
     character(len=18) :: spline(3)
-    character(len=50) :: ofile
+    character(len=slen) :: ofile
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
     if (qmc_sim%rank .ne. 0) return

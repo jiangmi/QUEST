@@ -1091,15 +1091,19 @@ contains
        do i = 1, n
           write(OPT,*) label(i)
           do j = 1, m
-             write(OPT,"(i3,'(',e15.8,' +-',e15.8,') &
-                  & +i (',e15.8,' +-',e15.8,')')")&
-                  j-1, dble(avg(i,j)), dble(err(i,j)), aimag(avg(i,j)), aimag(err(i,j+m))
+!             write(OPT,"(i3,'(',e15.8,' +-',e15.8,') &
+!                  & +i (',e15.8,' +-',e15.8,')')")&
+!                  j-1, dble(avg(i,j)), dble(err(i,j)), aimag(avg(i,j)), aimag(err(i,j+m))
+             write(OPT,"(a,e16.8,e16.8,e16.8,e16.8)")&
+                  label(j), dble(avg(i,j)), dble(err(i,j)), aimag(avg(i,j)), aimag(err(i,j+m))
           end do
        end do
     else
        do j = 1, m
-          write(OPT,"(3x, A,'(',e15.8,' +-',e15.8,') &
-               & +i (',e15.8,' +-',e15.8,')')") &
+!          write(OPT,"(3x, A,'(',e15.8,' +-',e15.8,') &
+!               & +i (',e15.8,' +-',e15.8,')')") &
+!               label(j), dble(avg(j,1)), dble(err(j,1)), aimag(avg(j,1)), aimag(err(j,1))
+          write(OPT,"(3x, A, e16.8,e16.8,e16.8,e16.8)")&
                label(j), dble(avg(j,1)), dble(err(j,1)), aimag(avg(j,1)), aimag(err(j,1))
        end do
     end if

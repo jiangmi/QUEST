@@ -50,7 +50,7 @@ contains
 
     integer        :: i, j, k, nBin, nIter, slice
     real(wp)       :: randn(1)
-    character(len=50) :: ofile
+    character(len=slen) :: ofile
 
     ! ... Executable ...
 

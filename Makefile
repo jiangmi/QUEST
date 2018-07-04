@@ -7,24 +7,24 @@ include make.inc
 all : example_
 
 example_: liblapack libblas libdqmc
-	(cd EXAMPLE; $(MAKE))
+	(cd applications; $(MAKE))
 
 example_mkl: libdqmc
-	$(MAKE) -C EXAMPLE	
+	$(MAKE) -C applications	
 
 libblas:
-	(cd BLAS; $(MAKE))
+	(cd libs/BLAS; $(MAKE))
 
 liblapack:
-	(cd LAPACK; $(MAKE))
+	(cd libs/LAPACK; $(MAKE))
 
 libdqmc:
 	$(MAKE) -C SRC
 
 clean:
-	(cd BLAS; $(MAKE) clean)
-	(cd LAPACK; $(MAKE) clean)
+	(cd libs/BLAS; $(MAKE) clean)
+	(cd libs/LAPACK; $(MAKE) clean)
 	(cd SRC; $(MAKE) clean)
-	(cd EXAMPLE; $(MAKE) clean)
+	(cd applications; $(MAKE) clean)
 	(rm -f $(DQMCLIB))
 

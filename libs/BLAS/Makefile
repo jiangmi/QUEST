@@ -1,4 +1,4 @@
-QUEST_DIR = ..
+QUEST_DIR = ../..
 include $(QUEST_DIR)/make.inc
 
 OBJ = dasum.o daxpy.o dcabs1.o dcopy.o ddot.o dgbmv.o dgemm.o dgemv.o dger.o \
@@ -12,12 +12,12 @@ OBJ = dasum.o daxpy.o dcabs1.o dcopy.o ddot.o dgbmv.o dgemm.o dgemv.o dger.o \
       ztrsv.o lsame.o idamax.o izamax.o
 
 lib: 	$(OBJ)
-	$(ARCH) $(ARFLAG) ../libblas.a $(OBJ)
-	$(RANLIB) ../libblas.a
+	$(ARCH) $(ARFLAG) ../../libblas.a $(OBJ)
+	$(RANLIB) ../../libblas.a
 
 %.o: 	%.f
 	$(FC) $(FC_FLAGS) -c $<
 
 clean:
-	rm -f ../libblas.a *.o *genmod*
+	rm -f ../../libblas.a *.o *genmod*
 	

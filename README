@@ -24,10 +24,13 @@ make.inc.mkl-icc:
 
 
 Folders:
-	BLAS ......... Sourcecode of BLAS library.
-	EXAMPLE ...... Examples of the code.
-	LAPACK ....... Source code of the LAPACK library.
+	libs ......... Sourcecode of LAPACK and BLAS library.
+	applications . Applications of the code.
 	SRC .......... QUEST source code.
 	geometries ... Examples of the different geometries.
 	makefiles .... A collection of sample makefiles.
-                    
+
+Build on mijiang@lisa.phas.ubc.ca -p 7743:
+module load intel
+module load impi
+make (clean)                

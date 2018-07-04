@@ -1,4 +1,4 @@
-QUEST_DIR = ..
+QUEST_DIR = ../..
 include $(QUEST_DIR)/make.inc
 
 OBJ =   dlamch.o ilaenv.o iparmq.o ieeeck.o dlarnv.o dlaruv.o \
@@ -23,8 +23,8 @@ OBJ =   dlamch.o ilaenv.o iparmq.o ieeeck.o dlarnv.o dlaruv.o \
 	ilazlc.o zladiv.o dlapy3.o zlarft.o dladiv.o zgetri.o zgetrf.o
       
 lib: 	$(OBJ)
-	$(ARCH) $(ARFLAG) ../liblapack.a $(OBJ)
-	$(RANLIB) ../liblapack.a
+	$(ARCH) $(ARFLAG) ../../liblapack.a $(OBJ)
+	$(RANLIB) ../../liblapack.a
 
 # Automatic copy from LAPACK source
 #.PRECIOUS: %.f
@@ -39,5 +39,5 @@ dlamch.o: dlamch.f
 	$(FC) $(FC_FLAGS) -c $<
 
 clean:
-	rm -f ../liblapack.a *.o *genmod*
+	rm -f ../../liblapack.a *.o *genmod*
 

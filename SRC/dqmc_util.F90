@@ -386,7 +386,7 @@ contains
     !
     !    Y = (y1, y2, ..., yn) is the Jacknife resampling of X with sign.
     !    
-    !    where y_i = (sum(x)-x_i)/(n-1)/sgn_i
+    !    where y_i = (sum(x)-x_i)/sgn_i
     !    The JackKnife variance of X with sign is defined as 
     !
     !          n-1
@@ -394,6 +394,14 @@ contains
     !           n
     !
     !    where avg_y = sum(y)/n
+    !
+    ! Important Note
+    ! ==============
+    ! Note computing y_i does not have /(n-1), because this signJackKnife
+    ! is always called after JackKnife that is only used for sign data.
+    ! The input data sgn and sum_sgn here are calculated, for example,
+    ! in DQMC_JackKnife(n, T1%sgn(avg), T1%sgn(err), data , y, sgn, sum_sgn) 
+    ! where sgn = (sum_x-x(1:n)) and sum_sgn= sum_x so sgn has included (n-1)
     !
     ! Arguments
     ! =========
@@ -454,6 +462,14 @@ contains
     !           n
     !
     !    where avg_y = sum(y)/n
+    !
+    ! Important Note
+    ! ==============
+    ! Note computing y_i does not have /(n-1), because this signJackKnife
+    ! is always called after JackKnife that is only used for sign data.
+    ! The input data sgn and sum_sgn here are calculated, for example,
+    ! in DQMC_JackKnife(n, T1%sgn(avg), T1%sgn(err), data , y, sgn, sum_sgn) 
+    ! where sgn = (sum_x-x(1:n)) and sum_sgn= sum_x so sgn has included (n-1)
     !
     ! Arguments
     ! =========
@@ -519,6 +535,11 @@ contains
     !           n
     !
     !    where avg_y = sum(y)/n, which equals to avg_x
+    !
+    ! Note
+    ! ====
+    ! This function will only be used for geterr for sign in phy.f90 and tdm.f90
+    ! for example, call DQMC_JackKnife(n, T1%sgn(avg), T1%sgn(err), data , y, sgn, sum_sgn)
     !    
     ! Arguments
     ! =========
@@ -582,6 +603,11 @@ contains
     !
     !    where avg_y = sum(y)/n, which equals to avg_x
     !    
+    ! Note
+    ! ====
+    ! This function will only be used for geterr for sign in phy.f90 and tdm.f90
+    ! for example, call DQMC_JackKnife(n, T1%sgn(avg), T1%sgn(err), data , y, sgn, sum_sgn)
+
     ! Arguments
     ! =========
     integer,  intent(in)    :: n

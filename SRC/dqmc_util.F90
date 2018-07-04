@@ -386,7 +386,7 @@ contains
     !
     !    Y = (y1, y2, ..., yn) is the Jacknife resampling of X with sign.
     !    
-    !    where y_i = (sum(x)-x_i)/sgn_i
+    !    where y_i = (sum(x)-x_i)/(n-1)/sgn_i
     !    The JackKnife variance of X with sign is defined as 
     !
     !          n-1

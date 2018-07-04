@@ -1359,6 +1359,7 @@ contains
           ! note for MPI, each processor has only ONE bin          
           ! The process below for computing err is JackKnife similar to non-MPI case
           ! See also DQMC_SignJackKnife_Real in dqmc_util.F90
+          ! Note DQMC_SignJackKnife_Real differs DQMC_JackKnife_Real, so computing y_i does not have /(n-1)
 
           !    y_i = (sum(x)-x_i)/sgn_i
           !    The JackKnife variance of X with sign is defined as 
@@ -1368,11 +1369,11 @@ contains
           !           n
           ! 
           !    where avg_y = sum(y)/n
-          
+
+          ! compute sum(x)          
           call mpi_allreduce(T1%sgn(1), T1%sgn(avg), 1, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
-          !Average properties
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
                 binptr => T1%properties(iprop)%values(:,:,1)
@@ -1414,9 +1415,10 @@ contains
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
 
-          ! Compute y_i, note original binned values are updated from MC
-          ! non-MPI would not update binned values
+          ! Compute y_i, note original binned values will be updated
+          ! non-MPI version of code would not update binned values
           ! as DQMC_SignJackKnife does not change data
+          ! Note that ave is now storing sum(x)
           T1%sgn(1)   = (T1%sgn(avg) - T1%sgn(1)) / dble(nproc - 1)
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
@@ -1458,7 +1460,9 @@ contains
              bins =  bins / T1%sgn(1)
           endif
 
-          ! Compute avg = sum_x/sum_sgn
+          ! Compute avg_y = avg_x = sum_x/sum_sgn
+          ! because in previous compute sum(x) step
+          ! Recall that aveptr is still for storing sum(x)
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
                 aveptr => T1%properties(iprop)%values(:,:,avg)
@@ -1492,7 +1496,7 @@ contains
           ! Compute error: sum(y_i-avg_y)^2
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
-                !note here binned values are updated from MC
+                !note here binned values are y_i
                 binptr => T1%properties(iprop)%values(:,:,1)
                 aveptr => T1%properties(iprop)%values(:,:,avg)
                 errptr => T1%properties(iprop)%values(:,:,err)
@@ -2420,6 +2424,7 @@ contains
 
           ! get error for chixx_q0_iw0_orb below
           average  => T1%chixx_q0_iw0_orb(:,:,T1%avg)
+          binval   => T1%chixx_q0_iw0_orb(:,:,1)
           error    => T1%chixx_q0_iw0_orb(:,:,T1%err)
           temp   =  (average-binval)**2
 
@@ -2446,9 +2451,12 @@ contains
 
           ! get error for chizz_q0_iw0_orb below
           average  => T1%chizz_q0_iw0_orb(:,:,T1%avg)
+          binval   => T1%chizz_q0_iw0_orb(:,:,1)
           error    => T1%chizz_q0_iw0_orb(:,:,T1%err)
           temp   =  (average-binval)**2
 
+write(*,*) "avg  ", T1%chizz_q0_iw0_orb(0,0,T1%avg)
+write(*,*) "bin1 ", T1%chizz_q0_iw0_orb(0,0,1)
           call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
           error  = error*dble(nproc-1)/dble(nproc)
 

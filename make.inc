@@ -6,7 +6,7 @@
 # Intel Fortran compiler
 # ----------------------
 FC = mpiifort
-FC_FLAGS = -m64 -O3 -Wall -unroll
+FC_FLAGS = -m64 -O3 -unroll  -warn all
 NOOPT_FLAGS = -O0 -warn all
 
 # MAGMA library path
@@ -15,12 +15,10 @@ NOOPT_FLAGS = -O0 -warn all
 #MAGMALIB = -L$(MAGMAPATH)/lib -lmagma -lmagmablas -lmagma 
 #MAGMAINC = -I$(MAGMAPATH)/include
 
-
 # CUDA installation path
 # ----------------------
 #CUDAPATH = /usr/local/cuda
 #CUDAPATH = /usr/lib/nvidia-cuda-toolkit/
-
 
 # CUDA compiler and libraries
 # ---------------------------
@@ -28,7 +26,6 @@ NOOPT_FLAGS = -O0 -warn all
 #CU_FLAGS = -O3 -Xptxas -v -m 64 -arch sm_20 $(MAGMAINC)
 #CUDALIB = -L$(CUDAPATH)/lib64 -lcublas -lcudart -lcuda
 #CUDAINC = -I$(CUDAPATH)/include
-
 
 # Intel C++ compiler
 # ------------------

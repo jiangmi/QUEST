@@ -1,0 +1,16 @@
+
+        integer n,l,volume,toff,tausk,ndiv,intrat,denswp,doall,nbin
+        integer writeall
+        integer histno
+c       in the next line if l is not a multiple of 12,
+c         l/12 is truncated
+        parameter(n=8,l=80)
+        parameter(volume=n*n*l,toff=n*n)
+        parameter (tausk=10,ndiv=l/12+1,intrat=4,denswp=50,doall=1)
+        parameter (writeall=0)
+        parameter(nbin=10)
+        double precision twopi,afeps,one,zero
+        parameter(twopi=6.283185307179586d0)
+        parameter(afeps=0.d0,one=1.d0,zero=0.d0)
+        parameter(histno=49)
+

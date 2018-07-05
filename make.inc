@@ -6,7 +6,7 @@
 # Intel Fortran compiler
 # ----------------------
 FC = mpiifort
-FC_FLAGS = -m64 -O3 -unroll  -warn all
+FC_FLAGS = -m64 -O3 -Wall -unroll
 NOOPT_FLAGS = -O0 -warn all
 
 # MAGMA library path
@@ -52,9 +52,9 @@ DQMCLIB    = libdqmc.a
 
 # SPRNG library
 # ------------
-SPRNGLIB   = libsprng.a 
+SPRNGLIB   = libs/libsprng.a 
 
-MPILIB = libmpichf90.la
+MPILIB = libs/libmpichf90.la
 
 # Library linking
 # ---------------

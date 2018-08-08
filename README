@@ -1,3 +1,6 @@
+This code based on a celebrated quest-dqmc code https://code.google.com/archive/p/quest-qmc/ is a Fortran 90/95 package 
+that implements the determinant Quantum Monte Carlo (DQMC) method for quantum simulations of the Hubbard-type models.
+
 =====================
 QUEST readme file
 =====================

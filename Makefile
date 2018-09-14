@@ -19,12 +19,12 @@ liblapack:
 	(cd libs/LAPACK; $(MAKE))
 
 libdqmc:
-	$(MAKE) -C SRC
+	$(MAKE) -C src
 
 clean:
 	(cd libs/BLAS; $(MAKE) clean)
 	(cd libs/LAPACK; $(MAKE) clean)
-	(cd SRC; $(MAKE) clean)
+	(cd src; $(MAKE) clean)
 	(cd applications; $(MAKE) clean)
 	(rm -f $(DQMCLIB))
 

@@ -1,7 +1,7 @@
 QUEST_DIR = ../..
 include $(QUEST_DIR)/make.inc
 
-FLAGS=$(FC_FLAGS) -I$(QUEST_DIR)/SRC
+FLAGS=$(FC_FLAGS) -I$(QUEST_DIR)/src
 
 .SUFFIXES : .mod .o .F90
 

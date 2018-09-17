@@ -16,7 +16,7 @@ module DQMC_Cfg
   character, parameter :: COMMA   = ","
 
   ! string length
-  integer, parameter :: slen = 80
+  integer, parameter :: slen = 100
   integer, parameter :: llen = 256
   integer, parameter :: alen = 10    ! array limit
 
@@ -653,7 +653,7 @@ contains
     real(wp)               :: tmp(alen)          ! for reading t
     type(Param), pointer   :: curr 
     integer, parameter     :: funit = 10
-    character(len=80)      :: iname
+    character(len=slen)      :: iname
     integer                :: IPT, status
 
     ! ... Executable ...

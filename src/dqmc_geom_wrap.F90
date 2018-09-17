@@ -27,7 +27,7 @@ module DQMC_GEOM_WRAP
 
     type(GeomWrap),    intent(inout)  :: gwrap
     type(config), intent(inout)       :: cfg
-    character(len=50), intent(in)     :: gfile
+    character(len=slen), intent(in)    :: gfile
     integer, intent(in)               :: SOP
     logical                           :: found, connected
 

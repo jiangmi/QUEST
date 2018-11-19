@@ -339,14 +339,14 @@ end subroutine apply_point_symm
 !to ifrom reduces the latter to the equivalent orbital inside the
 !primitive cell.
 !---------------------------------------------------------------------
-subroutine map_symm_lattice(SymmOp,lattice, hamilt, SOP)
+subroutine map_symm_lattice(SymmOp,lattice, hamilt, optsym, SOP)
 use DQMC_LATT
 use DQMC_HAMILT
 
 type(symm_operations)          :: SymmOp
 type(lattice_t),intent(in)     :: lattice
 type(hamiltonian_t),intent(in) :: hamilt
-integer, intent(in)            :: SOP
+integer, intent(in)            :: optsym, SOP
 
 integer :: i, istart, ipat, jpat, iat, jat, ii, it, itl, is
 integer :: nsites, ntotsymm, ndim, msymm, nsymm, ntransl, natom
@@ -503,24 +503,26 @@ do is = 0, nsites-1
 enddo
 
 !Write out symmetry mappings
-write(SOP,*)'Number of symmetry operations in input: ',ntotsymm
-write(SOP,*)'Number of valid symmetry operations   : ',msymm
-do i = 1, msymm
-  write(SOP,*)'Mapping of Simmetry :',valid_symm(i),Symmlabel(valid_symm(i))
-  do iat = 0, nsites-1
-    write(SOP,*)iat,'->',SymmOp%map_symm(iat,i)
+if (optsym==1) then
+  write(SOP,*)'Number of symmetry operations in input: ',ntotsymm
+  write(SOP,*)'Number of valid symmetry operations   : ',msymm
+  do i = 1, msymm
+    write(SOP,*)'Mapping of Simmetry :',valid_symm(i),Symmlabel(valid_symm(i))
+    do iat = 0, nsites-1
+      write(SOP,*)iat,'->',SymmOp%map_symm(iat,i)
+    enddo
   enddo
-enddo
-do it = 0, ntransl-1
-  write(SOP,*)'Mapping of Translation',it
-  do iat = 0, nsites-1
-    write(SOP,*)iat,'->',SymmOp%translate(iat,it)
+  do it = 0, ntransl-1
+    write(SOP,*)'Mapping of Translation',it
+    do iat = 0, nsites-1
+      write(SOP,*)iat,'->',SymmOp%translate(iat,it)
+    enddo
   enddo
-enddo
-write(SOP,*)'Label of Translation mapping site in primitive cell'
-do iat = 0, nsites-1
-  write(SOP,*)iat,'->',SymmOp%translback(iat)
-enddo
+  write(SOP,*)'Label of Translation mapping site in primitive cell'
+  do iat = 0, nsites-1
+    write(SOP,*)iat,'->',SymmOp%translback(iat)
+  enddo
+endif
 
 SymmOp%lattice_mapped = .true.
 

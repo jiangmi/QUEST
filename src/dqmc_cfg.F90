@@ -33,7 +33,7 @@ module DQMC_Cfg
   integer, parameter :: TYPE_STRING  = 3 
 
   ! default parameters
-  integer, parameter :: N_Param = 46
+  integer, parameter :: N_Param = 47
 
   ! name of parameters
   ! HSF parameter in dqmc_hubbard.F90
@@ -92,7 +92,8 @@ module DQMC_Cfg
        &  "ntry2  ", &    ! global move in warmup, can differ from ntry in meas
        &  "FTphy  ", &    ! if to compute FT for phy  
        &  "SelfE  ", &    ! if to compute self-energy
-       &  "Dsqy   "/)     ! if to compute curr-curr(qx=0,qy;iwn=0)
+       &  "Dsqy   ", &    ! if to compute curr-curr(qx=0,qy;iwn=0)
+       &  "optsym "/)     ! if print .geometry file including symm operations
 
   ! default values
   character(len=*), parameter :: PARAM_DVAL(N_Param) =  &
@@ -141,7 +142,8 @@ module DQMC_Cfg
        &  "0       ", &    ! global warm
        &  "0       ", &    ! FTphy
        &  "0       ", &    ! SelfE
-       &  "0       "/)            ! Dsqy
+       &  "0       ", &    ! Dsqy
+       &  "0       "/)     ! optsym
  
   ! parameter type
   integer, parameter :: PARAM_TYPE(N_Param) = &
@@ -190,7 +192,8 @@ module DQMC_Cfg
        &  TYPE_INTEGER, &    ! global warm
        &  TYPE_INTEGER, &    ! FTphy
        &  TYPE_INTEGER, &    ! SelfE
-       &  TYPE_INTEGER/)     ! Dsqy
+       &  TYPE_INTEGER, &    ! Dsqy
+       &  TYPE_INTEGER/)     ! optsym
 
   ! is array parameter
   logical, parameter :: PARAM_ARRAY(N_Param) = &
@@ -239,10 +242,11 @@ module DQMC_Cfg
        &  .false.,&           ! globalwarm
        &  .false.,&           ! FTphy
        &  .false.,&           ! SelfE
-       &  .false./)           ! Dsqy
+       &  .false.,&           ! Dsqy
+       &  .false./)           ! optsym
 
   !
-  ! Data Type
+  ! 
   ! =========
   !
   type Param

@@ -33,7 +33,7 @@ program dqmc_ggeom
   integer, pointer    :: flags(:)      ! 10 possible tdm quantities
   integer, pointer    :: flagsFT(:)
   integer             :: nflag
-  integer             :: ntry2, FTphy,  SelfE, Dsqy
+  integer             :: ntry2, FTphy,  SelfE, Dsqy, optsym
 
   call cpu_time(t1)  
 
@@ -55,25 +55,29 @@ program dqmc_ggeom
   !Get some input variables
   call CFG_Get(cfg, "ntry2" , ntry2)
   call CFG_Get(cfg, "tdm"   , comp_tdm)
-  call CFG_Get(cfg, "FTphy ", FTphy)
+  call CFG_Get(cfg, "FTphy" , FTphy)
   call CFG_Get(cfg, "SelfE" , SelfE)
   call CFG_Get(cfg, "Dsqy"  , Dsqy)
+  call CFG_Get(cfg, "optsym", optsym)
 
   !if (nhist > 0) then
   !   call DQMC_open_file(adjustl(trim(ofile))//'.HSF.stream','unknown', HSF_output_file_unit)
   !endif
 
-  call DQMC_open_file(adjustl(trim(ofile))//'.geometry','unknown', symmetries_output_file_unit)
-  !Determines type of geometry file
-  call DQMC_Geom_Read_Def(Hub%S, gfile, tformat)   ! dqmc_struct.F90, not really used since tableformat=false
+  if (optsym==1) then
+    call DQMC_open_file(adjustl(trim(ofile))//'.geometry','unknown', symmetries_output_file_unit)
+  endif
+  !Determines type of geometry file; dqmc_struct.F90, not really used since tformat=false
+  call DQMC_Geom_Read_Def(Hub%S, gfile, tformat)   
   if (.not.tformat) then
-     ! In dqmc_geom_wrap.F90:
-     !If free format fill gwrap
-     call DQMC_Geom_Fill(Gwrap, gfile, cfg, symmetries_output_file_unit)
+     ! If free format fill gwrap; In dqmc_geom_wrap.F90:
+     call DQMC_Geom_Fill(Gwrap, gfile, cfg, optsym, symmetries_output_file_unit)
      !Transfer info in Hub%S
      call DQMC_Geom_Init(Gwrap,Hub%S,cfg)
   endif
-  call DQMC_Geom_Print(Hub%S, symmetries_output_file_unit) ! dqmc_struct.F90
+  if (optsym==1) then
+    call DQMC_Geom_Print(Hub%S, symmetries_output_file_unit) ! dqmc_struct.F90
+  endif
 
   ! Initialize the rest data (including seed for MPI processes), dqmc_hubbard.F90
   call DQMC_Hub_Config(Hub, cfg, Gwrap)

@@ -41,6 +41,7 @@ flags  = 1,1,1,0,0,0,1,0,0,0
 flagsFT= 0,0,0,0,0,0,0,0,0,0
 SelfE  = SELFEval
 Dsqy   = DSQYval
+optsym = 0
 
 # ==========================
 # Fourier transform and

@@ -23,12 +23,12 @@ module DQMC_GEOM_WRAP
 
   contains
 
-  subroutine DQMC_Geom_Fill(gwrap, gfile, cfg, SOP)
+  subroutine DQMC_Geom_Fill(gwrap, gfile, cfg, optsym, SOP)
 
     type(GeomWrap),    intent(inout)  :: gwrap
     type(config), intent(inout)       :: cfg
-    character(len=slen), intent(in)    :: gfile
-    integer, intent(in)               :: SOP
+    character(len=slen), intent(in)   :: gfile
+    integer, intent(in)               :: optsym, SOP
     logical                           :: found, connected
 
     inquire(file=gfile,exist=found)
@@ -52,10 +52,9 @@ module DQMC_GEOM_WRAP
      call DQMC_Error("cannot open geom def file "//gfile, 0)
     endif
 
-
     !Scan file to see which fields are specified
     call analyze_input
-  
+ 
     !Initialize basic info about real space cluster
     call init_lattice(gwrap%Lattice)
 
@@ -79,7 +78,7 @@ module DQMC_GEOM_WRAP
     call read_symm(gwrap%SymmOp)
 
     !pair-to-pair map of action of each symmetry in real space (also translations)
-    call map_symm_lattice(gwrap%SymmOp,gwrap%Lattice, gwrap%Hamilt, SOP)
+    call map_symm_lattice(gwrap%SymmOp,gwrap%Lattice, gwrap%Hamilt, optsym, SOP)
 
     !point-to-point map of action of each symmetry in reciprocal space
     call map_symm_recip_lattice(gwrap%SymmOp,gwrap%RecipLattice,.true.)

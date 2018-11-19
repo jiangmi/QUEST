@@ -261,6 +261,8 @@ contains
           hamilt%hopdn(is,js) = hamilt%hopdn(is,js) + tijdn * exp( im*twisthop)
           hamilt%Uv(is,js)    = hamilt%Uv(is,js)    + U
 
+          ! Note below for symmetric hoppings so that geom file does not set
+          ! bidirectional hoppings
           if (is .ne. js) then
              hamilt%hopup(js,is) = hamilt%hopup(js,is) + tijup * exp(-im*twisthop)
              hamilt%hopdn(js,is) = hamilt%hopdn(js,is) + tijdn * exp(-im*twisthop)

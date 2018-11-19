@@ -1,0 +1,1 @@
+Note that dqmc_hamilt.F90 has setup bidirectional hoppings so that in geom file only one direction's hoppings need to be set. Otherwise, the implemented hoppings will be doubled!

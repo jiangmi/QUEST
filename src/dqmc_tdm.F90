@@ -120,8 +120,7 @@ module DQMC_TDM
 
      ! TODO: following should be parameters in input
      integer  :: norb      ! number of orbitals realized here as # of layers in unit cell
-     integer  :: npercell  ! number of sites in unit cell, 4 for 2-Fe unit cell for iron-SC
-                           ! or ionic Hubbard model etc.
+
      real(wp), pointer :: chixx_q_orb(:,:,:,:)  ! chi_q=0(tau,orbital,orbital,bin)
      real(wp), pointer :: chizz_q_orb(:,:,:,:)
 
@@ -217,10 +216,8 @@ contains
     T1%sgn   = ZERO
 
     ! # of k points for FT, only for square lattice !!!
-    T1%norb = 2     ! number of orbitals realized here as # of sites in unit cell
+    T1%norb = Gwrap%lattice%natom     
     T1%NkFT = int(sqrt(real(S%nSite/T1%norb)))/2 
-
-    T1%npercell = 2
 
     allocate(T1%chixx_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
     allocate(T1%chizz_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
@@ -2261,8 +2258,6 @@ contains
         write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
         read(label(1:3)  ,*) a(k,1)
         read(label(4:6)  ,*) a(k,2)
-        !b1 = floor(a(k,1)/real(T1%npercell))
-        !b2 = b1+int(vec(k,3))
         b1 = int(a(k,1))
         b2 = int(a(k,2))
         !write(*,'(a5,i2,a5,i2)') "b1=", b1, "b2=", b2

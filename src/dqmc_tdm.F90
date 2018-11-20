@@ -217,10 +217,10 @@ contains
     T1%sgn   = ZERO
 
     ! # of k points for FT, only for square lattice !!!
-    T1%norb = 3     ! number of orbitals realized here as # of sites in unit cell
+    T1%norb = 2     ! number of orbitals realized here as # of sites in unit cell
     T1%NkFT = int(sqrt(real(S%nSite/T1%norb)))/2 
 
-    T1%npercell = 3
+    T1%npercell = 2
 
     allocate(T1%chixx_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
     allocate(T1%chizz_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
@@ -2265,11 +2265,19 @@ contains
         !b2 = b1+int(vec(k,3))
         b1 = int(a(k,1))
         b2 = int(a(k,2))
-!write(*,'(a5,i2,a5,i2)') "b1=", b1, "b2=", b2
+        !write(*,'(a5,i2,a5,i2)') "b1=", b1, "b2=", b2
 
         do ibin = T1%avg, 1, -1
           values => T1%chixx_q_orb(0:T1%L-1,b1,b2,ibin)
-          values = values + F(k)*T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
+
+          ! See the top comment on 11/22/2017 
+          ! F(class) treats site pair (0,1) and (1,0) the same thing
+          ! so divided by 2 if b1/=b2
+          if (b1==b2) then
+            values = values + F(k)*T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
+          else
+            values = values + F(k)/2*T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
+          endif
         enddo
       enddo  
       T1%chixx_q_orb = T1%chixx_q_orb/(lsize*lsize)
@@ -2306,7 +2314,15 @@ contains
 
         do ibin = T1%avg, 1, -1
           values => T1%chizz_q_orb(0:T1%L-1,b1,b2,ibin)
-          values = values + F(k)*T1%properties(ISPZZ)%values(k,0:T1%L-1,ibin)
+
+          ! See the top comment on 11/22/2017 
+          ! F(class) treats site pair (0,1) and (1,0) the same thing
+          ! so divided by 2 if b1/=b2
+          if (b1==b2) then
+            values = values + F(k)*T1%properties(ISPZZ)%values(k,0:T1%L-1,ibin)
+          else
+            values = values + F(k)/2*T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
+          endif
         enddo
       enddo  
       T1%chizz_q_orb = T1%chizz_q_orb/(lsize*lsize)

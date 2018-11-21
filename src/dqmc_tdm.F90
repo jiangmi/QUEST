@@ -1774,7 +1774,6 @@ contains
                ! binned values() (only 1 bin) are not for MC, which has been
                ! updated in JackKnife among procs in DQMC_TDM_GetErr
                ! avg value is already averaged over proc
-               ! see DQMC_TDM_GetErr
                value  =>  T1%properties(ip)%values(:,it,ibin)
                valuek =>  T1%properties(ip)%valueskold(:,it,ibin)
 
@@ -1838,7 +1837,6 @@ contains
                ! binned values() (only 1 bin) are not for MC, which has been
                ! updated in JackKnife among procs in DQMC_TDM_GetErr
                ! avg value is already averaged over proc
-               ! see DQMC_TDM_GetKFT
 
       do ip = 1, NTDMARRAY-1
         if (T1%flags(ip)==1) then
@@ -2222,7 +2220,7 @@ contains
   subroutine DQMC_TDM_Chi_q_orbital(T1, Hub)
     use DQMC_Hubbard
     use dqmc_mpi
-    ! run after DQMC_TDM_GetErr in ggeom.F90
+    ! run after DQMC_TDM_GetErr in main.F90
     ! Note that avg values of SPXX and SPZZ are known in DQMC_TDM_GetErr
     ! For MPI run
     ! binned values() (only 1 bin) are not from MC, which has been
@@ -2231,7 +2229,7 @@ contains
 
     type(TDM), intent(in)     :: T1                 
     type(Hubbard), intent(in) :: Hub
-    integer              :: n, nclass, lsize
+    integer              :: n, nclass
 
     integer              :: i, j, k, t, b1, b2, ibin
     integer,     pointer :: F(:)
@@ -2248,8 +2246,6 @@ contains
     nclass   =  Hub%S%nclass
     F        => Hub%S%F
     vec      => Hub%S%vecClass
-
-    lsize = sqrt(real(n/T1%norb))  ! linear lattice size
 
     !-----------------------------------------------------------------
     if (T1%flags(ISPXX) == 1) then
@@ -2275,7 +2271,7 @@ contains
           endif
         enddo
       enddo  
-      T1%chixx_q_orb = T1%chixx_q_orb/(lsize*lsize)
+      T1%chixx_q_orb = T1%chixx_q_orb*real(T1%norb)/real(n)
 
       !Then compute chi(iwm=0)
       do i = 0, T1%norb-1
@@ -2320,7 +2316,7 @@ contains
           endif
         enddo
       enddo  
-      T1%chizz_q_orb = T1%chizz_q_orb/(lsize*lsize)
+      T1%chizz_q_orb = T1%chizz_q_orb*real(T1%norb)/real(n)
 
       !Then compute chi(iwm=0)
       do i = 0, T1%norb-1
@@ -2375,6 +2371,7 @@ contains
                 error  = error + (average-binval)**2
              enddo 
              error = error* dble(T1%nbin-1)/dble(T1%nbin)
+             error = sqrt(error)
           enddo
 
           ! get error for chixx_q0_iw0_orb below
@@ -2385,6 +2382,7 @@ contains
              error  = error + (average-binval)**2
           enddo
           error = error* dble(T1%nbin-1)/dble(T1%nbin)
+          error = sqrt(error)
         endif
   
         if (T1%flags(ISPZZ) == 1) then
@@ -2396,6 +2394,7 @@ contains
                 error  = error + (average-binval)**2
              enddo
              error = error* dble(T1%nbin-1)/dble(T1%nbin)
+             error = sqrt(error)
           enddo
 
           ! get error for chizz_q0_iw0_orb below
@@ -2406,6 +2405,7 @@ contains
              error  = error + (average-binval)**2
           enddo
           error = error* dble(T1%nbin-1)/dble(T1%nbin)
+          error = sqrt(error)
         endif
     else
 
@@ -2430,7 +2430,8 @@ contains
              temp   =  (average-binval)**2
 
              call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-             error  = error*dble(nproc-1)/dble(nproc)
+             error = error*dble(nproc-1)/dble(nproc)
+             error = sqrt(error)
           enddo
 
           ! get error for chixx_q0_iw0_orb below
@@ -2440,7 +2441,8 @@ contains
           temp   =  (average-binval)**2
 
           call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-          error  = error*dble(nproc-1)/dble(nproc)
+          error = error*dble(nproc-1)/dble(nproc)
+          error = sqrt(error)
 
           deallocate(temp)
         endif
@@ -2457,7 +2459,8 @@ contains
              temp   =  (average-binval)**2
 
              call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-             error  = error*dble(nproc-1)/dble(nproc)
+             error = error*dble(nproc-1)/dble(nproc)
+             error = sqrt(error)
           enddo
 
           ! get error for chizz_q0_iw0_orb below
@@ -2466,10 +2469,9 @@ contains
           error    => T1%chizz_q0_iw0_orb(:,:,T1%err)
           temp   =  (average-binval)**2
 
-write(*,*) "avg  ", T1%chizz_q0_iw0_orb(0,0,T1%avg)
-write(*,*) "bin1 ", T1%chizz_q0_iw0_orb(0,0,1)
           call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-          error  = error*dble(nproc-1)/dble(nproc)
+          error = error*dble(nproc-1)/dble(nproc)
+          error = sqrt(error)
 
           deallocate(temp)
         endif
@@ -2510,7 +2512,7 @@ write(*,*) "bin1 ", T1%chizz_q0_iw0_orb(0,0,1)
 
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT1,'(2(i3),2(f16.9))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
+          write(OPT1,'(2(i3),2(e16.8))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
         enddo
       enddo
 
@@ -2519,7 +2521,7 @@ write(*,*) "bin1 ", T1%chizz_q0_iw0_orb(0,0,1)
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT1,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
+            write(OPT1,'(2(i3),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo
@@ -2530,7 +2532,7 @@ write(*,*) "bin1 ", T1%chizz_q0_iw0_orb(0,0,1)
       write(OPT2,"(a)") "  b  b    chi_xx(q=0,iwm=0)         err"
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT2,'(2(i3),2(f16.9))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
+          write(OPT2,'(2(i3),2(e16.8))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
         enddo
       enddo
 
@@ -2539,7 +2541,7 @@ write(*,*) "bin1 ", T1%chizz_q0_iw0_orb(0,0,1)
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT2,'(2(i3),f10.5,f16.9,f16.9)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
+            write(OPT2,'(2(i3),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo

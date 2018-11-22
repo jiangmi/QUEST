@@ -101,7 +101,6 @@ program dqmc_ggeom
     write(*,*) "Initialization time:",  t2-t1, "(second)"
     write(*,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
     write(*,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
-    write(*,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
   endif
 
   ! Warmup sweep
@@ -118,7 +117,6 @@ program dqmc_ggeom
     write(*,*) "Warmup time:",  t3-t2, "(second)"
     write(*,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
     write(*,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
-    write(*,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
   endif
 
   ! We divide all the measurement into nBin, each having nPass/nBin pass
@@ -200,7 +198,6 @@ program dqmc_ggeom
     write(*,*) "Meas time:",  t4-t3, "(second)"
     write(*,*) "Meas time:",  (t4-t3)/60, "(minutes)"
     write(*,*) "Meas time:",  (t4-t3)/3600, "(hours)"
-    write(*,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
   endif
 
   ! ============================================================================================
@@ -215,17 +212,14 @@ program dqmc_ggeom
     write(OPT,*) "Initialization time:",  t2-t1, "(second)"
     write(OPT,*) "Initialization time:",  (t2-t1)/60, "(minutes)"
     write(OPT,*) "Initialization time:",  (t2-t1)/3600, "(hours)"
-    write(OPT,*) "Initialization time:",  (t2-t1)/3600/24, "(days)"
     write(OPT,*) "-------------------------------------------------"
     write(OPT,*) "Warmup time:",  t3-t2, "(second)"
     write(OPT,*) "Warmup time:",  (t3-t2)/60, "(minutes)"
     write(OPT,*) "Warmup time:",  (t3-t2)/3600, "(hours)"
-    write(OPT,*) "Warmup time:",  (t3-t2)/3600/24, "(days)"
     write(OPT,*) "-------------------------------------------------"
     write(OPT,*) "Meas time:",  t4-t3, "(second)"
     write(OPT,*) "Meas time:",  (t4-t3)/60, "(minutes)"
     write(OPT,*) "Meas time:",  (t4-t3)/3600, "(hours)"
-    write(OPT,*) "Meas time:",  (t4-t3)/3600/24, "(days)"
     write(OPT,*) "============================================================================"
 
   endif ! end if (qmc_sim%rank == qmc_sim%aggr_root)
@@ -313,12 +307,10 @@ program dqmc_ggeom
     write(*,*) "Total time:",  t5-t1, "(second)"
     write(*,*) "Total time:",  (t5-t1)/60, "(minutes)"
     write(*,*) "Total time:",  (t5-t1)/3600, "(hours)"
-    write(*,*) "Total time:",  (t5-t1)/3600/24, "(days)"
 
     write(OPT,*) "Total time:",  t5-t1, "(second)"
     write(OPT,*) "Total time:",  (t5-t1)/60, "(minutes)"
     write(OPT,*) "Total time:",  (t5-t1)/3600, "(hours)"
-    write(OPT,*) "Total time:",  (t5-t1)/3600/24, "(days)"
   endif
 
   call DQMC_MPI_Final(qmc_sim)

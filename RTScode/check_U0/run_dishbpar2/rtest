@@ -1,0 +1,241 @@
+ Version dishbpar
+  
+      n =    4
+      l =   20
+  tausk =   10
+  doall =    1
+  denswp=   50
+  histno=   49
+   iran =    -9152674
+     t  =  1.00000000
+  delt  =  0.00000000
+    mu  =  0.00000000
+  bpar  =  0.00000000
+  dtau  =  0.10000000
+ x bond strengths
+     0     1   -1.000000   -1.000000
+     1     2   -1.000000   -1.000000
+     2     3   -1.000000   -1.000000
+     3     0   -1.000000   -1.000000
+     4     5   -1.000000   -1.000000
+     5     6   -1.000000   -1.000000
+     6     7   -1.000000   -1.000000
+     7     4   -1.000000   -1.000000
+     8     9   -1.000000   -1.000000
+     9    10   -1.000000   -1.000000
+    10    11   -1.000000   -1.000000
+    11     8   -1.000000   -1.000000
+    12    13   -1.000000   -1.000000
+    13    14   -1.000000   -1.000000
+    14    15   -1.000000   -1.000000
+    15    12   -1.000000   -1.000000
+ y bond strengths
+     0     4   -1.000000   -1.000000
+     1     5   -1.000000   -1.000000
+     2     6   -1.000000   -1.000000
+     3     7   -1.000000   -1.000000
+     4     8   -1.000000   -1.000000
+     5     9   -1.000000   -1.000000
+     6    10   -1.000000   -1.000000
+     7    11   -1.000000   -1.000000
+     8    12   -1.000000   -1.000000
+     9    13   -1.000000   -1.000000
+    10    14   -1.000000   -1.000000
+    11    15   -1.000000   -1.000000
+    12     0   -1.000000   -1.000000
+    13     1   -1.000000   -1.000000
+    14     2   -1.000000   -1.000000
+    15     3   -1.000000   -1.000000
+ site energies (including mu)
+     0    0.000000    0.000000
+     1    0.000000    0.000000
+     2    0.000000    0.000000
+     3    0.000000    0.000000
+     4    0.000000    0.000000
+     5    0.000000    0.000000
+     6    0.000000    0.000000
+     7    0.000000    0.000000
+     8    0.000000    0.000000
+     9    0.000000    0.000000
+    10    0.000000    0.000000
+    11    0.000000    0.000000
+    12    0.000000    0.000000
+    13    0.000000    0.000000
+    14    0.000000    0.000000
+    15    0.000000    0.000000
+ warms  =1000
+ sweeps =5000
+      u =  0.000000000000
+  nwrap =  12
+difflim =  0.001000000000
+ errrat =  0.001000000000
+ doauto =   1
+orthlen =  12
+  eorth =  0.000010000000
+ dopair =   1
+numpair =   1
+ lambda is   0.000000000000000E+000
+  start =           0
+ after disorder set, iran =       -45483
+   
+ eorth is   1.000000000000000E-005
+ Using orthlen=   12
+ diffup is   3.155995494715379E-016  #NO_AVE
+ Using mu =   0.000000000000
+  
+ increasing nwrap to           14  #NO_AVE
+ increasing nwrap to           16  #NO_AVE
+ after warmups, accept ratio is   0.5100803    
+ gamma is   0.958733605836441     
+ redo ratio is   0.0000000E+00
+  
+ increasing nwrap to           18  #NO_AVE
+ Finished measurement sweep          500
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ increasing nwrap to           20  #NO_AVE
+ Finished measurement sweep         1000
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ increasing nwrap to           22  #NO_AVE
+ Finished measurement sweep         1500
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ increasing nwrap to           24  #NO_AVE
+ Finished measurement sweep         2000
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5104     0.0000
+ increasing nwrap to           26  #NO_AVE
+ Finished measurement sweep         2500
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ increasing nwrap to           28  #NO_AVE
+ Finished measurement sweep         3000
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ Finished measurement sweep         3500
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ increasing nwrap to           30  #NO_AVE
+ Finished measurement sweep         4000
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ increasing nwrap to           32  #NO_AVE
+ Finished measurement sweep         4500
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+ Finished measurement sweep         5000
+  asgn, asgnp:    1.000    1.000 ;accept,redo ratios:      0.5105     0.0000
+  
+  
+ At end, redo ratio is   0.0000000E+00
+ gamma is   0.958733605836441     
+ Acceptance ratio =   0.5105373    
+              Average up sign =  1.000000 +-  0.000000
+              Average dn sign =  1.000000 +-  0.000000
+           Average total sign =  1.000000 +-  0.000000
+              Average density =  1.000000 +-  0.000000
+         Average up occupancy =  0.500000 +-  0.000000
+         Average dn occupancy =  0.500000 +-  0.000000
+ **please note average energy and kinetic energy**
+ **  include mu terms, both uniform and random  **
+               Average Energy = -1.463692 +-  0.000000
+       Average Kinetic Energy = -1.463692 +-  0.000000
+              Average Nup*Ndn =  0.250000 +-  0.000000
+ AF correlation function (xx) =  0.794753 +-  0.000000
+ AF correlation function (zz) =  0.794753 +-  0.000000
+       Ferro corr. func. (xx) =  0.205247 +-  0.000000
+       Ferro corr. func. (zz) =  0.205247 +-  0.000000
+ Green's function:
+   0   0 -0.500000 +-   0.000000
+   0   1  0.182962 +-   0.000000
+   0   2  0.000000 +-   0.000000
+   1   1  0.000000 +-   0.000000
+   1   2 -0.058045 +-   0.000000
+   2   2  0.000000 +-   0.000000
+ density-density correlation fn: (up-up,up-dn)
+   0   0        0.500000 +-     0.000000        0.250000 +-     0.000000
+   0   1        0.216525 +-     0.000000        0.250000 +-     0.000000
+   0   2        0.250000 +-     0.000000        0.250000 +-     0.000000
+   1   1        0.250000 +-     0.000000        0.250000 +-     0.000000
+   1   2        0.246631 +-     0.000000        0.250000 +-     0.000000
+   2   2        0.250000 +-     0.000000        0.250000 +-     0.000000
+ zz Spin correlation function:
+   0   0  0.500000 +-   0.000000
+   0   1 -0.066950 +-   0.000000
+   0   2 -0.000000 +-   0.000000
+   1   1 -0.000000 +-   0.000000
+   1   2 -0.006739 +-   0.000000
+   2   2 -0.000000 +-   0.000000
+ xx Spin correlation function:
+   0   0  0.500000 +-   0.000000
+   0   1 -0.066950 +-   0.000000
+   0   2 -0.000000 +-   0.000000
+   1   1 -0.000000 +-   0.000000
+   1   2 -0.006739 +-   0.000000
+   2   2 -0.000000 +-   0.000000
+ lambda(p=(pi,0),pprime):
+      RMS AF corr. func. (xx) =  0.794753 +-  0.000000
+      RMS AF corr. func. (zz) =  0.794753 +-  0.000000
+  
+ s-wave: (corr. fn, no vertex)
+   0.3973767 +-    0.0000000      0.3973767 +-    0.0000000   
+ sx-wave: 
+   0.4910010 +-    0.0000000      0.4910010 +-    0.0000000   
+ d-wave: 
+   0.3661686 +-    0.0000000      0.3661686 +-    0.0000000   
+ s-wave pair correlation function = 
+   0   0      0.250000 +-       0.000000
+   0   1      0.033475 +-       0.000000
+   0   2      0.000000 +-       0.000000
+   1   1      0.000000 +-       0.000000
+   1   2      0.003369 +-       0.000000
+   2   2      0.000000 +-       0.000000
+ Extended s-wave pair correlation function = 
+   0   0      0.191950 +-       0.000000
+   0   1      0.065129 +-       0.000000
+   0   2      0.007802 +-       0.000000
+   1   1      0.007802 +-       0.000000
+   1   2     -0.003753 +-       0.000000
+   2   2      0.006739 +-       0.000000
+ d-wave pair correlation function = 
+   0   0      0.125000 +-       0.000000
+   0   1      0.042274 +-       0.000000
+   0   2      0.029042 +-       0.000000
+   1   1      0.000000 +-       0.000000
+   1   2      0.003497 +-       0.000000
+   2   2      0.000000 +-       0.000000
+ sxx-wave pair correlation function = 
+   0   0      0.125000 +-       0.000000
+   0   1      0.030657 +-       0.000000
+   0   2      0.000000 +-       0.000000
+   1   1      0.031250 +-       0.000000
+   1   2      0.000551 +-       0.000000
+   2   2      0.000000 +-       0.000000
+ dxx-wave pair correlation function = 
+   0   0      0.125000 +-       0.000000
+   0   1      0.000000 +-       0.000000
+   0   2      0.000000 +-       0.000000
+   1   1      0.031250 +-       0.000000
+   1   2      0.000000 +-       0.000000
+   2   2     -0.000000 +-       0.000000
+ px-wave pair correlation function = 
+   0   0      0.062500 +-       0.000000
+   0   1     -0.020682 +-       0.000000
+   0   2      0.000000 +-       0.000000
+   1   1     -0.007261 +-       0.000000
+   1   2      0.002623 +-       0.000000
+   2   2     -0.000000 +-       0.000000
+ py-wave pair correlation function = 
+   0   0      0.062500 +-       0.000000
+   0   1      0.000455 +-       0.000000
+   0   2     -0.000000 +-       0.000000
+   1   1     -0.007261 +-       0.000000
+   1   2      0.000874 +-       0.000000
+   2   2      0.000000 +-       0.000000
+ pxy-wave pair correlation function = 
+   0   0      0.062500 +-       0.000000
+   0   1      0.003763 +-       0.000000
+   0   2      0.000000 +-       0.000000
+   1   1     -0.015625 +-       0.000000
+   1   2     -0.003763 +-       0.000000
+   2   2      0.000000 +-       0.000000
+ pyx-wave pair correlation function = 
+   0   0      0.062500 +-       0.000000
+   0   1      0.003763 +-       0.000000
+   0   2      0.000000 +-       0.000000
+   1   1     -0.015625 +-       0.000000
+   1   2     -0.003763 +-       0.000000
+   2   2      0.000000 +-       0.000000
+ saf with no vertex is   0.794753484369011     

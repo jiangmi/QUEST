@@ -2223,7 +2223,7 @@ contains
   ! Here chi(q) is computed independent on FT routines for any unit cell
   ! Very similar to DQMC_TDM_GetKFT below
   !--------------------------------------------------------------------!
-  subroutine DQMC_TDM_Chi_q_orbital(T1, Hub)
+  subroutine DQMC_TDM_Chi_orbital(T1, Hub)
     use DQMC_Hubbard
     use dqmc_mpi
     ! run after DQMC_TDM_GetErr in main.F90
@@ -2417,11 +2417,11 @@ contains
       enddo
     endif
 
-  end subroutine DQMC_TDM_Chi_q_orbital
+  end subroutine DQMC_TDM_Chi_orbital
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Chi_q_orbital_GetErr(T1)
+  subroutine DQMC_TDM_Chi_orbital_GetErr(T1)
 
     use DQMC_MPI
 
@@ -2636,12 +2636,11 @@ contains
 #  endif
     endif
 
-
-  end subroutine DQMC_TDM_Chi_q_orbital_GetErr
+  end subroutine DQMC_TDM_Chi_orbital_GetErr
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Print_Chi_q_orbital(T1, OPT1, OPT2, OPT3, OPT4, ofile)
+  subroutine DQMC_TDM_Chi_orbital_Print(T1, OPT1, OPT2, OPT3, OPT4, ofile)
     use dqmc_mpi
     !
     ! Purpose
@@ -2748,7 +2747,7 @@ contains
       enddo
     endif
 
-  end subroutine DQMC_TDM_Print_Chi_q_orbital
+  end subroutine DQMC_TDM_Chi_orbital_Print
 
   !--------------------------------------------------------------------!
   ! Below three routines for new FT of tdm quantities

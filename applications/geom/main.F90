@@ -243,11 +243,11 @@ program dqmc_ggeom
     call DQMC_TDM_Print_local(tm, ofile, OPT1, OPT2, OPT3)
   endif
 
-! ==============  chi_xx and chi_zz(q=0,orbital,orbital) =======================
+! ==============  chi_xx and chi_zz(r=0 and q=0,orbital,orbital) ===============
 ! similar to Fourier transform but only q=0 term
-  call DQMC_TDM_Chi_q_orbital(tm, Hub)
-  call DQMC_TDM_Chi_q_orbital_GetErr(tm)
-  call DQMC_TDM_Print_Chi_q_orbital(tm, OPT4, OPT5, OPT6, OPT7, ofile)
+  call DQMC_TDM_Chi_orbital(tm, Hub)
+  call DQMC_TDM_Chi_orbital_GetErr(tm)
+  call DQMC_TDM_Chi_orbital_Print(tm, OPT4, OPT5, OPT6, OPT7, ofile)
 
 ! ==============  Fourier transform ============================================
   !Compute Fourier transform

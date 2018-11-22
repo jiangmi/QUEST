@@ -25,7 +25,7 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter
   character(len=slen) :: ofile  
-  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6!,OPT7,OPT8
+  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT8
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
@@ -247,7 +247,7 @@ program dqmc_ggeom
 ! similar to Fourier transform but only q=0 term
   call DQMC_TDM_Chi_q_orbital(tm, Hub)
   call DQMC_TDM_Chi_q_orbital_GetErr(tm)
-  call DQMC_TDM_Print_Chi_q_orbital(tm, OPT4, OPT5, ofile)
+  call DQMC_TDM_Print_Chi_q_orbital(tm, OPT4, OPT5, OPT6, OPT7, ofile)
 
 ! ==============  Fourier transform ============================================
   !Compute Fourier transform
@@ -263,7 +263,7 @@ program dqmc_ggeom
   if (Dsqy > 0) then
     call DQMC_TDM_currDs(tm,Hub)  ! use Hub%S and Hub%dtau
     call DQMC_TDM_currDs_Err(tm)
-    call DQMC_TDM_currDs_Print(tm, ofile, OPT6, Dsqy)
+    call DQMC_TDM_currDs_Print(tm, ofile, OPT8, Dsqy)
   endif
 
 ! ==============  Fourier transform ============================================

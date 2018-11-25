@@ -234,7 +234,7 @@ program dqmc_ggeom
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
     endif
     call DQMC_TDM_Print(tm, TDM_UNIT)
-   ! call DQMC_TDM_Print_local(tm, ofile, OPT1, OPT2, OPT3)
+    call DQMC_TDM_Print_local(tm, ofile, OPT1, OPT2, OPT3)
   endif
 
 ! ==============  chi_xx and chi_zz(r=0 and q=0,orbital,orbital) ===============

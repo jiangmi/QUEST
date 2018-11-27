@@ -473,7 +473,8 @@ contains
        ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
        !=====================================================================!
        P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + &
-            (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
+            P0%up(i) * P0%dn(i) * U(S%Map(i))
+       !     (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
     end do
 
     P0%meas(P0_NUP, tmp) = sum(P0%up)

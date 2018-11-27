@@ -1,19 +1,16 @@
-STARTING JOB: Nov 21  17:17:16  2018
+STARTING JOB: Nov 26  16:35:15  2018
  ============================================================================
- Initialization time:  9.3519995E-03 (second)
- Initialization time:  1.5586666E-04 (minutes)
- Initialization time:  2.5977777E-06 (hours)
- Initialization time:  1.0824073E-07 (days)
+ Initialization time:  1.5068999E-02 (second)
+ Initialization time:  2.5114996E-04 (minutes)
+ Initialization time:  4.1858329E-06 (hours)
  -------------------------------------------------
- Warmup time:  0.6979670     (second)
- Warmup time:  1.1632783E-02 (minutes)
- Warmup time:  1.9387972E-04 (hours)
- Warmup time:  8.0783220E-06 (days)
+ Warmup time:  0.7143290     (second)
+ Warmup time:  1.1905483E-02 (minutes)
+ Warmup time:  1.9842472E-04 (hours)
  -------------------------------------------------
- Meas time:   1.934369     (second)
- Meas time:  3.2239482E-02 (minutes)
- Meas time:  5.3732470E-04 (hours)
- Meas time:  2.2388529E-05 (days)
+ Meas time:   1.807009     (second)
+ Meas time:  3.0116817E-02 (minutes)
+ Meas time:  5.0194695E-04 (hours)
  ============================================================================
  General Geometry - Free Format                                                 
   
@@ -45,16 +42,22 @@ Global move in warmup       :            0
                 Avg dn sign :   0.10000000E+01  0.00000000E+00
 ============================================================================
  Equal time measurements:
+                    Density :   0.10000000E+01  0.00000000E+00
           Up spin occupancy :   0.49846244E+00  0.24671282E-02
         Down spin occupancy :   0.50153756E+00  0.24671282E-02
-             <U*N_up*N_dn>  :   0.51891889E+00  0.34630946E-02
-             Kinetic energy :  -0.12366953E+01  0.50420528E-02
+               <N_up*N_dn>  :   0.12972972E+00  0.86577365E-03
+         Local moment <m^2> :   0.74054056E+00  0.17315473E-02
+               Total energy :  -0.71777640E+00  0.23609201E-02
+Kinetic energy=Ehop+mu_term :  -0.12366953E+01  0.50420528E-02
+           Potential energy :   0.51891889E+00  0.34630946E-02
+             Hopping energy :  -0.12366953E+01  0.50420528E-02
           UP Kinetic energy :  -0.61834764E+00  0.25210264E-02
           DN Kinetic energy :  -0.61834764E+00  0.25210264E-02
-               Total energy :  -0.17177764E+01  0.23609201E-02
-                    Density :   0.10000000E+01  0.00000000E+00
-                Chi_thermal :  -0.64000000E+02  0.20885606E-12
-              Specific heat :   0.28366255E+03  0.92199689E+00
+                      <-Kx> :   0.61498974E+00  0.34920944E-02
+                   <-Kx_up> :   0.30749487E+00  0.17460472E-02
+                   <-Kx_dn> :   0.30749487E+00  0.17460472E-02
+                Chi_thermal :  -0.14979459E+03  0.45995320E+00
+              Specific heat :   0.60211785E+03  0.53469238E+01
   XX Ferro structure factor :   0.32781090E+00  0.72006013E-02
   ZZ Ferro structure factor :   0.33995325E+00  0.12822308E-01
      XX AF structure factor :   0.15533170E+01  0.13902094E-01
@@ -65,13 +68,6 @@ Global move in warmup       :            0
 Den*Den AF structure factor :   0.39248280E+00  0.23504603E-02
 Den+Den AF structure factor :   0.00000000E+00  0.00000000E+00
  s-wave FM structure factor :   0.19624140E+00  0.11752301E-02
-           Potential energy :  -0.48108111E+00  0.34630946E-02
-             Hopping energy :  -0.12366953E+01  0.50420528E-02
-                      <-Kx> :   0.61498974E+00  0.34920944E-02
-                   <-Kx_up> :   0.30749487E+00  0.17460472E-02
-                   <-Kx_dn> :   0.30749487E+00  0.17460472E-02
-           Double occupancy :   0.12972972E+00  0.86577365E-03
-      Magnetisation squared :   0.18513514E+00  0.43288683E-03
 ============================================================================
  Mean Equal time Green's function:
   0  0   16   0.000   0.000   0.000       0.50000000E+00  0.00000000E+00
@@ -269,7 +265,6 @@ Den+Den AF structure factor :   0.00000000E+00  0.00000000E+00
     5    0    0                 0.97239697E-01  0.79673003E-03
     6    0    0                 0.33153022E-01  0.47426018E-03
 ============================================================================
- Total time:   2.649948     (second)
- Total time:  4.4165798E-02 (minutes)
- Total time:  7.3609664E-04 (hours)
- Total time:  3.0670693E-05 (days)
+ Total time:   2.550532     (second)
+ Total time:  4.2508867E-02 (minutes)
+ Total time:  7.0848112E-04 (hours)

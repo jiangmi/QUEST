@@ -1,8 +1,8 @@
 # ==========================
 # Geometry and output
 # ==========================
-ofile  = U4_V0.8_Vp0.0_be2.0_s1234567_N4_mu0.0
-gfile  = geomU4_V0.8_Vp0.0
+ofile  = U4_V0.0_Vp0.0_be2.0_s1234567_N4_mu0.0
+gfile  = geomU4_V0.0_Vp0.0
 
 # ==========================
 # Hubbard model
@@ -37,8 +37,8 @@ tausk  = 10
 # ISPZZ,IDENS,IPAIR,ICOND,ICONDup,ICONDdn                                                                                          
 # ==========================                                                                                       
 tdm    = 1
-flags  = 1,0,0,1,1,0,0,0,0,0
-flagsFT= 1,0,0,1,1,0,0,0,0,0
+flags  = 1,1,1,1,1,1,1,1,1,1
+flagsFT= 1,1,1,1,1,1,1,1,1,1
 SelfE  = 0
 Dsqy   = 0
 optsym = 0

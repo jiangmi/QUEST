@@ -89,34 +89,35 @@ module DQMC_Phy
   integer, parameter  :: IPAIR = 9
 
   ! Parameter for the index of scalar variables (IMEAS)
-  integer, parameter :: P0_NUP       = 1
-  integer, parameter :: P0_NDN       = 2
-  integer, parameter :: P0_NUD       = 3
-  integer, parameter :: P0_KE        = 4
-  integer, parameter :: P0_KE_UP     = 5
-  integer, parameter :: P0_KE_DN     = 6
-  integer, parameter :: P0_ENERGY    = 7
-  integer, parameter :: P0_DENSITY   = 8
-  integer, parameter :: P0_CHIT      = 9
-  integer, parameter :: P0_CV        = 10
+  integer, parameter :: P0_DENSITY   = 1
+  integer, parameter :: P0_NUP       = 2
+  integer, parameter :: P0_NDN       = 3
+  integer, parameter :: P0_NUD       = 4
+  integer, parameter :: P0_M2        = 5
 
-  integer, parameter :: P0_SFERRO    = 11
-  integer, parameter :: P0_SFER2     = 12
-  integer, parameter :: P0_SAF       = 13
-  integer, parameter :: P0_SAFSQ     = 14
-  integer, parameter :: P0_SAF2      = 15
-  integer, parameter :: P0_SAF2SQ    = 16
-  integer, parameter :: P0_CDW       = 17
-  integer, parameter :: P0_NNPROD    = 18
-  integer, parameter :: P0_NNSUM     = 19
-  integer, parameter :: P0_PAIR      = 20
+  integer, parameter :: P0_ENERGY    = 6
+  integer, parameter :: P0_KE        = 7
+  integer, parameter :: P0_PE        = 8
+  integer, parameter :: P0_Ehop      = 9
+  integer, parameter :: P0_KE_UP     = 10
+  integer, parameter :: P0_KE_DN     = 11
+  integer, parameter :: P0_Kx        = 12
+  integer, parameter :: P0_Kx_up     = 13
+  integer, parameter :: P0_Kx_dn     = 14
 
-  integer, parameter :: P0_PE                    = 21
-  integer, parameter :: P0_hopping_energy        = 22
-  integer, parameter :: P0_Kx                    = 23
-  integer, parameter :: P0_Kx_up                 = 24
-  integer, parameter :: P0_Kx_dn                 = 25
-  integer, parameter :: P0_magnetisation_squared = 26
+  integer, parameter :: P0_CHIT      = 15
+  integer, parameter :: P0_CV        = 16
+
+  integer, parameter :: P0_SFERRO    = 17
+  integer, parameter :: P0_SFER2     = 18
+  integer, parameter :: P0_SAF       = 19
+  integer, parameter :: P0_SAFSQ     = 20
+  integer, parameter :: P0_SAF2      = 21
+  integer, parameter :: P0_SAF2SQ    = 22
+  integer, parameter :: P0_CDW       = 23
+  integer, parameter :: P0_NNPROD    = 24
+  integer, parameter :: P0_NNSUM     = 25
+  integer, parameter :: P0_PAIR      = 26
 
   integer, parameter :: P0_N_NO_SAF  = 12
   integer, parameter :: P0_N         = 26
@@ -128,14 +129,20 @@ module DQMC_Phy
 
   ! Name of scalar variables
   character(len=*), parameter :: P0_STR(P0_N) = (/&
+       "                    Density : ", &
        "          Up spin occupancy : ", &
        "        Down spin occupancy : ", &
        "               <N_up*N_dn>  : ", &
-       "             Kinetic energy : ", &
+       "         Local moment <m^2> : ", &
+       "               Total energy : ", &
+       "Kinetic energy=Ehop+mu_term : ", &
+       "           Potential energy : ", &
+       "             Hopping energy : ", &
        "          UP Kinetic energy : ", &
        "          DN Kinetic energy : ", &
-       "               Total energy : ", &
-       "                    Density : ", &
+       "                      <-Kx> : ", &
+       "                   <-Kx_up> : ", &
+       "                   <-Kx_dn> : ", &
        "                Chi_thermal : ", &
        "              Specific heat : ", &
        "  XX Ferro structure factor : ", &
@@ -147,13 +154,7 @@ module DQMC_Phy
        "    CDW AF structure factor : ", &
        "Den*Den AF structure factor : ", &
        "Den+Den AF structure factor : ", &
-       " s-wave FM structure factor : ", &
-       "           Potential energy : ", &
-       "             Hopping energy : ", &
-       "                      <-Kx> : ", &
-       "                   <-Kx_up> : ", &
-       "                   <-Kx_dn> : ", &
-       "         Local moment <m^2> : "/)
+       " s-wave FM structure factor : "/)
   character(len=*), parameter :: P0_SIGN_STR(3) = (/&
        "                   Avg sign : ", &
        "                Avg up sign : ", &
@@ -502,7 +503,7 @@ contains
           P0%meas(P0_KE_DN, tmp) =  P0%meas(P0_KE_DN, tmp) + var2
           P0%meas(P0_KE, tmp)    =  P0%meas(P0_KE, tmp)    + var3
 
-          P0%meas(P0_hopping_energy, tmp) = P0%meas(P0_hopping_energy, tmp) + var3
+          P0%meas(P0_Ehop, tmp) = P0%meas(P0_Ehop, tmp) + var3
        end do
 
        !Include -mu*(nup+ndn)
@@ -548,7 +549,7 @@ contains
     !=================================================================! 
     ! <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
     !=================================================================! 
-    P0%meas(P0_magnetisation_squared, tmp) = P0%meas(P0_density, tmp) -&
+    P0%meas(P0_M2, tmp) = P0%meas(P0_density, tmp) -&
      2 * P0%meas(P0_NUD, tmp)
 
     !=========================================!

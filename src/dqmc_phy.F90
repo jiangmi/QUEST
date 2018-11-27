@@ -116,11 +116,10 @@ module DQMC_Phy
   integer, parameter :: P0_Kx                    = 23
   integer, parameter :: P0_Kx_up                 = 24
   integer, parameter :: P0_Kx_dn                 = 25
-  integer, parameter :: P0_double_occupancy      = 26
-  integer, parameter :: P0_magnetisation_squared = 27
+  integer, parameter :: P0_magnetisation_squared = 26
 
   integer, parameter :: P0_N_NO_SAF  = 12
-  integer, parameter :: P0_N         = 27
+  integer, parameter :: P0_N         = 26
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -131,7 +130,7 @@ module DQMC_Phy
   character(len=*), parameter :: P0_STR(P0_N) = (/&
        "          Up spin occupancy : ", &
        "        Down spin occupancy : ", &
-       "             <U*N_up*N_dn>  : ", &
+       "               <N_up*N_dn>  : ", &
        "             Kinetic energy : ", &
        "          UP Kinetic energy : ", &
        "          DN Kinetic energy : ", &
@@ -154,8 +153,7 @@ module DQMC_Phy
        "                      <-Kx> : ", &
        "                   <-Kx_up> : ", &
        "                   <-Kx_dn> : ", &
-       "           Double occupancy : ", &
-       "      Magnetisation squared : "/)
+       "         Local moment <m^2> : "/)
   character(len=*), parameter :: P0_SIGN_STR(3) = (/&
        "                   Avg sign : ", &
        "                Avg up sign : ", &
@@ -470,12 +468,7 @@ contains
        P0%up(i)  = ONE - G_up(i, i)
        P0%dn(i)  = ONE - G_dn(i, i)
        P0%meas(P0_NUD, tmp) = P0%meas(P0_NUD, tmp)+ &
-            P0%up(i) * P0%dn(i) * U(S%Map(i))
-       !======================================================!
-       ! Double occupancy P0%up(i) * P0%dn(i)
-       !======================================================!
-       P0%meas(P0_double_occupancy, tmp) = P0%meas(P0_double_occupancy, tmp) + &
-       P0%up(i) * P0%dn(i)
+            P0%up(i) * P0%dn(i)
        !=====================================================================!
        ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
        !=====================================================================!
@@ -552,10 +545,10 @@ contains
          P0%meas(P0_NDN, tmp)      
 
     !=================================================================! 
-    ! Magnetisation squared = 1/4 (rho - 2 double_occupancy)    
+    ! <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
     !=================================================================! 
-    P0%meas(P0_magnetisation_squared, tmp) = 0.25d0 * (P0%meas(P0_density, tmp) -&
-     2 * P0%meas(P0_double_occupancy, tmp))
+    P0%meas(P0_magnetisation_squared, tmp) = P0%meas(P0_density, tmp) -&
+     2 * P0%meas(P0_NUD, tmp)
 
     !=========================================!
     ! Chi_thermal 

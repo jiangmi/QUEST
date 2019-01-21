@@ -25,7 +25,7 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter
   character(len=slen) :: ofile  
-  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT8
+  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT8,OPT11
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
@@ -233,7 +233,7 @@ program dqmc_ggeom
     if (qmc_sim%rank == qmc_sim%aggr_root) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
     endif
-    call DQMC_TDM_Print(tm, TDM_UNIT)
+    call DQMC_TDM_Print(tm, ofile, TDM_UNIT, OPT11)
     call DQMC_TDM_Print_local(tm, ofile, OPT1, OPT2, OPT3)
   endif
 

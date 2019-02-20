@@ -200,7 +200,7 @@ module DQMC_GEOM_WRAP
     clab         => gwrap%Lattice%class_label
     do ic = 1, S%nClass       
       !write(S%clabel(ic), '(2(i3), 3(f8.4))') (int(clab(ic, j)), j = 4, 5), (clab(ic, j), j = 1, 3)       
-      write(S%clabel(ic),'(2(i3),i5,3(f8.3))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
+      write(S%clabel(ic),'(2(i4),i5,3(f8.3))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
 
       ! 12/27/2015:
       ! Get relative vector between sites for nClass

@@ -6,7 +6,7 @@ program geom
 ! This program used PBC
 implicit none
 
-real :: x, y, N=8.0, U=4.0, p, V=1.2
+real :: x, y, N=12.0, U=4.0, p, V=1.2
 
 ! No. of atoms for each ring and their locations:
 integer, dimension(5) :: Natom_ring = (/ 6,12,18,24,30 /)

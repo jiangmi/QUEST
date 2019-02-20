@@ -229,6 +229,9 @@ contains
        if (T1%flags(i)==1) then
          call DQMC_TDM_InitProp(T1, S, Gwrap, i)
        endif
+       if (T1%flagsFT(i)==1) then
+         call DQMC_TDM_InitPropFT(T1, S, Gwrap, i)
+       endif
     enddo
 
     if (T1%flags(IGFUN) == 1) then
@@ -352,7 +355,6 @@ contains
 
        case(IGFUN, IGFUP, IGFDN)
 
-          nk     = Gwrap%RecipLattice%nclass_k
           nclass = S%nClass
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
@@ -362,19 +364,14 @@ contains
           T1%properties(iprop)%nclass =  nclass
           T1%properties(iprop)%D      => S%D
           T1%properties(iprop)%F      => S%F
-          T1%properties(iprop)%nk     =  nk
           T1%properties(iprop)%np     =  np
-          T1%properties(iprop)%ftk    => Gwrap%RecipLattice%FourierC
           T1%properties(iprop)%ftw    => T1%ftwfer
           T1%properties(iprop)%phase  => S%gf_phase
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
        case(ISPXX, ISPZZ, IDENS, IPAIR)
 
-          nk = Gwrap%GammaLattice%nclass_k
           nclass = S%nClass
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
@@ -384,19 +381,14 @@ contains
           T1%properties(iprop)%nclass =  S%nClass
           T1%properties(iprop)%D      => S%D
           T1%properties(iprop)%F      => S%F
-          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
           T1%properties(iprop)%np     =  np
-          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
           T1%properties(iprop)%ftw    => T1%ftwbos
           T1%properties(iprop)%phase  => S%chi_phase
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
 
-          nk = Gwrap%GammaLattice%nclass_k
           ! originally nClass=1 for only q=0 components of conductivity
           ! modify nClass=1 to be same as other quantities
           nclass = S%nClass
@@ -408,15 +400,10 @@ contains
           T1%properties(iprop)%nclass =  nClass
           T1%properties(iprop)%D      => S%D
           T1%properties(iprop)%F      => S%F
-          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
           T1%properties(iprop)%np     =  np
-          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
-          T1%properties(iprop)%ftw    => T1%ftwbos
           T1%properties(iprop)%phase  => S%chi_phase
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
         ! used in meas for average, for conductivity, renormalized by lattice size
         ! Below two lines are original for nClass=1 due to only q=0 components
@@ -431,6 +418,68 @@ contains
          T1%properties(iprop)%valuesk = 0.0_wp
 
   end subroutine DQMC_TDM_InitProp
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM_InitPropFT(T1, S, Gwrap, iprop)
+    use DQMC_Geom_Wrap
+    !
+    ! Purpose
+    ! =======
+    ! Initialize contents of tdmarray for iprop
+    !
+    ! Arguments
+    ! =========
+    type(TDM), intent(inout) :: T1
+    type(Struct), intent(in)  :: S
+    type(GeomWrap), intent(in):: Gwrap
+    integer, intent(in)       :: iprop
+
+    integer :: nk, np, npp, nclass
+
+    select case (iprop)
+
+       case(IGFUN, IGFUP, IGFDN)
+
+          nk = Gwrap%RecipLattice%nclass_k
+          T1%properties(iprop)%nk     =  nk
+          T1%properties(iprop)%ftk    => Gwrap%RecipLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+       case(ISPXX, ISPZZ, IDENS, IPAIR)
+
+          nk = Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+       case(ICOND, ICONDup, ICONDdn)
+
+          nk = Gwrap%GammaLattice%nclass_k
+          ! originally nClass=1 for only q=0 components of conductivity
+          ! modify nClass=1 to be same as other quantities
+          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+        ! used in meas for average, for conductivity, renormalized by lattice
+        ! size
+        ! Below two lines are original for nClass=1 due to only q=0 components
+        !  allocate(T1%properties(iprop)%F(nclass))
+        !  T1%properties(iprop)%F(1) = S%nSite*2   ! *2 is for averaging x and y
+        !  directions
+     end select
+
+     T1%properties(iprop)%values  = 0.0_wp
+     if(associated(T1%properties(iprop)%valueskold)) &
+         T1%properties(iprop)%valueskold = 0.0_wp
+     if(associated(T1%properties(iprop)%valuesk)) &
+         T1%properties(iprop)%valuesk = 0.0_wp
+
+  end subroutine DQMC_TDM_InitPropFT
 
   !--------------------------------------------------------------------!
 
@@ -455,8 +504,10 @@ contains
          deallocate(T1%properties(i)%values)
          nullify(T1%properties(i)%D)
          nullify(T1%properties(i)%F)
-         nullify(T1%properties(i)%ftk)
          nullify(T1%properties(i)%ftw)
+       endif
+       if (T1%flagsFT(i)==1) then
+         nullify(T1%properties(i)%ftk)
          deallocate(T1%properties(i)%valueskold)
          deallocate(T1%properties(i)%valuesk)
        endif

@@ -1980,7 +1980,7 @@ contains
 
     ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
     ! print out chi(q,tau)
-    if (T1%flags(ISPXX)==1 .and. T1%flags(ISPZZ)==1) then
+    if (T1%flagsFT(ISPXX)==1 .and. T1%flagsFT(ISPZZ)==1) then
       call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
       write(OPT1,"(a)") "  b  b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
 

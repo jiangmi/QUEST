@@ -860,8 +860,8 @@ contains
              ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
              ! below accumulate chi_xx(q=0)
              write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-             read(label(1:3),*) band(k,1)
-             read(label(4:6),*) band(k,2)
+             read(label(1:4),*) band(k,1)
+             read(label(5:8),*) band(k,2)
              b1 = int(band(k,1))
              b2 = int(band(k,2))
 
@@ -894,8 +894,8 @@ contains
              ! DQMC_TDM_Chi_q_orbital
              ! below accumulate chi_xx(q=0)
              write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-             read(label(1:3),*) band(k,1)
-             read(label(4:6),*) band(k,2)
+             read(label(1:4),*) band(k,1)
+             read(label(5:8),*) band(k,2)
              b1 = int(band(k,1))
              b2 = int(band(k,2))
 
@@ -1930,30 +1930,32 @@ contains
       endif
     enddo
 
-   ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-   ! print out chi(q,tau)
-    call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
-    write(OPT1,"(a)") "  b  b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
+    ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+    ! print out chi(q,tau)
+    if (T1%flags(ISPXX)==1 .and. T1%flags(ISPZZ)==1) then
+      call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
+      write(OPT1,"(a)") "  b  b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
 
-    do i = 0, T1%norb-1
-      do j = i, T1%norb-1
-        write(OPT1,'(2(i3),4(e16.8))') i, j, &
-                 T1%chixx_q0_orb_iw0(i,j,T1%avg), T1%chixx_q0_orb_iw0(i, j, T1%err), &
-                 T1%chizz_q0_orb_iw0(i,j,T1%avg), T1%chizz_q0_orb_iw0(i, j, T1%err)
-      enddo
-   enddo
-
-    write(OPT1,"(a)") "==================================================================================="
-    write(OPT1,"(a)") "  b  b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
-    do i = 0, T1%norb-1
-      do j = i, T1%norb-1
-        do t = 0, T1%L-1
-          write(OPT1,'(2(i3),f10.5,4(f16.8))') i, j, t*T1%dtau, &
-                 T1%chixx_q0_orb(t, i, j, T1%avg), T1%chixx_q0_orb(t, i, j, T1%err), &
-                 T1%chizz_q0_orb(t, i, j, T1%avg), T1%chizz_q0_orb(t, i, j, T1%err)
+      do i = 0, T1%norb-1
+        do j = i, T1%norb-1
+          write(OPT1,'(2(i3),4(e16.8))') i, j, &
+                   T1%chixx_q0_orb_iw0(i,j,T1%avg), T1%chixx_q0_orb_iw0(i, j, T1%err), &
+                   T1%chizz_q0_orb_iw0(i,j,T1%avg), T1%chizz_q0_orb_iw0(i, j, T1%err)
         enddo
       enddo
-    enddo
+
+      write(OPT1,"(a)") "==================================================================================="
+      write(OPT1,"(a)") "  b  b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
+      do i = 0, T1%norb-1
+        do j = i, T1%norb-1
+          do t = 0, T1%L-1
+            write(OPT1,'(2(i3),f10.5,4(f16.8))') i, j, t*T1%dtau, &
+                   T1%chixx_q0_orb(t, i, j, T1%avg), T1%chixx_q0_orb(t, i, j, T1%err), &
+                   T1%chizz_q0_orb(t, i, j, T1%avg), T1%chizz_q0_orb(t, i, j, T1%err)
+          enddo
+        enddo
+      enddo
+    endif
 
   end subroutine DQMC_TDM_Print
 
@@ -2605,15 +2607,15 @@ contains
 
       do k = 1, nclass
         write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-        read(label(1:3)  ,*) a(k,1)
-        read(label(4:6)  ,*) a(k,2)
-        read(label(12:19),*) a(k,3)
-        read(label(20:27),*) a(k,4)
+        read(label(1:4)  ,*) a(k,1)
+        read(label(5:8)  ,*) a(k,2)
+        read(label(14:21),*) a(k,3)
+        read(label(22:29),*) a(k,4)
         b1 = int(a(k,1))
         b2 = int(a(k,2))
         x  = int(a(k,3))
         y  = int(a(k,4))
-        write(*,'(4(a5,i2))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
+        !write(*,'(4(a5,i4))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
 
         !Compute chi_q=0(tau,orb,orb,ibin)
         do ibin = T1%avg, 1, -1
@@ -2687,15 +2689,15 @@ contains
 
       do k = 1, nclass
         write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-        read(label(1:3)  ,*) a(k,1)
-        read(label(4:6)  ,*) a(k,2)
-        read(label(12:19),*) a(k,3)
-        read(label(20:27),*) a(k,4)
+        read(label(1:4)  ,*) a(k,1)
+        read(label(5:8)  ,*) a(k,2)
+        read(label(14:21),*) a(k,3)
+        read(label(22:29),*) a(k,4)
         b1 = int(a(k,1))
         b2 = int(a(k,2))
         x  = int(a(k,3))
         y  = int(a(k,4))
-        !write(*,'(4(a5,i2))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
+        !write(*,'(4(a5,i4))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
 
         !Compute chi_q=0(tau,orb,orb,ibin)
         do ibin = T1%avg, 1, -1
@@ -3005,13 +3007,13 @@ contains
     if (qmc_sim%rank .ne. 0) return
 
     ! first print chi(q, iwm=0) static chi using Composite Simpson's rule
-    if (T1%flags(ISPZZ) == 1) then
+    if (T1%flagsFT(ISPZZ) == 1) then
       call DQMC_open_file('chizz_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
       write(OPT1,"(a)") "  b  b    chi_zz(q=0,iwm=0)         err"
 
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT1,'(2(i3),2(e16.8))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
+          write(OPT1,'(2(i4),2(e16.8))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
         enddo
       enddo
 
@@ -3020,18 +3022,18 @@ contains
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT1,'(2(i3),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
+            write(OPT1,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo
     endif
 
-    if (T1%flags(ISPXX) == 1) then
+    if (T1%flagsFT(ISPXX) == 1) then
       call DQMC_open_file('chixx_q0_orb_'//adjustl(trim(ofile)),'replace', OPT2)
       write(OPT2,"(a)") "  b  b    chi_xx(q=0,iwm=0)         err"
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT2,'(2(i3),2(e16.8))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
+          write(OPT2,'(2(i4),2(e16.8))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
         enddo
       enddo
 
@@ -3040,7 +3042,7 @@ contains
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT2,'(2(i3),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
+            write(OPT2,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo
@@ -3055,7 +3057,7 @@ contains
 
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT3,'(2(i3),2(e16.8))') i, j, T1%chizz_r0_iw0_orb(i, j, T1%avg), T1%chizz_r0_iw0_orb(i, j, T1%err)
+          write(OPT3,'(2(i4),2(e16.8))') i, j, T1%chizz_r0_iw0_orb(i, j, T1%avg), T1%chizz_r0_iw0_orb(i, j, T1%err)
         enddo
       enddo
 
@@ -3064,7 +3066,7 @@ contains
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT3,'(2(i3),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_r0_orb(t, i, j, T1%avg), T1%chizz_r0_orb(t, i, j, T1%err)
+            write(OPT3,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_r0_orb(t, i, j, T1%avg), T1%chizz_r0_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo
@@ -3075,7 +3077,7 @@ contains
       write(OPT4,"(a)") "  b  b    chi_xx(r=0,iwm=0)         err"
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT4,'(2(i3),2(e16.8))') i, j, T1%chixx_r0_iw0_orb(i, j, T1%avg), T1%chixx_r0_iw0_orb(i, j, T1%err)
+          write(OPT4,'(2(i4),2(e16.8))') i, j, T1%chixx_r0_iw0_orb(i, j, T1%avg), T1%chixx_r0_iw0_orb(i, j, T1%err)
         enddo
       enddo
 
@@ -3084,7 +3086,7 @@ contains
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
           do t = 0, T1%L-1
-            write(OPT4,'(2(i3),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_r0_orb(t, i, j, T1%avg), T1%chixx_r0_orb(t, i, j, T1%err)
+            write(OPT4,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_r0_orb(t, i, j, T1%avg), T1%chixx_r0_orb(t, i, j, T1%err)
           enddo
         enddo
       enddo

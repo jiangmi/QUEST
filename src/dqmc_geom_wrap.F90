@@ -205,9 +205,10 @@ module DQMC_GEOM_WRAP
       ! 12/27/2015:
       ! Get relative vector between sites for nClass
       label = S%clabel(ic)
-      read(label(12:19),*) S%vecClass(ic,1)
-      read(label(20:27),*) S%vecClass(ic,2)
-      read(label(28:35),*) S%vecClass(ic,3)
+      read(label(14:21),*) S%vecClass(ic,1)
+      read(label(22:29),*) S%vecClass(ic,2)
+      read(label(30:37),*) S%vecClass(ic,3)
+      write(*,*) 'label=', label(14:21), label(22:29), label(30:37)
 
       ! decide (-1)^x+y for computing S_AF and S_CDW in plane
       ! for bilayer cases, only include z=0 component

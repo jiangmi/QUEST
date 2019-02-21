@@ -6,7 +6,7 @@ program geom
 ! This program used PBC
 implicit none
 
-real :: x, y, N=12.0, U=4.0, p, V=1.2
+real :: x, y, N=6.0, U=4.0, p, V=1.2
 
 ! No. of atoms for each ring and their locations:
 integer, dimension(5) :: Natom_ring = (/ 6,12,18,24,30 /)
@@ -20,7 +20,7 @@ real, dimension(30) :: x5, y5
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
-integer :: i, j, k, a, b, Nring=2, Nhop_droplet
+integer :: i, j, k, a, b, Nring=1, Nhop_droplet
 character*3 :: str  
 real*8, allocatable :: r(:)
 
@@ -353,6 +353,17 @@ do i = 1, Nhop_droplet
                ," ","0.0"," ",0.0," ",0.0," ",U
       endif
 end do
+
+! =======================================================
+write(11,'(A5)') "#SYMM"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 0.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 0.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 -1.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 0.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 0.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 -1.0d0 1.0d0 0.0d0"
 
 write(11,'(A4)') "#END"
 end program geom

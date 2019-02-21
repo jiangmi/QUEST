@@ -138,6 +138,7 @@ module DQMC_TDM
 
      ! record the average of all local sum_r spin-xx(r, tau) for average spin-xx susceptibility
      real(wp), pointer :: spinxxAvg(:,:)
+     real(wp), pointer :: spinzzAvg(:,:)
 
      ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
      real(wp), pointer :: swaveAvg(:,:)
@@ -255,8 +256,10 @@ contains
     endif
 
     if (T1%flags(ISPZZ) == 1) then
+      allocate(T1%spinzzAvg(0:T1%L-1,T1%err))
       allocate(T1%chizz_q0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
       allocate(T1%chizz_q0_orb_iw0(0:T1%norb-1, 0:T1%norb-1, T1%err))
+      T1%spinzzAvg = 0.0_wp
     endif
 
     if (T1%flags(IPAIR) == 1) then
@@ -545,6 +548,7 @@ contains
       deallocate(T1%chixx_q0_orb_iw0)
     endif
     if (T1%flags(ISPZZ) == 1) then
+      deallocate(T1%spinzzAvg)
       deallocate(T1%chizz_q0_orb)
       deallocate(T1%chizz_q0_orb_iw0)
     endif
@@ -1407,6 +1411,17 @@ contains
       enddo
     endif
 
+    ! record the average of all local sum_r spin-zz(r, tau) for average spin-zz susceptibility
+    if (T1%flags(ISPZZ) == 1) then
+      do j = 0, T1%L-1
+         do i = 1, T1%properties(ISPZZ)%n    ! avg over n sites
+            k = T1%properties(ISPZZ)%D(i,i)  ! local quantity
+            T1%spinzzAvg(j, T1%idx) = T1%spinzzAvg(j, T1%idx) &
+                   + T1%properties(ISPZZ)%values(k,j,idx) / T1%properties(ISPZZ)%n
+         end do
+      enddo
+    endif
+
     ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
     if (T1%flags(IPAIR) == 1) then
       do j = 0, T1%L-1
@@ -1554,6 +1569,15 @@ contains
          enddo
        endif
 
+       if (T1%flags(ISPZZ) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%spinzzAvg(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%spinzzAvg(j, avg) = average
+           T1%spinzzAvg(j, err) = error
+         enddo
+       endif
+
        if (T1%flags(IPAIR) == 1) then
          do j = 0, T1%L-1
            data =  T1%swaveAvg(j, 1:n)
@@ -1654,6 +1678,12 @@ contains
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
+          if (T1%flags(ISPZZ) == 1) then
+             bins => T1%spinzzAvg(:, 1)
+             aves => T1%spinzzAvg(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
           if (T1%flags(IPAIR) == 1) then
              bins => T1%swaveAvg(:, 1)
              aves => T1%swaveAvg(:, avg)
@@ -1727,6 +1757,12 @@ contains
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
           endif
+          if (T1%flags(ISPZZ) == 1) then
+             bins => T1%spinzzAvg(:, 1)
+             aves => T1%spinzzAvg(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+          endif
           if (T1%flags(IPAIR) == 1) then
              bins => T1%swaveAvg(:, 1)
              aves => T1%swaveAvg(:, avg)
@@ -1778,6 +1814,10 @@ contains
           endif
           if (T1%flags(ISPXX) == 1) then
              aves => T1%spinxxAvg(:, avg)
+             aves =  aves / T1%sgn(avg)
+          endif
+          if (T1%flags(ISPZZ) == 1) then
+             aves => T1%spinzzAvg(:, avg)
              aves =  aves / T1%sgn(avg)
           endif
           if (T1%flags(IPAIR) == 1) then
@@ -1867,6 +1907,14 @@ contains
              bins => T1%spinxxAvg(:, 1)
              aves => T1%spinxxAvg(:, avg)
              errs => T1%spinxxAvg(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+          if (T1%flags(ISPZZ) == 1) then
+             bins => T1%spinzzAvg(:, 1)
+             aves => T1%spinzzAvg(:, avg)
+             errs => T1%spinzzAvg(:, err)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
@@ -1963,7 +2011,7 @@ contains
   ! Below print out tdm quantities separately (if needed)
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2, OPT3)
+  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2, OPT3, OPT4)
     use dqmc_mpi
     !
     ! Purpose
@@ -1974,7 +2022,7 @@ contains
     ! =========
     !
     type(TDM), intent(in)   :: T1                 ! T1
-    integer                 :: OPT1, OPT2, OPT3
+    integer                 :: OPT1, OPT2, OPT3, OPT4
 
     integer             :: i, j
     real(wp)            :: tmp(T1%L, 2)
@@ -2055,8 +2103,32 @@ contains
     endif
 
     !############################################################################
+    if (T1%flags(ISPZZ) == 1) then
+      call DQMC_open_file('spinzz_r0_'//adjustl(trim(ofile)),'replace', OPT3)
+
+      ! Print local spin-zz correlation
+      do i = 1, T1%properties(ISPZZ)%nclass
+        do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%properties(ISPZZ)%values(i, j, T1%avg:T1%err)
+        enddo
+        title=pname(ISPZZ)//" "//trim(adjustl(T1%properties(ISPZZ)%clabel(i)))
+        if (index(title, " 0.000   0.000   0.000") > 0) then
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
+        endif
+        ! write(OPT1,'(1x)')
+      enddo
+
+      ! Print average of sum_r spin-zz(r,tau) for average spin-zz susceptibility
+      title="average local spin-zz(tau)"
+      do j = 0, T1%L-1
+         tmp(j+1, 1:2) = T1%spinzzAvg(j, T1%avg:T1%err)
+      enddo
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
+    endif
+
+    !############################################################################
     if (T1%flags(IPAIR) == 1) then
-      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT3)
+      call DQMC_open_file('swave_r0_'//adjustl(trim(ofile)),'replace', OPT4)
 
       ! Print local s-wave
       do i = 1, T1%properties(IPAIR)%nclass
@@ -2065,7 +2137,7 @@ contains
         enddo
         title=pname(IPAIR)//" "//trim(adjustl(T1%properties(IPAIR)%clabel(i)))
         if (index(title, " 0.000   0.000   0.000") > 0) then
-          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
+          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
         endif
         ! write(OPT1,'(1x)')
       enddo
@@ -2075,7 +2147,7 @@ contains
       do j = 0, T1%L-1
          tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
       enddo
-      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
+      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
     endif
 
   end subroutine DQMC_TDM_Print_local

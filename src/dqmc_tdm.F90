@@ -3144,19 +3144,21 @@ contains
 
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT3,'(2(i4),2(e16.8))') i, j, T1%chizz_r0_iw0_orb(i, j, T1%avg), T1%chizz_r0_iw0_orb(i, j, T1%err)
+          if (abs(T1%chizz_r0_iw0_orb(i, j, T1%avg))>1.e-4) then
+            write(OPT3,'(2(i4),2(e16.8))') i, j, T1%chizz_r0_iw0_orb(i, j, T1%avg), T1%chizz_r0_iw0_orb(i, j, T1%err)
+          endif
         enddo
       enddo
 
       ! Then print out chi(r0,tau)
-      write(OPT3,"(a)") "  b  b   tau         chi_zz             err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do t = 0, T1%L-1
-            write(OPT3,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_r0_orb(t, i, j, T1%avg), T1%chizz_r0_orb(t, i, j, T1%err)
-          enddo
-        enddo
-      enddo
+    !  write(OPT3,"(a)") "  b  b   tau         chi_zz             err"
+    !  do i = 0, T1%norb-1
+    !    do j = i, T1%norb-1
+    !      do t = 0, T1%L-1
+    !        write(OPT3,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_r0_orb(t, i, j, T1%avg), T1%chizz_r0_orb(t, i, j, T1%err)
+    !      enddo
+    !    enddo
+    !  enddo
     endif
 
     if (T1%flags(ISPXX) == 1) then
@@ -3164,19 +3166,21 @@ contains
       write(OPT4,"(a)") "  b  b    chi_xx(r=0,iwm=0)         err"
       do i = 0, T1%norb-1
         do j = i, T1%norb-1
-          write(OPT4,'(2(i4),2(e16.8))') i, j, T1%chixx_r0_iw0_orb(i, j, T1%avg), T1%chixx_r0_iw0_orb(i, j, T1%err)
+          if (abs(T1%chixx_r0_iw0_orb(i, j, T1%avg))>1.e-4) then
+            write(OPT4,'(2(i4),2(e16.8))') i, j, T1%chixx_r0_iw0_orb(i, j, T1%avg), T1%chixx_r0_iw0_orb(i, j, T1%err)
+          endif
         enddo
       enddo
 
       ! Then print out chi(q,tau)
-      write(OPT4,"(a)") "  b  b   tau         chi_xx             err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do t = 0, T1%L-1
-            write(OPT4,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_r0_orb(t, i, j, T1%avg), T1%chixx_r0_orb(t, i, j, T1%err)
-          enddo
-        enddo
-      enddo
+    !  write(OPT4,"(a)") "  b  b   tau         chi_xx             err"
+    !  do i = 0, T1%norb-1
+    !    do j = i, T1%norb-1
+    !      do t = 0, T1%L-1
+    !        write(OPT4,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_r0_orb(t, i, j, T1%avg), T1%chixx_r0_orb(t, i, j, T1%err)
+    !      enddo
+    !    enddo
+    !  enddo
     endif
 
   end subroutine DQMC_TDM_Chi_orbital_Print

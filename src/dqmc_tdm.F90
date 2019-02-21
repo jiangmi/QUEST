@@ -250,16 +250,20 @@ contains
 
     if (T1%flags(ISPXX) == 1) then
       allocate(T1%spinxxAvg(0:T1%L-1,T1%err))
+      T1%spinxxAvg = 0.0_wp
+    endif
+    if (T1%flagsFT(ISPXX) == 1) then
       allocate(T1%chixx_q0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
       allocate(T1%chixx_q0_orb_iw0(0:T1%norb-1, 0:T1%norb-1, T1%err))
-      T1%spinxxAvg = 0.0_wp
     endif
 
     if (T1%flags(ISPZZ) == 1) then
       allocate(T1%spinzzAvg(0:T1%L-1,T1%err))
+      T1%spinzzAvg = 0.0_wp
+    endif
+    if (T1%flagsFT(ISPZZ) == 1) then
       allocate(T1%chizz_q0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
       allocate(T1%chizz_q0_orb_iw0(0:T1%norb-1, 0:T1%norb-1, T1%err))
-      T1%spinzzAvg = 0.0_wp
     endif
 
     if (T1%flags(IPAIR) == 1) then
@@ -544,11 +548,15 @@ contains
     endif
     if (T1%flags(ISPXX) == 1) then
       deallocate(T1%spinxxAvg)
+    endif
+    if (T1%flagsFT(ISPXX) == 1) then
       deallocate(T1%chixx_q0_orb)
       deallocate(T1%chixx_q0_orb_iw0)
     endif
     if (T1%flags(ISPZZ) == 1) then
       deallocate(T1%spinzzAvg)
+    endif
+    if (T1%flagsFT(ISPZZ) == 1) then
       deallocate(T1%chizz_q0_orb)
       deallocate(T1%chizz_q0_orb_iw0)
     endif
@@ -673,7 +681,7 @@ contains
        endif
     enddo
 
-    if (T1%flags(ISPXX) == 1) then
+    if (T1%flagsFT(ISPXX) == 1) then
       do i = 0, T1%norb-1
         do j = 0, T1%norb-1
           do it = 0, L-1
@@ -703,7 +711,7 @@ contains
       T1%chixx_q0_orb(:,:,:,T1%tmp) = ZERO
     endif
 
-    if (T1%flags(ISPZZ) == 1) then
+    if (T1%flagsFT(ISPZZ) == 1) then
       do i = 0, T1%norb-1
         do j = 0, T1%norb-1
           do it = 0, L-1
@@ -861,21 +869,23 @@ contains
            !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
            !       + up0t(j,i)*dnt0(i,j))/2
 
-             ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-             ! below accumulate chi_xx(q=0)
-             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-             read(label(1:4),*) band(k,1)
-             read(label(5:8),*) band(k,2)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
+             if (T1%flagsFT(ISPXX) == 1) then
+               ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+               ! below accumulate chi_xx(q=0)
+               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+               read(label(1:4),*) band(k,1)
+               read(label(5:8),*) band(k,2)
+               b1 = int(band(k,1))
+               b2 = int(band(k,2))
 
-             ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-             if (b1==b2) then
-               T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - val1
-               T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) - val2
-             else
-               T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
-               T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) - 0.5*val2
+               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
+               if (b1==b2) then
+                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - val1
+                 T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) - val2
+               else
+                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+                 T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) - 0.5*val2
+               endif
              endif
           end do
        end do
@@ -894,24 +904,25 @@ contains
              value1(k)  = value1(k) - val1
              value2(k)  = value2(k) - val2
 
-             ! For test comparing with chi_xx calculated in
-             ! DQMC_TDM_Chi_q_orbital
-             ! below accumulate chi_xx(q=0)
-             write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-             read(label(1:4),*) band(k,1)
-             read(label(5:8),*) band(k,2)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
+             if (T1%flagsFT(ISPZZ) == 1) then
+               ! For test comparing with chi_zz calculated in
+               ! DQMC_TDM_Chi_q_orbital
+               ! below accumulate chi_xx(q=0)
+               write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
+               read(label(1:4),*) band(k,1)
+               read(label(5:8),*) band(k,2)
+               b1 = int(band(k,1))
+               b2 = int(band(k,2))
 
-             ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-             if (b1==b2) then
-               T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - val1
-               T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) - val2
-             else
-               T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
-               T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) - 0.5*val2
+               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
+               if (b1==b2) then
+                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - val1
+                 T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) - val2
+               else
+                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+                 T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) - 0.5*val2
+               endif
              endif
-
           end do
        end do
      endif
@@ -1156,19 +1167,21 @@ contains
              val1 = (up0t(j,i)*dnt0(i,j) + up0t(i,j)*dnt0(j,i))
              value1(k)  = value1(k) - val1
 
-             ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-             ! below accumulate chi_xx(q=0)
-             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-             read(label(1:3)  ,*) band(k,1)
-             read(label(4:6)  ,*) band(k,2)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
+             if (T1%flagsFT(ISPXX) == 1) then
+               ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+               ! below accumulate chi_xx(q=0)
+               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+               read(label(1:4)  ,*) band(k,1)
+               read(label(5:8)  ,*) band(k,2)
+               b1 = int(band(k,1))
+               b2 = int(band(k,2))
 
-             ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-             if (b1==b2) then
-               T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - val1
-             else
-               T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
+               if (b1==b2) then
+                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - val1
+               else
+                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+               endif
              endif
           end do
        end do
@@ -1184,20 +1197,22 @@ contains
              val1 = (up0t(j,i)*upt0(i,j) + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)-dntt(i,i))*(up00(j,j)-dn00(j,j)) )
              value1(k)  = value1(k) - val1
 
-             ! For test comparing with chi_xx calculated in
-             ! DQMC_TDM_Chi_q_orbital
-             ! below accumulate chi_xx(q=0)
-             write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-             read(label(1:3)  ,*) band(k,1)
-             read(label(4:6)  ,*) band(k,2)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
+             if (T1%flagsFT(ISPZZ) == 1) then
+               ! For test comparing with chi_xx calculated in
+               ! DQMC_TDM_Chi_q_orbital
+               ! below accumulate chi_xx(q=0)
+               write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
+               read(label(1:4)  ,*) band(k,1)
+               read(label(5:8)  ,*) band(k,2)
+               b1 = int(band(k,1))
+               b2 = int(band(k,2))
 
-             ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-             if (b1==b2) then
-               T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - val1
-             else
-               T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
+               if (b1==b2) then
+                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - val1
+               else
+                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+               endif
              endif
           end do
        end do
@@ -1345,7 +1360,7 @@ contains
     enddo
 
     ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-    if (T1%flags(ISPXX) == 1) then
+    if (T1%flagsFT(ISPXX) == 1) then
       do i = 0, T1%norb-1
         do j = 0, T1%norb-1
           T1%chixx_q0_orb_iw0(i,j,idx) = T1%chixx_q0_orb_iw0(i,j,idx) * factor &
@@ -1358,7 +1373,7 @@ contains
       enddo
     endif
 
-    if (T1%flags(ISPZZ) == 1) then
+    if (T1%flagsFT(ISPZZ) == 1) then
       do i = 0, T1%norb-1
         do j = 0, T1%norb-1
           T1%chizz_q0_orb_iw0(i,j,idx) = T1%chizz_q0_orb_iw0(i,j,idx) * factor &
@@ -1491,7 +1506,7 @@ contains
        enddo
 
        ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-       if (T1%flags(ISPXX) == 1) then
+       if (T1%flagsFT(ISPXX) == 1) then
          do i = 0, T1%norb-1
            do j = 0, T1%norb-1
              do k = 0, T1%L-1
@@ -1513,7 +1528,7 @@ contains
          enddo
        endif
 
-       if (T1%flags(ISPZZ) == 1) then
+       if (T1%flagsFT(ISPZZ) == 1) then
          do i = 0, T1%norb-1
            do j = 0, T1%norb-1
              do k = 0, T1%L-1
@@ -1624,7 +1639,7 @@ contains
           enddo
 
           ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-          if (T1%flags(ISPXX) == 1) then
+          if (T1%flagsFT(ISPXX) == 1) then
             n = T1%norb*T1%norb
             do k = 0, T1%L-1
               binptr => T1%chixx_q0_orb(k,:,:,1)
@@ -1639,7 +1654,7 @@ contains
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
-          if (T1%flags(ISPZZ) == 1) then
+          if (T1%flagsFT(ISPZZ) == 1) then
             n = T1%norb*T1%norb
             do k = 0, T1%L-1
               binptr => T1%chizz_q0_orb(k,:,:,1)
@@ -1705,7 +1720,7 @@ contains
             endif
           enddo
 
-          if (T1%flags(ISPXX) == 1) then
+          if (T1%flagsFT(ISPXX) == 1) then
             do k = 0, T1%L-1
               binptr => T1%chixx_q0_orb(k,:,:,1)
               aveptr => T1%chixx_q0_orb(k,:,:,avg) 
@@ -1719,7 +1734,7 @@ contains
             binptr =  binptr / T1%sgn(1)
           endif
 
-          if (T1%flags(ISPZZ) == 1) then
+          if (T1%flagsFT(ISPZZ) == 1) then
             do k = 0, T1%L-1
               binptr => T1%chizz_q0_orb(k,:,:,1)
               aveptr => T1%chizz_q0_orb(k,:,:,avg)
@@ -1780,7 +1795,7 @@ contains
             endif
           enddo
 
-          if (T1%flags(ISPXX) == 1) then
+          if (T1%flagsFT(ISPXX) == 1) then
             do k = 0, T1%L-1
               aveptr => T1%chixx_q0_orb(k,:,:,avg)
               aveptr =  aveptr / T1%sgn(avg)
@@ -1790,7 +1805,7 @@ contains
             aveptr =  aveptr / T1%sgn(avg)
           endif
 
-          if (T1%flags(ISPZZ) == 1) then
+          if (T1%flagsFT(ISPZZ) == 1) then
             do k = 0, T1%L-1
               aveptr => T1%chizz_q0_orb(k,:,:,avg)
               aveptr =  aveptr / T1%sgn(avg)
@@ -1841,7 +1856,7 @@ contains
             endif
           enddo
 
-          if (T1%flags(ISPXX) == 1) then
+          if (T1%flagsFT(ISPXX) == 1) then
             n = T1%norb*T1%norb
             do k = 0, T1%L-1
               binptr => T1%chixx_q0_orb(k,:,:,1)
@@ -1860,7 +1875,7 @@ contains
             errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
           endif
 
-          if (T1%flags(ISPZZ) == 1) then
+          if (T1%flagsFT(ISPZZ) == 1) then
             n = T1%norb*T1%norb
             do k = 0, T1%L-1
               binptr => T1%chizz_q0_orb(k,:,:,1)

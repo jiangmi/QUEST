@@ -70,7 +70,7 @@ module DQMC_STRUCT
   integer, parameter :: STRUCT_PHASE  = 7
   integer, parameter :: STRUCT_FT     = 8
 
-  integer, parameter :: label_len     = 40
+  integer, parameter :: label_len     = 50
   integer, parameter :: gname_len     = 80
 
   type Struct

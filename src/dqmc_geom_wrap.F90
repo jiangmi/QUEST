@@ -199,16 +199,15 @@ module DQMC_GEOM_WRAP
     S%F(:)       =  gwrap%Lattice%class_size(:)
     clab         => gwrap%Lattice%class_label
     do ic = 1, S%nClass       
-      !write(S%clabel(ic), '(2(i3), 3(f8.4))') (int(clab(ic, j)), j = 4, 5), (clab(ic, j), j = 1, 3)       
-      write(S%clabel(ic),'(2(i4),i5,3(f8.3))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
+      write(S%clabel(ic),'(2(i4),i5,3(f12.7))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
 
       ! 12/27/2015:
       ! Get relative vector between sites for nClass
       label = S%clabel(ic)
-      read(label(14:21),*) S%vecClass(ic,1)
-      read(label(22:29),*) S%vecClass(ic,2)
-      read(label(30:37),*) S%vecClass(ic,3)
-      write(*,*) 'label=', label(14:21), label(22:29), label(30:37)
+      read(label(14:25),*) S%vecClass(ic,1)
+      read(label(26:37),*) S%vecClass(ic,2)
+      read(label(38:49),*) S%vecClass(ic,3)
+      !write(*,*) 'label=', label(14:25), label(26:37), label(38:49)
 
       ! decide (-1)^x+y for computing S_AF and S_CDW in plane
       ! for bilayer cases, only include z=0 component

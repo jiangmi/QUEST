@@ -2669,13 +2669,13 @@ contains
     type(Hubbard), intent(in) :: Hub
     integer              :: n, nclass
 
-    integer              :: i, j, k, t, b1, b2, x, y, ibin
+    integer              :: i, j, k, t, b1, b2,  ibin
     integer,     pointer :: F(:)
     real(wp),    pointer :: vec(:,:)
     real(wp),    pointer :: values(:)
     character(label_len) :: label
     real                 :: a(T1%properties(ISPXX)%nclass,4)
-    real(wp)             :: chiv
+    real(wp)             :: chiv, x, y
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2692,17 +2692,19 @@ contains
       allocate(T1%chixx_q0_iw0_orb(0:T1%norb-1, 0:T1%norb-1, T1%err))
       allocate(T1%chixx_r0_iw0_orb(0:T1%norb-1, 0:T1%norb-1, T1%err))
 
+      write(*,*) 'nclass=', nclass
       do k = 1, nclass
         write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+        write(*,*) 'class', k, 'clabel=', label
         read(label(1:4)  ,*) a(k,1)
         read(label(5:8)  ,*) a(k,2)
-        read(label(14:21),*) a(k,3)
-        read(label(22:29),*) a(k,4)
+        read(label(14:25),*) a(k,3)
+        read(label(26:37),*) a(k,4)
         b1 = int(a(k,1))
         b2 = int(a(k,2))
-        x  = int(a(k,3))
-        y  = int(a(k,4))
-        !write(*,'(4(a5,i4))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
+        x  = real(a(k,3))
+        y  = real(a(k,4))
+        !write(*,'(2(a5,I4),2(a5,F12.7))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
 
         !Compute chi_q=0(tau,orb,orb,ibin)
         do ibin = T1%avg, 1, -1
@@ -2719,7 +2721,7 @@ contains
         enddo
 
         !Compute chi_r=0(tau,orb,orb,ibin)
-        if (x==0 .and. y==0) then
+        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           do ibin = T1%avg, 1, -1
             values => T1%chixx_r0_orb(0:T1%L-1,b1,b2,ibin)
             values = values + T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
@@ -2778,13 +2780,13 @@ contains
         write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
         read(label(1:4)  ,*) a(k,1)
         read(label(5:8)  ,*) a(k,2)
-        read(label(14:21),*) a(k,3)
-        read(label(22:29),*) a(k,4)
+        read(label(14:25),*) a(k,3)
+        read(label(26:37),*) a(k,4)
         b1 = int(a(k,1))
         b2 = int(a(k,2))
-        x  = int(a(k,3))
-        y  = int(a(k,4))
-        !write(*,'(4(a5,i4))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
+        x  = real(a(k,3))
+        y  = real(a(k,4))
+        !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
 
         !Compute chi_q=0(tau,orb,orb,ibin)
         do ibin = T1%avg, 1, -1
@@ -2801,7 +2803,7 @@ contains
         enddo
 
         !Compute chi_r=0(tau,orb,orb,ibin)
-        if (x==0 .and. y==0) then
+        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           do ibin = T1%avg, 1, -1
             values => T1%chizz_r0_orb(0:T1%L-1,b1,b2,ibin)
             values = values + T1%properties(ISPZZ)%values(k,0:T1%L-1,ibin)

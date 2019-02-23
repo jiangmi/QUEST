@@ -6,7 +6,7 @@ program geom
 ! This program used PBC
 implicit none
 
-real :: x, y, N=6.0, U=4.0, p, V=1.2
+real :: x, y, N=12.0, U=4.0, p, q, V=1.2, N2
 
 ! No. of atoms for each ring and their locations:
 integer, dimension(5) :: Natom_ring = (/ 6,12,18,24,30 /)
@@ -20,12 +20,15 @@ real, dimension(30) :: x5, y5
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
-integer :: i, j, k, a, b, Nring=1, Nhop_droplet
-character*3 :: str  
+integer :: i, j, k, a, b, Nring=2, Nhop_droplet
+character*3 :: str 
+character*1 :: s1
 real*8, allocatable :: r(:)
 
-write(str,'(I1)') Nring
-open(unit=11,file='g_Anderson_droplet_Nring'//str,status='replace', action='write')
+N2 = N*N
+write(s1,'(I1)') Nring
+write(str,'(I3)') int(N2)
+open(unit=11,file='g_Anderson_droplet_Nring'//s1//'_N'//adjustl(str),status='replace', action='write')
 write(11,"(A5)") "#NDIM"
 write(11,'(A1)') "2"
 write(11,'(A5)') "#PRIM"
@@ -313,28 +316,15 @@ end do
 do j = 0, N-1
   do i = 0, N-1
     a = j*N+i
-    if (mod(i+j,2)==0) then
-      if (a<10) then
-        write(11,'(I1, A1, I1, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
-               ," ","0.0"," ",0.0," ",0.0," ",0.0
-      else if (a<100) then
-        write(11,'(I2, A1, I2, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
-               ," ","0.0"," ",0.0," ",0.0," ",0.0
-          else
-        write(11,'(I3, A1, I3, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
-               ," ","0.0"," ",0.0," ",0.0," ",0.0
-      endif
-    else
-      if (a<10) then
-        write(11,'(I1, A1, I1, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
-               ," ","0.0"," ",-0.0," ",0.0," ",0.0
-      else if (a<100) then
-        write(11,'(I2, A1, I2, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
-               ," ","0.0"," ",-0.0," ",0.0," ",0.0
-          else
-        write(11,'(I3, A1, I3, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
-               ," ","0.0"," ",-0.0," ",0.0," ",0.0
-      endif
+    if (a<10) then
+      write(11,'(I1, A1, I1, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
+             ," ","0.0"," ",0.0," ",0.0," ",0.0
+    else if (a<100) then
+      write(11,'(I2, A1, I2, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
+             ," ","0.0"," ",0.0," ",0.0," ",0.0
+        else
+      write(11,'(I3, A1, I3, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') a," ",a," ","0.0"," ","0.0" &
+             ," ","0.0"," ",0.0," ",0.0," ",0.0
     endif
   end do
 end do
@@ -356,13 +346,23 @@ end do
 
 ! =======================================================
 write(11,'(A5)') "#SYMM"
-write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 0.0d0 0.0d0"
-write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 0.0d0 1.0d0 0.0d0"
-write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 1.0d0 0.0d0"
+do j = 0, N-1
+  write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",real(j), " ", real(j), " 0.0d0 1.0d0 1.0d0 0.0d0"
+enddo
+! droplet impurities:
+do j = -Nring, Nring
+  q = p+real(j)
+  write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",q, " ", q, " 1.0d0 1.0d0 1.0d0 0.0d0"
+enddo
+
+! center site of the lattice has additional symm
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 0.0d0 0.0d0"
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 0.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 -1.0d0 0.0d0"
 write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 -1.0d0 1.0d0 0.0d0"
-write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 0.0d0 0.0d0"
-write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 0.0d0 1.0d0 0.0d0"
-write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 1.0d0 0.0d0"
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 0.0d0 0.0d0"
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 0.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 -1.0d0 0.0d0"
 write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 -1.0d0 1.0d0 0.0d0"
 
 write(11,'(A4)') "#END"

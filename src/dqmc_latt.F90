@@ -270,7 +270,7 @@ subroutine construct_lattice(lattice)
    write(*,*)'index  label   type       X           Y         Z   '
    do iat=0,nsites-1
     icount=mod(iat,natom)
-    write(*,'(i3,1x,A,1x,i3,3f14.5)')iat,lattice%olabel(icount),icount,(cartpos(j,iat),j=1,3)
+    write(*,'(i3,1x,A,1x,i3,3f14.7)')iat,lattice%olabel(icount),icount,(cartpos(j,iat),j=1,3)
    enddo
    write(*,*)'================================================================'
  endif
@@ -454,6 +454,12 @@ integer function hoptowho(iat,delta,jat,lattice)
  if(j>=lattice%nsites)then
   !No site was found
   write(*,*)'Can''t find where',iat,' hops.'
+  write(*,*) 'j=',j, 'lattice%nsites=', lattice%nsites
+  write(*,*) 'xxat=', xxat(:)
+  write(*,*) 'xcartpos=', cartpos(:,iat)
+  write(*,*) 'deltax=', delta(:)
+  write(*,*) 'jat=',jat
+  write(*,*) 'lattice%natom', lattice%natom
   stop
  else
   hoptowho=j

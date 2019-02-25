@@ -2063,7 +2063,7 @@ contains
           tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
-        if (index(title, " 0.000   0.000   0.000") > 0) then
+        if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
           call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
         endif
         ! write(OPT1,'(1x)')
@@ -2103,7 +2103,7 @@ contains
           tmp(j+1, 1:2) = T1%properties(ISPXX)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(ISPXX)//" "//trim(adjustl(T1%properties(ISPXX)%clabel(i)))
-        if (index(title, " 0.000   0.000   0.000") > 0) then
+        if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
           call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
         endif
         ! write(OPT1,'(1x)')
@@ -2127,7 +2127,7 @@ contains
           tmp(j+1, 1:2) = T1%properties(ISPZZ)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(ISPZZ)//" "//trim(adjustl(T1%properties(ISPZZ)%clabel(i)))
-        if (index(title, " 0.000   0.000   0.000") > 0) then
+        if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
           call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
         endif
         ! write(OPT1,'(1x)')
@@ -2151,7 +2151,7 @@ contains
           tmp(j+1, 1:2) = T1%properties(IPAIR)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(IPAIR)//" "//trim(adjustl(T1%properties(IPAIR)%clabel(i)))
-        if (index(title, " 0.000   0.000   0.000") > 0) then
+        if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
           call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
         endif
         ! write(OPT1,'(1x)')

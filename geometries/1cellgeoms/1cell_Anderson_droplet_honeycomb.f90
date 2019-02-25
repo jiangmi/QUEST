@@ -24,7 +24,7 @@ real, dimension(30) :: x5, y5
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
-integer :: i, j, k, m, cnt=0, a, b, N=36, Nring=3, Nmetal, Nimp, Naj
+integer :: i, j, k, m, cnt=0, a, b, N=30, Nring=3, Nmetal, Nimp, Naj
 character*3 :: str 
 character*1 :: s1
 

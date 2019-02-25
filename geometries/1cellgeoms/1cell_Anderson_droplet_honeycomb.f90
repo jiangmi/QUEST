@@ -8,8 +8,8 @@ implicit none
 
 ! Variable declarations:
 
-real :: pa = 0.8660254  ! a little larger than sqrt(3)
-real :: U=4.0, V=1.2, xmin, xmax, x, y, p, q
+real :: pa = 0.8660254  ! sqrt(3)/2
+real :: tt=1.0, xmin, xmax, x, y, p, q
 
 ! No. of atoms for each ring and their locations:
 integer, dimension(5) :: Natom_ring = (/ 6,12,18,24,30 /)
@@ -24,13 +24,18 @@ real, dimension(30) :: x5, y5
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
-integer :: i, j, k, m, cnt=0, a, b, N=6, Nring=0, Nmetal, Nhop_droplet, Naj
+integer :: i, j, k, m, cnt=0, a, b, N=36, Nring=3, Nmetal, Nimp, Naj
 character*3 :: str 
 character*1 :: s1
 
 ! map from coordinate (x,y) into index of atom
 integer, allocatable :: xy2idx(:,:)   
-allocate(xy2idx(N, N))
+allocate(xy2idx(0:N-1, 0:N-1))
+Nimp = sum(Natom_ring(1:Nring))+1
+write(*,*) 'No. of droplet impurities = ', Nimp
+allocate(idx_atom(1:Nimp, 2))
+xy2idx = 0
+idx_atom = 0
 
 write(s1,'(I1)') Nring
 write(str,'(I3)') N
@@ -58,6 +63,7 @@ write(11,'(A3)') "0 1"
 
 ! orbitals: metal surface, (i,j) is coordinate of acquired atom
 write(11,'(A4)') "#ORB"
+write(*,*) N/3
 do j = 0, N/3
   xmin = N/3.0-j*0.5
   xmax = N/1.5+j*0.5
@@ -65,7 +71,7 @@ do j = 0, N/3
   do i = 0, N/3+j
     ! record the map from (x,y) to atom/orbital index
     xy2idx(i,j) = cnt
-    !write(*,*) i, " ", j, " ", xy2idx(i,j)  
+    write(*,*) i, " ", j, " ", xy2idx(i,j)  
   
     x = xmin+i
     if (cnt <10) then
@@ -89,7 +95,7 @@ do j = N/3+1, 2*N/3
   do i = 0, 2*N/3-(j-N/3-1)-1
     ! record the map from (x,y) to atom/orbital index
     xy2idx(i,j) = cnt
-    !write(*,*) i, " ", j, " ", xy2idx(i,j)
+    write(*,*) i, " ", j, " ", xy2idx(i,j)
     
     x = xmin+i
 
@@ -116,8 +122,6 @@ if (cnt/=Nmetal) then
 endif
 
 ! orbitals: Anderson droplet
-Nhop_droplet = sum(Natom_ring(1:Nring))+1
-allocate(idx_atom(Nhop_droplet, 2))
 p = N/3
 
 ! following denotes the *-th atom at jth line
@@ -248,20 +252,20 @@ do j = 0, 2*N/3
     b = xy2idx(i+1,j)
 
     if(a<10 .and. b<10) then
-      write(11,'(I1, A1, I1, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I1, A1, I1, A2, A3, A1, A3, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<10 .and. b<100) then
-      write(11,'(I1, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I1, A1, I2, A2, A3, A1, A3, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<100 .and. b<100) then
-      write(11,'(I2, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I2, A1, I2, A2, A3, A1, A3, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<100 .and. b<1000) then
-      write(11,'(I2, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I2, A1, I3, A2, A3, A1, A3, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else
-      write(11,'(I3, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I3, A1, I3, A2, A3, A1, A3, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","1.0"," ","0.0"&
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     endif
   enddo
 end do
@@ -284,20 +288,20 @@ do j = 0, 2*N/3-1
     endif
 
     if(a<10 .and. b<10) then
-      write(11,'(I1, A1, I1, A2, A3, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I1, A1, I1, A2, A3, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<10 .and. b<100) then
-      write(11,'(I1, A1, I2, A2, A3, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I1, A1, I2, A2, A3, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<100 .and. b<100) then
-      write(11,'(I2, A1, I2, A2, A3, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I2, A1, I2, A2, A3, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<100 .and. b<1000) then
-      write(11,'(I2, A1, I3, A2, A3, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I2, A1, I3, A2, A3, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else
-      write(11,'(I3, A1, I3, A2, A3, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I3, A1, I3, A2, A3, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     endif
   enddo
 end do
@@ -324,38 +328,38 @@ do j = 0, 2*N/3-1
     endif
 
     if(a<10 .and. b<10) then
-      write(11,'(I1, A1, I1, A2, A4, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","-0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I1, A1, I1, A2, A4, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","-0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<10 .and. b<100) then
-      write(11,'(I1, A1, I2, A2, A4, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","-0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I1, A1, I2, A2, A4, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","-0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<100 .and. b<100) then
-      write(11,'(I2, A1, I2, A2, A4, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","-0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I2, A1, I2, A2, A4, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","-0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else if (a<100 .and. b<1000) then
-      write(11,'(I2, A1, I3, A2, A4, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","-0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I2, A1, I3, A2, A4, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","-0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     else
-      write(11,'(I3, A1, I3, A2, A4, A1, F10.7, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","-0.5"," ",pa &
-               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+      write(11,'(I3, A1, I3, A2, A4, A1, F10.7, A1, A3, A2, F5.3, A2, F5.3, A2, A3)') a," ",b," ","-0.5"," ",pa &
+               ," ","0.0"," ",tt," ",tt," ","0.0"
     endif
   enddo
 end do
 
 ! local hopping between Anderson droplet and metal
-do i = 1, Nhop_droplet
+do i = 1, Nimp
     j = idx_atom(i,1)
     k = idx_atom(i,2)
     if(j<10 .and. k<10) then
-      write(11,'(I1, A1, I1, A2, A3, A1, A3, A1, A3, A2, F4.1, A2, F4.1, A2, A3)') j," ",k," ","0.0"," ","0.0"," ","1.0"," ",V," ",V," ","0.0"
+      write(11,'(I1, A1, I1, A27)') j," ",k," 0.0 0.0 1.0  Vval Vval 0.0"
     else if (j<10 .and. k<100) then
-      write(11,'(I1, A1, I2, A2, A3, A1, A3, A1, A3, A2, F4.1, A2, F4.1, A2, A3)') j," ",k," ","0.0"," ","0.0"," ","1.0"," ",V," ",V," ","0.0"
+      write(11,'(I1, A1, I2, A27)') j," ",k," 0.0 0.0 1.0  Vval Vval 0.0"
     else if (j<100 .and. k<100) then
-      write(11,'(I2, A1, I2, A2, A3, A1, A3, A1, A3, A2, F4.1, A2, F4.1, A2, A3)') j," ",k," ","0.0"," ","0.0"," ","1.0"," ",V," ",V," ","0.0"
+      write(11,'(I2, A1, I2, A27)') j," ",k," 0.0 0.0 1.0  Vval Vval 0.0"
     else if (j<100 .and. k<1000) then
-      write(11,'(I2, A1, I3, A2, A3, A1, A3, A1, A3, A2, F4.1, A2, F4.1, A2, A3)') j," ",k," ","0.0"," ","0.0"," ","1.0"," ",V," ",V," ","0.0"
+      write(11,'(I2, A1, I3, A27)') j," ",k," 0.0 0.0 1.0  Vval Vval 0.0"
     else
-      write(11,'(I3, A1, I3, A2, A3, A1, A3, A1, A3, A2, F4.1, A2, F4.1, A2, A3)') j," ",k," ","0.0"," ","0.0"," ","1.0"," ",V," ",V," ","0.0"
+      write(11,'(I3, A1, I3, A27)') j," ",k," 0.0 0.0 1.0  Vval Vval 0.0"
     endif
 end do
 
@@ -374,17 +378,17 @@ do a = 0, Nmetal-1
 end do
 
 ! local interaction for droplet = finite U
-do i = 1, Nhop_droplet
+do i = 1, Nimp
     k = idx_atom(i,2)
       if (k<10) then
-        write(11,'(I1, A1, I1, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') k," ",k," ","0.0"," ","0.0" &
-               ," ","0.0"," ",0.0," ",0.0," ",U
+        write(11,'(I1, A1, I1, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A6)') k," ",k," ","0.0"," ","0.0" &
+               ," ","0.0"," ",0.0," ",0.0,"  Uval"
       else if (k<100) then
-        write(11,'(I2, A1, I2, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') k," ",k," ","0.0"," ","0.0" &
-               ," ","0.0"," ",0.0," ",0.0," ",U
+        write(11,'(I2, A1, I2, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A6)') k," ",k," ","0.0"," ","0.0" &
+               ," ","0.0"," ",0.0," ",0.0,"  Uval"
           else
-        write(11,'(I3, A1, I3, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A2, F4.1)') k," ",k," ","0.0"," ","0.0" &
-               ," ","0.0"," ",0.0," ",0.0," ",U
+        write(11,'(I3, A1, I3, A2, A3, A2, A3, A2, A3, A2, F4.1, A2, F4.1, A6)') k," ",k," ","0.0"," ","0.0" &
+               ," ","0.0"," ",0.0," ",0.0,"  Uval"
       endif
 end do
 

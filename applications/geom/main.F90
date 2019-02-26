@@ -25,7 +25,7 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter
   character(len=slen) :: ofile  
-  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT10,OPT11
+  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT10,OPT11
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT

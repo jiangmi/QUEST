@@ -119,13 +119,13 @@ module DQMC_TDM
      integer  :: NkFT
      integer  :: norb      ! number of orbitals in unit cell
 
-     real(wp), pointer :: chixx_q0_orb(:,:,:)    ! chi_q0(nclass,tau,bin)
+     ! chi_q0(nclass,tau,bin) and chi_q0_iwm0(nclass,bin)
+     real(wp), pointer :: chixx_q0_orb(:,:,:)    
      real(wp), pointer :: chizz_q0_orb(:,:,:)
-     real(wp), pointer :: chixx_q0_orb_iw0(:,:)  ! chi_q0_iwm0(nclass,bin)
+     real(wp), pointer :: chixx_q0_orb_iw0(:,:)  
      real(wp), pointer :: chizz_q0_orb_iw0(:,:)
 
-     real(wp), pointer :: chixx_r0_orb(:,:,:)  
-     real(wp), pointer :: chizz_r0_orb(:,:,:)
+     ! composite Simpson's iw=0 summation for spinxx and spinzz
      real(wp), pointer :: chixx_r0_orb_iw0(:,:)  
      real(wp), pointer :: chizz_r0_orb_iw0(:,:)
 
@@ -226,7 +226,7 @@ contains
          call DQMC_TDM_InitProp(T1, S, Gwrap, i)
        endif
        if (T1%flagsFT(i)==1) then
-         call DQMC_TDM_InitPropFT(T1, S, Gwrap, i)
+         call DQMC_TDM_InitPropFT(T1, Gwrap, i)
        endif
     enddo
 
@@ -245,7 +245,6 @@ contains
 
     if (T1%flags(ISPXX) == 1) then
       allocate(T1%spinxxAvg(0:T1%L-1,T1%err))
-      allocate(T1%chixx_r0_orb(nClass, 0:T1%L-1, T1%err))
       allocate(T1%chixx_r0_orb_iw0(nClass, T1%err))
       T1%spinxxAvg = 0.0_wp
     endif
@@ -256,7 +255,6 @@ contains
 
     if (T1%flags(ISPZZ) == 1) then
       allocate(T1%spinzzAvg(0:T1%L-1,T1%err))
-      allocate(T1%chizz_r0_orb(nClass, 0:T1%L-1, T1%err))
       allocate(T1%chizz_r0_orb_iw0(nClass, T1%err))
       T1%spinzzAvg = 0.0_wp
     endif
@@ -311,7 +309,7 @@ contains
     type(GeomWrap), intent(in):: Gwrap
     integer, intent(in)       :: iprop
 
-    integer :: nk, np, npp, nclass
+    integer :: np, npp, nclass
 
     select case (iprop)
 
@@ -383,6 +381,73 @@ contains
 
   !--------------------------------------------------------------------!
 
+  subroutine DQMC_TDM_InitPropFT(T1, Gwrap, iprop)
+    use DQMC_Geom_Wrap
+    !
+    ! Purpose
+    ! =======
+    ! Initialize contents of tdmarray for iprop
+    !
+    ! Arguments
+    ! =========
+    type(TDM), intent(inout) :: T1
+    type(GeomWrap), intent(in):: Gwrap
+    integer, intent(in)       :: iprop
+
+    integer :: nk, np, npp
+
+    select case (iprop)
+
+       case(IGFUN, IGFUP, IGFDN)
+
+          np     = Gwrap%lattice%natom
+          npp    = (np*(np+1))/2
+          nk = Gwrap%RecipLattice%nclass_k
+          T1%properties(iprop)%nk     =  nk
+          T1%properties(iprop)%ftk    => Gwrap%RecipLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+       case(ISPXX, ISPZZ, IDENS, IPAIR)
+
+          np     = Gwrap%lattice%natom
+          npp    = (np*(np+1))/2
+          nk = Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+       case(ICOND, ICONDup, ICONDdn)
+
+          np     = Gwrap%lattice%natom
+          npp    = (np*(np+1))/2
+          nk = Gwrap%GammaLattice%nclass_k
+          ! originally nClass=1 for only q=0 components of conductivity
+          ! modify nClass=1 to be same as other quantities
+          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+        ! used in meas for average, for conductivity, renormalized by lattice
+        ! size
+        ! Below two lines are original for nClass=1 due to only q=0 components
+        !  allocate(T1%properties(iprop)%F(nclass))
+        !  T1%properties(iprop)%F(1) = S%nSite*2   ! *2 is for averaging x and y
+        !  directions
+     end select
+
+     T1%properties(iprop)%values  = 0.0_wp
+     if(associated(T1%properties(iprop)%valueskold)) &
+         T1%properties(iprop)%valueskold = 0.0_wp
+     if(associated(T1%properties(iprop)%valuesk)) &
+         T1%properties(iprop)%valuesk = 0.0_wp
+
+  end subroutine DQMC_TDM_InitPropFT
+
+  !--------------------------------------------------------------------!
+
   subroutine DQMC_TDM_InitFTw(T1)
     !
     ! Purpose
@@ -425,68 +490,6 @@ contains
     enddo
 
   end subroutine DQMC_TDM_InitFTw
-
-  !--------------------------------------------------------------------!
-
-  subroutine DQMC_TDM_InitPropFT(T1, S, Gwrap, iprop)
-    use DQMC_Geom_Wrap
-    !
-    ! Purpose
-    ! =======
-    ! Initialize contents of tdmarray for iprop
-    !
-    ! Arguments
-    ! =========
-    type(TDM), intent(inout) :: T1
-    type(Struct), intent(in)  :: S
-    type(GeomWrap), intent(in):: Gwrap
-    integer, intent(in)       :: iprop
-
-    integer :: nk, np, npp, nclass
-
-    select case (iprop)
-
-       case(IGFUN, IGFUP, IGFDN)
-
-          nk = Gwrap%RecipLattice%nclass_k
-          T1%properties(iprop)%nk     =  nk
-          T1%properties(iprop)%ftk    => Gwrap%RecipLattice%FourierC
-          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
-
-       case(ISPXX, ISPZZ, IDENS, IPAIR)
-
-          nk = Gwrap%GammaLattice%nclass_k
-          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
-          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
-          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
-
-       case(ICOND, ICONDup, ICONDdn)
-
-          nk = Gwrap%GammaLattice%nclass_k
-          ! originally nClass=1 for only q=0 components of conductivity
-          ! modify nClass=1 to be same as other quantities
-          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
-          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
-          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
-          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
-
-        ! used in meas for average, for conductivity, renormalized by lattice
-        ! size
-        ! Below two lines are original for nClass=1 due to only q=0 components
-        !  allocate(T1%properties(iprop)%F(nclass))
-        !  T1%properties(iprop)%F(1) = S%nSite*2   ! *2 is for averaging x and y
-        !  directions
-     end select
-
-     T1%properties(iprop)%values  = 0.0_wp
-     if(associated(T1%properties(iprop)%valueskold)) &
-         T1%properties(iprop)%valueskold = 0.0_wp
-     if(associated(T1%properties(iprop)%valuesk)) &
-         T1%properties(iprop)%valuesk = 0.0_wp
-
-  end subroutine DQMC_TDM_InitPropFT
 
   !--------------------------------------------------------------------!
 
@@ -535,7 +538,6 @@ contains
     endif
     if (T1%flags(ISPXX) == 1) then
       deallocate(T1%spinxxAvg)
-      deallocate(T1%chixx_r0_orb)
       deallocate(T1%chixx_r0_orb_iw0)
     endif
     if (T1%flagsFT(ISPXX) == 1) then
@@ -544,7 +546,6 @@ contains
     endif
     if (T1%flags(ISPZZ) == 1) then
       deallocate(T1%spinzzAvg)
-      deallocate(T1%chizz_r0_orb)
       deallocate(T1%chizz_r0_orb_iw0)
     endif
     if (T1%flagsFT(ISPZZ) == 1) then
@@ -580,7 +581,7 @@ contains
     type(Gtau), intent(inout)  :: tau
     
     ! ... Local var ...
-    integer  :: i, j, k, m, L, cnt, dt, i0, it, j0, jt, dtau, iprop
+    integer  :: i, k, m, L, cnt, dt, i0, it, j0, jt, dtau, iprop
     real(wp) :: sgn, factor, chiv
     real(wp),pointer :: up0t(:,:), upt0(:,:), dn0t(:,:), dnt0(:,:)
     real(wp),pointer :: up00(:,:), uptt(:,:), dn00(:,:), dntt(:,:)
@@ -660,46 +661,48 @@ contains
     do iprop = 1, NTDMARRAY
        if (T1%flags(iprop)==1) then       
           values => T1%properties(iprop)%values
-          do it = 0, L-1
-            do i = 1, T1%properties(iprop)%nClass
-              factor = sgn/(T1%properties(iprop)%F(i)*cnt)
+          do i = 1, T1%properties(iprop)%nClass
+            factor = sgn/(T1%properties(iprop)%F(i)*cnt)
+            values(i,0:L-1,T1%idx)   = values(i,0:L-1,T1%idx)   + factor*values(i,0:L-1,T1%tmp)
 
-              !Gather results in a particular bin:
-              values(i,it,T1%idx)   = values(i,it,T1%idx)   + factor*values(i,it,T1%tmp)
-            end do
+            !compute chixx_r0_iw0 with composite Simpson's rule:
+            if (iprop==ISPXX) then
+              chiv = 0.0
+              ! special term for chi(beta) = chi(0)
+              chiv = chiv + 2.*values(i,0,T1%tmp)
+              do it = 1, L-1, 2
+                chiv = chiv + 4.*values(i,it,T1%tmp)
+              enddo
+              do it = 2, L-2, 2
+                chiv = chiv + 2.*values(i,it,T1%tmp)
+              enddo
+              chiv = chiv * T1%dtau/3.0
+              T1%chixx_r0_orb_iw0(i,T1%idx) = T1%chixx_r0_orb_iw0(i,T1%idx) + factor*chiv  
+            endif
+
+            !compute chizz_r0_iw0 with composite Simpson's rule:
+            if (iprop==ISPZZ) then
+              chiv = 0.0
+              ! special term for chi(beta) = chi(0)
+              chiv = chiv + 2.*values(i,0,T1%tmp)
+              do it = 1, L-1, 2
+                chiv = chiv + 4.*values(i,it,T1%tmp)
+              enddo
+              do it = 2, L-2, 2
+                chiv = chiv + 2.*values(i,it,T1%tmp)
+              enddo
+              chiv = chiv * T1%dtau/3.0
+              T1%chizz_r0_orb_iw0(i,T1%idx) = T1%chizz_r0_orb_iw0(i,T1%idx) + factor*chiv  
+            endif
           end do
           values(:,:,T1%tmp)   = ZERO
        endif
     enddo
 
-    ! compute chixx_r0
-    if (T1%flags(ISPXX) == 1) then
-      factor = sgn/cnt
-      do i = 1, T1%properties(ISPXX)%nClass
-        T1%chixx_r0_orb(i,0:L-1,T1%idx) = T1%chixx_r0_orb(i,0:L-1,T1%idx) + factor*T1%chixx_r0_orb(i,0:L-1,T1%tmp)
-
-        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
-        chiv = 0.0
-        ! special term for chi(beta) = chi(0)
-        chiv = chiv + 2.*T1%chixx_r0_orb(i,0,T1%tmp)
-        do it = 1, T1%L-1, 2
-          chiv = chiv + 4.*T1%chixx_r0_orb(i,it,T1%tmp)
-        enddo
-        do it = 2, T1%L-2, 2
-          chiv = chiv + 2.*T1%chixx_r0_orb(i,it,T1%tmp)
-        enddo
-        chiv = chiv * T1%dtau/3.0
-        T1%chixx_r0_orb_iw0(i,T1%idx) = T1%chixx_r0_orb_iw0(i,T1%idx) + factor*chiv
-      enddo
-
-      T1%chixx_r0_orb(:,:,T1%tmp) = ZERO
-      T1%chixx_r0_orb_iw0(:,T1%tmp) = ZERO
-    endif
-
     ! compute chixx_q0
     if (T1%flagsFT(ISPXX) == 1) then
-      factor = sgn/cnt
       do i = 1, T1%properties(ISPXX)%nClass
+        factor = sgn/(T1%properties(ISPXX)%F(i)*cnt)
         T1%chixx_q0_orb(i,0:L-1,T1%idx) = T1%chixx_q0_orb(i,0:L-1,T1%idx) + factor*T1%chixx_q0_orb(i,0:L-1,T1%tmp)
 
         ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
@@ -720,34 +723,10 @@ contains
       T1%chixx_q0_orb_iw0(:,T1%tmp) = ZERO
     endif
 
-    ! compute chizz_r0
-    if (T1%flags(ISPZZ) == 1) then
-      factor = sgn/cnt
-      do i = 1, T1%properties(ISPZZ)%nClass
-        T1%chizz_r0_orb(i,0:L-1,T1%idx) = T1%chizz_r0_orb(i,0:L-1,T1%idx) + factor*T1%chizz_r0_orb(i,0:L-1,T1%tmp)
-
-        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
-        chiv = 0.0
-        ! special term for chi(beta) = chi(0)
-        chiv = chiv + 2.*T1%chizz_r0_orb(i,0,T1%tmp)
-        do it = 1, T1%L-1, 2
-          chiv = chiv + 4.*T1%chizz_r0_orb(i,it,T1%tmp)
-        enddo
-        do it = 2, T1%L-2, 2
-          chiv = chiv + 2.*T1%chizz_r0_orb(i,it,T1%tmp)
-        enddo
-        chiv = chiv * T1%dtau/3.0
-        T1%chizz_r0_orb_iw0(i,T1%idx) = T1%chizz_r0_orb_iw0(i,T1%idx) + factor*chiv
-      enddo
-
-      T1%chizz_r0_orb(:,:,T1%tmp) = ZERO
-      T1%chizz_r0_orb_iw0(:,T1%tmp) = ZERO
-    endif
-
     ! compute chizz_q0
     if (T1%flagsFT(ISPZZ) == 1) then
-      factor = sgn/cnt
       do i = 1, T1%properties(ISPZZ)%nClass
+        factor = sgn/(T1%properties(ISPZZ)%F(i)*cnt)
         T1%chizz_q0_orb(i,0:L-1,T1%idx) = T1%chizz_q0_orb(i,0:L-1,T1%idx) + factor*T1%chizz_q0_orb(i,0:L-1,T1%tmp)
 
         ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
@@ -786,19 +765,19 @@ contains
     ! =========
     !
     type(TDM), intent(inout)    :: T1
-    real(wp), intent(in)         :: up0t(:,:), upt0(:,:)
-    real(wp), intent(in)         :: dnt0(:,:), dn0t(:,:)
-    real(wp), intent(in)         :: up00(:,:), uptt(:,:)
-    real(wp), intent(in)         :: dn00(:,:), dntt(:,:)
-    integer, intent(in)          :: it, i0
+    real(wp), intent(in)        :: up0t(:,:), upt0(:,:)
+    real(wp), intent(in)        :: dnt0(:,:), dn0t(:,:)
+    real(wp), intent(in)        :: up00(:,:), uptt(:,:)
+    real(wp), intent(in)        :: dn00(:,:), dntt(:,:)
+    integer, intent(in)         :: it, i0
  
     ! ... Local scalar ...
 
     character(label_len) :: label
     integer  :: i, j, k, dt, dt1, dt2, b1, b2
-    real*8   :: a,b,c,d  
+    real*8   :: a,b,c,d,x,y
     real(wp), pointer :: value1(:), value2(:)
-    real(wp) :: factor, x, y
+    real(wp) :: factor
     real     :: band(T1%properties(ISPXX)%nclass,4)
     real(wp) :: val1, val2
 
@@ -896,25 +875,19 @@ contains
            !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
            !       + up0t(j,i)*dnt0(i,j))/2
 
-             ! compute chi_r=0
-             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-             read(label(1:4),*) band(k,1)
-             read(label(5:8),*) band(k,2)
-             read(label(14:25),*) band(k,3)
-             read(label(26:37),*) band(k,4)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
-             x  = real(band(k,3))
-             y  = real(band(k,4))
-             !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
-
-             if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-               T1%chixx_r0_orb(k,dt1,T1%tmp) = T1%chixx_r0_orb(k,dt1,T1%tmp) - val1
-               T1%chixx_r0_orb(k,dt2,T1%tmp) = T1%chixx_r0_orb(k,dt2,T1%tmp) - val2
-             endif
-
              ! compute chi_q=0
              if (T1%flagsFT(ISPXX) == 1) then
+               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+               read(label(1:4),*) band(k,1)
+               read(label(5:8),*) band(k,2)
+               read(label(14:25),*) band(k,3)
+               read(label(26:37),*) band(k,4)
+               b1 = int(band(k,1))
+               b2 = int(band(k,2))
+               x  = real(band(k,3))
+               y  = real(band(k,4))
+               !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
+
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
                if (b1==b2) then
                  T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - val1
@@ -941,24 +914,19 @@ contains
              value1(k)  = value1(k) - val1
              value2(k)  = value2(k) - val2
 
-             ! compute chi_r=0
-             write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-             read(label(1:4),*) band(k,1)
-             read(label(5:8),*) band(k,2)
-             read(label(14:25),*) band(k,3)
-             read(label(26:37),*) band(k,4)
-             b1 = int(band(k,1))
-             b2 = int(band(k,2))
-             x  = real(band(k,3))
-             y  = real(band(k,4))
-               
-             if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-               T1%chizz_r0_orb(k,dt1,T1%tmp) = T1%chizz_r0_orb(k,dt1,T1%tmp) - val1
-               T1%chizz_r0_orb(k,dt2,T1%tmp) = T1%chizz_r0_orb(k,dt2,T1%tmp) - val2
-             endif
-
              ! compute chi_q=0
              if (T1%flagsFT(ISPZZ) == 1) then
+               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+               read(label(1:4),*) band(k,1)
+               read(label(5:8),*) band(k,2)
+               read(label(14:25),*) band(k,3)
+               read(label(26:37),*) band(k,4)
+               b1 = int(band(k,1))
+               b2 = int(band(k,2))
+               x  = real(band(k,3))
+               y  = real(band(k,4))
+               !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
+
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
                if (b1==b2) then
                  T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - val1
@@ -1230,11 +1198,6 @@ contains
                else
                  T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - 0.5*val1
                endif
-
-               ! compute chi_r=0
-               if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-                 T1%chixx_r0_orb(k,dt1,T1%tmp) = T1%chixx_r0_orb(k,dt1,T1%tmp) - val1
-               endif
              endif
           end do
        end do
@@ -1270,11 +1233,6 @@ contains
                  T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - val1
                else
                  T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - 0.5*val1
-               endif
-
-               ! compute chi_r=0
-               if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-                 T1%chizz_r0_orb(k,dt1,T1%tmp) = T1%chizz_r0_orb(k,dt1,T1%tmp) - val1
                endif
              endif
           end do
@@ -1424,7 +1382,6 @@ contains
 
     if (T1%flags(ISPXX) == 1) then
       do i = 1, T1%properties(ISPXX)%nClass 
-        T1%chixx_r0_orb(i,0:T1%L-1,idx) = T1%chixx_r0_orb(i,0:T1%L-1,idx) * factor
         T1%chixx_r0_orb_iw0(i,idx) = T1%chixx_r0_orb_iw0(i,idx) * factor
       enddo
     endif
@@ -1438,7 +1395,6 @@ contains
 
     if (T1%flags(ISPZZ) == 1) then
       do i = 1, T1%properties(ISPZZ)%nClass 
-        T1%chizz_r0_orb(i,0:T1%L-1,idx) = T1%chizz_r0_orb(i,0:T1%L-1,idx) * factor
         T1%chizz_r0_orb_iw0(i,idx) = T1%chizz_r0_orb_iw0(i,idx) * factor
       enddo
     endif
@@ -1571,15 +1527,6 @@ contains
 
        if (T1%flags(ISPXX) == 1) then
          do i = 1, T1%properties(ISPXX)%nClass
-           do k = 0, T1%L-1
-             data =  T1%chixx_r0_orb(i,k,1:n)
-             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chixx_r0_orb(i,k,avg) = average
-             T1%chixx_r0_orb(i,k,err) = error
-           enddo
-         enddo
-
-         do i = 1, T1%properties(ISPXX)%nClass
            data =  T1%chixx_r0_orb_iw0(i,1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
            T1%chixx_r0_orb_iw0(i,avg) = average
@@ -1606,15 +1553,6 @@ contains
        endif
 
        if (T1%flags(ISPZZ) == 1) then
-         do i = 1, T1%properties(ISPZZ)%nClass
-           do k = 0, T1%L-1
-             data =  T1%chizz_r0_orb(i,k,1:n)
-             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chizz_r0_orb(i,k,avg) = average
-             T1%chizz_r0_orb(i,k,err) = error
-           enddo
-         enddo
-
          do i = 1, T1%properties(ISPZZ)%nClass
            data =  T1%chizz_r0_orb_iw0(i,1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
@@ -1731,13 +1669,6 @@ contains
 
           if (T1%flags(ISPXX) == 1) then
             n = T1%properties(ISPXX)%nClass
-            do k = 0, T1%L-1
-              bins => T1%chixx_r0_orb(:,k,1)
-              aves => T1%chixx_r0_orb(:,k,avg)             
-              call mpi_allreduce(bins, aves, n, mpi_double, &
-                 mpi_sum, mpi_comm_world, mpi_err)
-            enddo
-
             bins => T1%chixx_r0_orb_iw0(:,1)
             aves => T1%chixx_r0_orb_iw0(:,avg)
             call mpi_allreduce(bins, aves, n, mpi_double, &
@@ -1761,13 +1692,6 @@ contains
 
           if (T1%flags(ISPZZ) == 1) then
             n = T1%properties(ISPZZ)%nClass
-            do k = 0, T1%L-1
-              bins => T1%chizz_r0_orb(:,k,1)
-              aves => T1%chizz_r0_orb(:,k,avg)             
-              call mpi_allreduce(bins, aves, n, mpi_double, &
-                 mpi_sum, mpi_comm_world, mpi_err)
-            enddo
-
             bins => T1%chizz_r0_orb_iw0(:,1)
             aves => T1%chizz_r0_orb_iw0(:,avg)
             call mpi_allreduce(bins, aves, n, mpi_double, &
@@ -1841,13 +1765,6 @@ contains
           enddo
 
           if (T1%flags(ISPXX) == 1) then
-            do k = 0, T1%L-1
-              binptr => T1%chixx_r0_orb(:,:,1)
-              aveptr => T1%chixx_r0_orb(:,:,avg) 
-              binptr = (aveptr - binptr) / dble(nproc - 1)
-              binptr =  binptr / T1%sgn(1)
-            enddo
-
             bins => T1%chixx_r0_orb_iw0(:,1)
             aves => T1%chixx_r0_orb_iw0(:,avg)
             bins = (aveptr - binptr) / dble(nproc - 1)
@@ -1869,13 +1786,6 @@ contains
           endif
 
           if (T1%flags(ISPZZ) == 1) then
-            do k = 0, T1%L-1
-              binptr => T1%chizz_r0_orb(:,:,1)
-              aveptr => T1%chizz_r0_orb(:,:,avg) 
-              binptr = (aveptr - binptr) / dble(nproc - 1)
-              binptr =  binptr / T1%sgn(1)
-            enddo
-
             bins => T1%chizz_r0_orb_iw0(:,1)
             aves => T1%chizz_r0_orb_iw0(:,avg)
             bins = (aveptr - binptr) / dble(nproc - 1)
@@ -1944,9 +1854,6 @@ contains
           enddo
 
           if (T1%flags(ISPXX) == 1) then
-            aveptr => T1%chixx_r0_orb(:,:,avg)
-            aveptr =  aveptr / T1%sgn(avg)
-
             aves => T1%chixx_r0_orb_iw0(:,avg)
             aves =  aveptr / T1%sgn(avg)
           endif
@@ -1960,9 +1867,6 @@ contains
           endif
 
           if (T1%flags(ISPZZ) == 1) then
-            aveptr => T1%chizz_r0_orb(:,:,avg)
-            aveptr =  aveptr / T1%sgn(avg)
-
             aves => T1%chizz_r0_orb_iw0(:,avg)
             aves =  aveptr / T1%sgn(avg)
           endif
@@ -2017,14 +1921,6 @@ contains
           enddo
 
           if (T1%flags(ISPXX) == 1) then
-            n = T1%properties(ISPXX)%nClass * T1%L
-            binptr => T1%chixx_r0_orb(:,:,1)
-            aveptr => T1%chixx_r0_orb(:,:,avg)
-            errptr => T1%chixx_r0_orb(:,:,err)
-            call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
-                mpi_sum, mpi_comm_world, mpi_err)
-            errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
-
             n = T1%properties(ISPXX)%nClass
             bins => T1%chixx_r0_orb_iw0(:,1)
             aves => T1%chixx_r0_orb_iw0(:,avg)
@@ -2053,14 +1949,6 @@ contains
           endif
 
           if (T1%flags(ISPZZ) == 1) then
-            n = T1%properties(ISPZZ)%nClass * T1%L
-            binptr => T1%chizz_r0_orb(:,:,1)
-            aveptr => T1%chizz_r0_orb(:,:,avg)
-            errptr => T1%chizz_r0_orb(:,:,err)
-            call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
-                mpi_sum, mpi_comm_world, mpi_err)
-            errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
-
             n = T1%properties(ISPZZ)%nClass
             bins => T1%chizz_r0_orb_iw0(:,1)
             aves => T1%chizz_r0_orb_iw0(:,avg)
@@ -2161,6 +2049,7 @@ contains
 
     integer             :: i, j, t, iprop, OPT1, b1, b2
     real(wp)            :: tmp(T1%L, 2)
+    real(wp)            :: x, y
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
     character(len=80)   :: ofile
@@ -2191,19 +2080,25 @@ contains
 
     ! print out chi_q0_iw0 and chi_q0(tau):
     if (T1%flagsFT(ISPXX)==1 .and. T1%flagsFT(ISPZZ)==1) then
-      call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
+      call DQMC_open_file('chi_q0_iw0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
       write(OPT1,"(a)") "   b   b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
 
       do i = 1, T1%properties(ISPXX)%nclass
         write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
         read(lab(1:4),*) band(i,1)
         read(lab(5:8),*) band(i,2)
+        read(lab(14:25),*) band(i,3)
+        read(lab(26:37),*) band(i,4)
         b1 = int(band(i,1))
         b2 = int(band(i,2))
+        x  = real(band(i,3))
+        y  = real(band(i,4))
 
-        write(OPT1,'(2(i4),4(e16.8))') b1,b2, &
+        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
+          write(OPT1,'(2(i4),4(e16.8))') b1,b2, &
                  T1%chixx_q0_orb_iw0(i,T1%avg), T1%chixx_q0_orb_iw0(i,T1%err), &
                  T1%chizz_q0_orb_iw0(i,T1%avg), T1%chizz_q0_orb_iw0(i,T1%err)
+        endif
       enddo
 
       write(OPT1,"(a)") "==================================================================================="
@@ -2212,13 +2107,20 @@ contains
         write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
         read(lab(1:4),*) band(i,1)
         read(lab(5:8),*) band(i,2)
+        read(lab(14:25),*) band(i,3)
+        read(lab(26:37),*) band(i,4)
         b1 = int(band(i,1))
         b2 = int(band(i,2))
-        do t = 0, T1%L-1
-          write(OPT1,'(2(i4),f10.5,4(f16.8))') b1, b2, t*T1%dtau, &
+        x  = real(band(i,3))
+        y  = real(band(i,4))
+
+        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
+          do t = 0, T1%L-1
+            write(OPT1,'(2(i4),f10.5,4(f16.8))') b1, b2, t*T1%dtau, &
                  T1%chixx_q0_orb(i,t,T1%avg), T1%chixx_q0_orb(i,t,T1%err), &
                  T1%chizz_q0_orb(i,t,T1%avg), T1%chizz_q0_orb(i,t,T1%err)
-        enddo
+          enddo
+        endif
       enddo
     endif
 
@@ -2241,8 +2143,9 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1
     integer                 :: OPT1, OPT2, OPT3, OPT4, OPT5
 
-    integer             :: i, j, t, b1, b2
+    integer             :: i, j, b1, b2
     real(wp)            :: tmp(T1%L, 2)
+    real(wp)            :: x, y
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
     character(len=80)   :: ofile
@@ -2372,39 +2275,25 @@ contains
     !############################################################################
     ! print out chi_r0_iw0 and chi_r0(tau):
     if (T1%flags(ISPXX)==1 .and. T1%flags(ISPZZ)==1) then
-      call DQMC_open_file('chi_r0_orb_'//adjustl(trim(ofile)),'replace', OPT5)
+      call DQMC_open_file('chi_r0_iw0_orb_'//adjustl(trim(ofile)),'replace', OPT5)
       write(OPT5,"(a)") "   b   b     chi_xx(r=0,iw=0)       err    chi_zz(r=0,iw=0)       err"
 
       do i = 1, T1%properties(ISPXX)%nclass
         write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
         read(lab(1:4),*) band(i,1)
         read(lab(5:8),*) band(i,2)
+        read(lab(14:25),*) band(i,3)
+        read(lab(26:37),*) band(i,4)
         b1 = int(band(i,1))
         b2 = int(band(i,2))
+        x  = real(band(i,3))
+        y  = real(band(i,4))
 
-        if (abs(T1%chixx_r0_orb_iw0(i,T1%avg))>1.e-4 .or. abs(T1%chizz_r0_orb_iw0(i,T1%avg))>1.e-4) then
+        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           write(OPT5,'(2(i4),4(e16.8))') b1,b2, &
-                   T1%chixx_r0_orb_iw0(i,T1%avg), T1%chixx_r0_orb_iw0(i,T1%err), &
-                   T1%chizz_r0_orb_iw0(i,T1%avg), T1%chizz_r0_orb_iw0(i,T1%err)
+                 T1%chixx_r0_orb_iw0(i,T1%avg), T1%chixx_r0_orb_iw0(i,T1%err), &
+                 T1%chizz_r0_orb_iw0(i,T1%avg), T1%chizz_r0_orb_iw0(i,T1%err)
         endif
-      enddo
-
-      write(OPT5,"(a)") "==================================================================================="
-      write(OPT5,"(a)") "   b   b    tau         chi_xx(r=0)           err       chi_zz(r=0)             err"
-      do i = 1, T1%properties(ISPXX)%nclass
-        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
-        read(lab(1:4),*) band(i,1)
-        read(lab(5:8),*) band(i,2)
-        b1 = int(band(i,1))
-        b2 = int(band(i,2))
-
-        do t = 0, T1%L-1
-          if (abs(T1%chixx_r0_orb(i,t,T1%avg))>1.e-4 .or. abs(T1%chizz_r0_orb(i,t,T1%avg))>1.e-4) then
-            write(OPT5,'(2(i4),f10.5,4(f16.8))') b1, b2, t*T1%dtau, &
-                   T1%chixx_r0_orb(i,t,T1%avg), T1%chixx_r0_orb(i,t,T1%err), &
-                   T1%chizz_r0_orb(i,t,T1%avg), T1%chizz_r0_orb(i,t,T1%err)
-          endif
-        enddo
       enddo
     endif
 
@@ -2477,9 +2366,9 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer :: ip, it, n, nproc, i
+    integer :: ip, it, nproc, i
 
-    complex(wp), pointer  :: average(:), binval(:), error(:), temp(:)
+    complex(wp), pointer  :: average(:), binval(:), error(:)
  
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
@@ -2523,9 +2412,7 @@ contains
         if (T1%flags(ip)==1) then
           if (.not.associated(T1%properties(ip)%valueskold)) cycle
     
-          n = T1%properties(ip)%nk * T1%properties(ip)%np*(T1%properties(ip)%np+1)/2
-          allocate(temp(n))
-          
+          n = T1%properties(ip)%nk * T1%properties(ip)%np*(T1%properties(ip)%np+1)/2          
           do it = 0, T1%L-1
              !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
              !and binval is JackKnifed among proc
@@ -2973,9 +2860,9 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer :: ip, it, n, nproc, i
+    integer :: ip, it, nproc, i
 
-    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
+    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:)
  
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
@@ -3344,7 +3231,7 @@ contains
 
     integer :: nproc, i, j, s, Nq
 
-    real(wp), pointer  :: average(:), binval(:), error(:), temp(:)
+    real(wp), pointer  :: average(:), binval(:), error(:)
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
 

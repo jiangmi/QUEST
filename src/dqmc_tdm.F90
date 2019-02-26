@@ -119,15 +119,15 @@ module DQMC_TDM
      integer  :: NkFT
      integer  :: norb      ! number of orbitals in unit cell
 
-     real(wp), pointer :: chixx_q_orb(:,:,:,:)  ! chi_q=0(tau,orbital,orbital,bin)
-     real(wp), pointer :: chizz_q_orb(:,:,:,:)
-     real(wp), pointer :: chixx_q0_iw0_orb(:,:,:)  ! chi_q=0_iwm=0(orbital,orbital,bin)
-     real(wp), pointer :: chizz_q0_iw0_orb(:,:,:)
+     real(wp), pointer :: chixx_q0_orb(:,:,:)    ! chi_q0(nclass,tau,bin)
+     real(wp), pointer :: chizz_q0_orb(:,:,:)
+     real(wp), pointer :: chixx_q0_orb_iw0(:,:)  ! chi_q0_iwm0(nclass,bin)
+     real(wp), pointer :: chizz_q0_orb_iw0(:,:)
 
-     real(wp), pointer :: chixx_r0_orb(:,:,:,:)  
-     real(wp), pointer :: chizz_r0_orb(:,:,:,:)
-     real(wp), pointer :: chixx_r0_iw0_orb(:,:,:)  
-     real(wp), pointer :: chizz_r0_iw0_orb(:,:,:)
+     real(wp), pointer :: chixx_r0_orb(:,:,:)  
+     real(wp), pointer :: chizz_r0_orb(:,:,:)
+     real(wp), pointer :: chixx_r0_orb_iw0(:,:)  
+     real(wp), pointer :: chizz_r0_orb_iw0(:,:)
 
      real(wp) :: dtau
      real(wp), pointer :: sgn(:)
@@ -142,12 +142,6 @@ module DQMC_TDM
 
      ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
      real(wp), pointer :: swaveAvg(:,:)
-
-     ! record Chi_FM and Chi_AF
-     ! Here directly compute them within the dqmc_compute subroutine
-     ! instead of Fourier transform or via DQMC_TDM_Chi_orbital subroutine
-     real(wp), pointer :: chixx_q0_orb(:,:,:,:), chizz_q0_orb(:,:,:,:)   ! : stores bins only
-     real(wp), pointer :: chixx_q0_orb_iw0(:,:,:), chizz_q0_orb_iw0(:,:,:)
 
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
@@ -198,13 +192,14 @@ contains
     type(GeomWrap), intent(in)  :: Gwrap
 
     ! ... local variables ...
-    integer     :: i,j
+    integer     :: i,j,nClass
 
     ! ... Executable ...
 
     T1%L      =  L
     T1%dtau   =  dtau
     T1%nbin   =  nBin
+    nclass    =  S%nClass
 
     T1%tmp    =  nBin + 1
     T1%avg    =  nBin + 1
@@ -250,20 +245,24 @@ contains
 
     if (T1%flags(ISPXX) == 1) then
       allocate(T1%spinxxAvg(0:T1%L-1,T1%err))
+      allocate(T1%chixx_r0_orb(nClass, 0:T1%L-1, T1%err))
+      allocate(T1%chixx_r0_orb_iw0(nClass, T1%err))
       T1%spinxxAvg = 0.0_wp
     endif
     if (T1%flagsFT(ISPXX) == 1) then
-      allocate(T1%chixx_q0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chixx_q0_orb_iw0(0:T1%norb-1, 0:T1%norb-1, T1%err))
+      allocate(T1%chixx_q0_orb(nClass, 0:T1%L-1, T1%err))
+      allocate(T1%chixx_q0_orb_iw0(nClass, T1%err))
     endif
 
     if (T1%flags(ISPZZ) == 1) then
       allocate(T1%spinzzAvg(0:T1%L-1,T1%err))
+      allocate(T1%chizz_r0_orb(nClass, 0:T1%L-1, T1%err))
+      allocate(T1%chizz_r0_orb_iw0(nClass, T1%err))
       T1%spinzzAvg = 0.0_wp
     endif
     if (T1%flagsFT(ISPZZ) == 1) then
-      allocate(T1%chizz_q0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chizz_q0_orb_iw0(0:T1%norb-1, 0:T1%norb-1, T1%err))
+      allocate(T1%chizz_q0_orb(nClass, 0:T1%L-1, T1%err))
+      allocate(T1%chizz_q0_orb_iw0(nClass, T1%err))
     endif
 
     if (T1%flags(IPAIR) == 1) then
@@ -271,6 +270,7 @@ contains
       T1%swaveAvg = 0.0_wp
     endif
 
+    ! used for conductivity, d-wave paring sus etc.
     ! IMPORTANT: the indices of Gtau(1:nsites) and hamilt(0:nsites-1) are different
     ! Note difference from rt etc. in dqmc_hamilt.F90
     ! So switch the values to from 1 to nSite, instead of 0 to nSite-1
@@ -294,51 +294,6 @@ contains
     enddo
 
   end subroutine DQMC_TDM_Init
-
-  !--------------------------------------------------------------------!
-
-  subroutine DQMC_TDM_InitFTw(T1)
-    !
-    ! Purpose
-    ! =======
-    ! Fill the matricess of fourier coefficients necessary to transform
-    ! from imaginary time to imaginary frequency. Two matrices are
-    ! needed: ftwbos for bosonic fields (spin, charge...) and 
-    ! ftwfer for fermionic fields (particles)
-    !
-    ! Arguments
-    ! =========
-    !
-    type(TDM), intent(inout) :: T1      ! TDM to be freed
-
-    integer :: iw, it, L
-    real(wp) :: x, pi
-
-    ! ... Executable ...
-
-    if (.not.T1%compute) return
-
-    L = T1%L
-    pi = acos(-1.0_wp)
-
-    allocate(T1%ftwbos(0:L-1,0:L-1))
-    allocate(T1%ftwfer(0:L-1,0:L-1))
-
-    do iw = 0, L-1
-       do it = 0, L-1
-          x = 2*it*iw*pi/L
-          T1%ftwbos(iw,it) = T1%dtau * cmplx(cos(x),sin(x))
-       enddo
-    enddo
-
-    do iw = 0, L-1
-       do it = 0, L-1
-          x = 2*it*(iw+0.5_wp)*pi/L
-          T1%ftwfer(iw,it) = T1%dtau * cmplx(cos(x),sin(x))
-       enddo
-    enddo
-
-  end subroutine DQMC_TDM_InitFTw
 
   !--------------------------------------------------------------------!
 
@@ -425,6 +380,51 @@ contains
          T1%properties(iprop)%valuesk = 0.0_wp
 
   end subroutine DQMC_TDM_InitProp
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM_InitFTw(T1)
+    !
+    ! Purpose
+    ! =======
+    ! Fill the matricess of fourier coefficients necessary to transform
+    ! from imaginary time to imaginary frequency. Two matrices are
+    ! needed: ftwbos for bosonic fields (spin, charge...) and 
+    ! ftwfer for fermionic fields (particles)
+    !
+    ! Arguments
+    ! =========
+    !
+    type(TDM), intent(inout) :: T1      ! TDM to be freed
+
+    integer :: iw, it, L
+    real(wp) :: x, pi
+
+    ! ... Executable ...
+
+    if (.not.T1%compute) return
+
+    L = T1%L
+    pi = acos(-1.0_wp)
+
+    allocate(T1%ftwbos(0:L-1,0:L-1))
+    allocate(T1%ftwfer(0:L-1,0:L-1))
+
+    do iw = 0, L-1
+       do it = 0, L-1
+          x = 2*it*iw*pi/L
+          T1%ftwbos(iw,it) = T1%dtau * cmplx(cos(x),sin(x))
+       enddo
+    enddo
+
+    do iw = 0, L-1
+       do it = 0, L-1
+          x = 2*it*(iw+0.5_wp)*pi/L
+          T1%ftwfer(iw,it) = T1%dtau * cmplx(cos(x),sin(x))
+       enddo
+    enddo
+
+  end subroutine DQMC_TDM_InitFTw
 
   !--------------------------------------------------------------------!
 
@@ -520,19 +520,6 @@ contains
        endif
     enddo
 
-    if (T1%flags(ISPXX) == 1) then
-      deallocate(T1%chixx_q_orb)
-      deallocate(T1%chixx_r0_orb)
-      deallocate(T1%chixx_q0_iw0_orb)
-      deallocate(T1%chixx_r0_iw0_orb)
-    endif
-    if (T1%flags(ISPZZ) == 1) then
-      deallocate(T1%chizz_q_orb)
-      deallocate(T1%chizz_r0_orb)
-      deallocate(T1%chizz_q0_iw0_orb)
-      deallocate(T1%chizz_r0_iw0_orb)
-    endif
-
     deallocate(T1%ftwbos)
     deallocate(T1%ftwfer)
     deallocate(T1%properties)
@@ -548,6 +535,8 @@ contains
     endif
     if (T1%flags(ISPXX) == 1) then
       deallocate(T1%spinxxAvg)
+      deallocate(T1%chixx_r0_orb)
+      deallocate(T1%chixx_r0_orb_iw0)
     endif
     if (T1%flagsFT(ISPXX) == 1) then
       deallocate(T1%chixx_q0_orb)
@@ -555,6 +544,8 @@ contains
     endif
     if (T1%flags(ISPZZ) == 1) then
       deallocate(T1%spinzzAvg)
+      deallocate(T1%chizz_r0_orb)
+      deallocate(T1%chizz_r0_orb_iw0)
     endif
     if (T1%flagsFT(ISPZZ) == 1) then
       deallocate(T1%chizz_q0_orb)
@@ -681,64 +672,100 @@ contains
        endif
     enddo
 
-    if (T1%flagsFT(ISPXX) == 1) then
-      do i = 0, T1%norb-1
-        do j = 0, T1%norb-1
-          do it = 0, L-1
-            factor = sgn/cnt
-            T1%chixx_q0_orb(it,i,j,T1%idx) = T1%chixx_q0_orb(it,i,j,T1%idx) + factor*T1%chixx_q0_orb(it,i,j,T1%tmp)
-          enddo
+    ! compute chixx_r0
+    if (T1%flags(ISPXX) == 1) then
+      factor = sgn/cnt
+      do i = 1, T1%properties(ISPXX)%nClass
+        T1%chixx_r0_orb(i,0:L-1,T1%idx) = T1%chixx_r0_orb(i,0:L-1,T1%idx) + factor*T1%chixx_r0_orb(i,0:L-1,T1%tmp)
+
+        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
+        chiv = 0.0
+        ! special term for chi(beta) = chi(0)
+        chiv = chiv + 2.*T1%chixx_r0_orb(i,0,T1%tmp)
+        do it = 1, T1%L-1, 2
+          chiv = chiv + 4.*T1%chixx_r0_orb(i,it,T1%tmp)
         enddo
+        do it = 2, T1%L-2, 2
+          chiv = chiv + 2.*T1%chixx_r0_orb(i,it,T1%tmp)
+        enddo
+        chiv = chiv * T1%dtau/3.0
+        T1%chixx_r0_orb_iw0(i,T1%idx) = T1%chixx_r0_orb_iw0(i,T1%idx) + factor*chiv
       enddo
 
-      ! compute chixx_q0(iw=0) static chi using Composite Simpson's rule
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          chiv = 0.0
-          ! special term for chi(beta) = chi(0)
-          chiv = chiv + 2.*T1%chixx_q0_orb(0,i,j,T1%tmp)
-          do it = 1, T1%L-1, 2
-            chiv = chiv + 4.*T1%chixx_q0_orb(it,i,j,T1%tmp)
-          enddo
-          do it = 2, T1%L-2, 2
-            chiv = chiv + 2.*T1%chixx_q0_orb(it,i,j,T1%tmp)
-          enddo
-          chiv = chiv * T1%dtau/3.0
-          T1%chixx_q0_orb_iw0(i,j,T1%idx) = T1%chixx_q0_orb_iw0(i,j,T1%idx) + factor*chiv
-        enddo
-      enddo
-
-      T1%chixx_q0_orb(:,:,:,T1%tmp) = ZERO
+      T1%chixx_r0_orb(:,:,T1%tmp) = ZERO
+      T1%chixx_r0_orb_iw0(:,T1%tmp) = ZERO
     endif
 
-    if (T1%flagsFT(ISPZZ) == 1) then
-      do i = 0, T1%norb-1
-        do j = 0, T1%norb-1
-          do it = 0, L-1
-            factor = sgn/cnt
-            T1%chizz_q0_orb(it,i,j,T1%idx) = T1%chizz_q0_orb(it,i,j,T1%idx) + factor*T1%chizz_q0_orb(it,i,j,T1%tmp)
-          enddo
+    ! compute chixx_q0
+    if (T1%flagsFT(ISPXX) == 1) then
+      factor = sgn/cnt
+      do i = 1, T1%properties(ISPXX)%nClass
+        T1%chixx_q0_orb(i,0:L-1,T1%idx) = T1%chixx_q0_orb(i,0:L-1,T1%idx) + factor*T1%chixx_q0_orb(i,0:L-1,T1%tmp)
+
+        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
+        chiv = 0.0
+        ! special term for chi(beta) = chi(0)
+        chiv = chiv + 2.*T1%chixx_q0_orb(i,0,T1%tmp)
+        do it = 1, T1%L-1, 2
+          chiv = chiv + 4.*T1%chixx_q0_orb(i,it,T1%tmp)
         enddo
+        do it = 2, T1%L-2, 2
+          chiv = chiv + 2.*T1%chixx_q0_orb(i,it,T1%tmp)
+        enddo
+        chiv = chiv * T1%dtau/3.0
+        T1%chixx_q0_orb_iw0(i,T1%idx) = T1%chixx_q0_orb_iw0(i,T1%idx) + factor*chiv
       enddo
 
-      ! compute chizz_q0(iw=0) static chi using Composite Simpson's rule
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          chiv = 0.0
-          ! special term for chi(beta) = chi(0)
-          chiv = chiv + 2.*T1%chizz_q0_orb(0,i,j,T1%tmp)
-          do it = 1, T1%L-1, 2
-            chiv = chiv + 4.*T1%chizz_q0_orb(it,i,j,T1%tmp)
-          enddo
-          do it = 2, T1%L-2, 2
-            chiv = chiv + 2.*T1%chizz_q0_orb(it,i,j,T1%tmp)
-          enddo
-          chiv = chiv * T1%dtau/3.0
-          T1%chizz_q0_orb_iw0(i,j,T1%idx) = T1%chizz_q0_orb_iw0(i,j,T1%idx) + factor*chiv
+      T1%chixx_q0_orb(:,:,T1%tmp) = ZERO
+      T1%chixx_q0_orb_iw0(:,T1%tmp) = ZERO
+    endif
+
+    ! compute chizz_r0
+    if (T1%flags(ISPZZ) == 1) then
+      factor = sgn/cnt
+      do i = 1, T1%properties(ISPZZ)%nClass
+        T1%chizz_r0_orb(i,0:L-1,T1%idx) = T1%chizz_r0_orb(i,0:L-1,T1%idx) + factor*T1%chizz_r0_orb(i,0:L-1,T1%tmp)
+
+        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
+        chiv = 0.0
+        ! special term for chi(beta) = chi(0)
+        chiv = chiv + 2.*T1%chizz_r0_orb(i,0,T1%tmp)
+        do it = 1, T1%L-1, 2
+          chiv = chiv + 4.*T1%chizz_r0_orb(i,it,T1%tmp)
         enddo
+        do it = 2, T1%L-2, 2
+          chiv = chiv + 2.*T1%chizz_r0_orb(i,it,T1%tmp)
+        enddo
+        chiv = chiv * T1%dtau/3.0
+        T1%chizz_r0_orb_iw0(i,T1%idx) = T1%chizz_r0_orb_iw0(i,T1%idx) + factor*chiv
       enddo
-      
-      T1%chizz_q0_orb(:,:,:,T1%tmp) = ZERO
+
+      T1%chizz_r0_orb(:,:,T1%tmp) = ZERO
+      T1%chizz_r0_orb_iw0(:,T1%tmp) = ZERO
+    endif
+
+    ! compute chizz_q0
+    if (T1%flagsFT(ISPZZ) == 1) then
+      factor = sgn/cnt
+      do i = 1, T1%properties(ISPZZ)%nClass
+        T1%chizz_q0_orb(i,0:L-1,T1%idx) = T1%chizz_q0_orb(i,0:L-1,T1%idx) + factor*T1%chizz_q0_orb(i,0:L-1,T1%tmp)
+
+        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
+        chiv = 0.0
+        ! special term for chi(beta) = chi(0)
+        chiv = chiv + 2.*T1%chizz_q0_orb(i,0,T1%tmp)
+        do it = 1, T1%L-1, 2
+          chiv = chiv + 4.*T1%chizz_q0_orb(i,it,T1%tmp)
+        enddo
+        do it = 2, T1%L-2, 2
+          chiv = chiv + 2.*T1%chizz_q0_orb(i,it,T1%tmp)
+        enddo
+        chiv = chiv * T1%dtau/3.0
+        T1%chizz_q0_orb_iw0(i,T1%idx) = T1%chizz_q0_orb_iw0(i,T1%idx) + factor*chiv
+      enddo
+
+      T1%chizz_q0_orb(:,:,T1%tmp) = ZERO
+      T1%chizz_q0_orb_iw0(:,T1%tmp) = ZERO
     endif
 
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
@@ -771,7 +798,7 @@ contains
     integer  :: i, j, k, dt, dt1, dt2, b1, b2
     real*8   :: a,b,c,d  
     real(wp), pointer :: value1(:), value2(:)
-    real(wp) :: factor
+    real(wp) :: factor, x, y
     real     :: band(T1%properties(ISPXX)%nclass,4)
     real(wp) :: val1, val2
 
@@ -869,22 +896,32 @@ contains
            !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
            !       + up0t(j,i)*dnt0(i,j))/2
 
-             if (T1%flagsFT(ISPXX) == 1) then
-               ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-               ! below accumulate chi_xx(q=0)
-               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-               read(label(1:4),*) band(k,1)
-               read(label(5:8),*) band(k,2)
-               b1 = int(band(k,1))
-               b2 = int(band(k,2))
+             ! compute chi_r=0
+             write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
+             read(label(1:4),*) band(k,1)
+             read(label(5:8),*) band(k,2)
+             read(label(14:25),*) band(k,3)
+             read(label(26:37),*) band(k,4)
+             b1 = int(band(k,1))
+             b2 = int(band(k,2))
+             x  = real(band(k,3))
+             y  = real(band(k,4))
+             !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
 
+             if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
+               T1%chixx_r0_orb(k,dt1,T1%tmp) = T1%chixx_r0_orb(k,dt1,T1%tmp) - val1
+               T1%chixx_r0_orb(k,dt2,T1%tmp) = T1%chixx_r0_orb(k,dt2,T1%tmp) - val2
+             endif
+
+             ! compute chi_q=0
+             if (T1%flagsFT(ISPXX) == 1) then
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
                if (b1==b2) then
-                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - val1
-                 T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) - val2
+                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - val1
+                 T1%chixx_q0_orb(k,dt2,T1%tmp) = T1%chixx_q0_orb(k,dt2,T1%tmp) - val2
                else
-                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
-                 T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt2,b1,b2,T1%tmp) - 0.5*val2
+                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - 0.5*val1
+                 T1%chixx_q0_orb(k,dt2,T1%tmp) = T1%chixx_q0_orb(k,dt2,T1%tmp) - 0.5*val2
                endif
              endif
           end do
@@ -904,23 +941,31 @@ contains
              value1(k)  = value1(k) - val1
              value2(k)  = value2(k) - val2
 
-             if (T1%flagsFT(ISPZZ) == 1) then
-               ! For test comparing with chi_zz calculated in
-               ! DQMC_TDM_Chi_q_orbital
-               ! below accumulate chi_xx(q=0)
-               write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-               read(label(1:4),*) band(k,1)
-               read(label(5:8),*) band(k,2)
-               b1 = int(band(k,1))
-               b2 = int(band(k,2))
+             ! compute chi_r=0
+             write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
+             read(label(1:4),*) band(k,1)
+             read(label(5:8),*) band(k,2)
+             read(label(14:25),*) band(k,3)
+             read(label(26:37),*) band(k,4)
+             b1 = int(band(k,1))
+             b2 = int(band(k,2))
+             x  = real(band(k,3))
+             y  = real(band(k,4))
+               
+             if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
+               T1%chizz_r0_orb(k,dt1,T1%tmp) = T1%chizz_r0_orb(k,dt1,T1%tmp) - val1
+               T1%chizz_r0_orb(k,dt2,T1%tmp) = T1%chizz_r0_orb(k,dt2,T1%tmp) - val2
+             endif
 
+             ! compute chi_q=0
+             if (T1%flagsFT(ISPZZ) == 1) then
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
                if (b1==b2) then
-                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - val1
-                 T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) - val2
+                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - val1
+                 T1%chizz_q0_orb(k,dt2,T1%tmp) = T1%chizz_q0_orb(k,dt2,T1%tmp) - val2
                else
-                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
-                 T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt2,b1,b2,T1%tmp) - 0.5*val2
+                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - 0.5*val1
+                 T1%chizz_q0_orb(k,dt2,T1%tmp) = T1%chizz_q0_orb(k,dt2,T1%tmp) - 0.5*val2
                endif
              endif
           end do
@@ -1168,19 +1213,27 @@ contains
              value1(k)  = value1(k) - val1
 
              if (T1%flagsFT(ISPXX) == 1) then
-               ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-               ! below accumulate chi_xx(q=0)
                write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-               read(label(1:4)  ,*) band(k,1)
-               read(label(5:8)  ,*) band(k,2)
+               read(label(1:4),*) band(k,1)
+               read(label(5:8),*) band(k,2)
+               read(label(14:25),*) band(k,3)
+               read(label(26:37),*) band(k,4)
                b1 = int(band(k,1))
                b2 = int(band(k,2))
+               x  = real(band(k,3))
+               y  = real(band(k,4))
 
+               ! compute chi_q=0
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
                if (b1==b2) then
-                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - val1
+                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - val1
                else
-                 T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) = T1%chixx_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - 0.5*val1
+               endif
+
+               ! compute chi_r=0
+               if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
+                 T1%chixx_r0_orb(k,dt1,T1%tmp) = T1%chixx_r0_orb(k,dt1,T1%tmp) - val1
                endif
              endif
           end do
@@ -1202,16 +1255,26 @@ contains
                ! DQMC_TDM_Chi_q_orbital
                ! below accumulate chi_xx(q=0)
                write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-               read(label(1:4)  ,*) band(k,1)
-               read(label(5:8)  ,*) band(k,2)
+               read(label(1:4),*) band(k,1)
+               read(label(5:8),*) band(k,2)
+               read(label(14:25),*) band(k,3)
+               read(label(26:37),*) band(k,4)
                b1 = int(band(k,1))
                b2 = int(band(k,2))
+               x  = real(band(k,3))
+               y  = real(band(k,4))
 
+               ! compute chi_q=0
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
                if (b1==b2) then
-                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - val1
+                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - val1
                else
-                 T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) = T1%chizz_q0_orb(dt1,b1,b2,T1%tmp) - 0.5*val1
+                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - 0.5*val1
+               endif
+
+               ! compute chi_r=0
+               if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
+                 T1%chizz_r0_orb(k,dt1,T1%tmp) = T1%chizz_r0_orb(k,dt1,T1%tmp) - val1
                endif
              endif
           end do
@@ -1359,32 +1422,33 @@ contains
        endif
     enddo
 
-    ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
+    if (T1%flags(ISPXX) == 1) then
+      do i = 1, T1%properties(ISPXX)%nClass 
+        T1%chixx_r0_orb(i,0:T1%L-1,idx) = T1%chixx_r0_orb(i,0:T1%L-1,idx) * factor
+        T1%chixx_r0_orb_iw0(i,idx) = T1%chixx_r0_orb_iw0(i,idx) * factor
+      enddo
+    endif
+
     if (T1%flagsFT(ISPXX) == 1) then
-      do i = 0, T1%norb-1
-        do j = 0, T1%norb-1
-          T1%chixx_q0_orb_iw0(i,j,idx) = T1%chixx_q0_orb_iw0(i,j,idx) * factor &
-                                          *real(T1%norb)/real(T1%properties(ISPXX)%n)
-          do k = 0, T1%L-1
-            T1%chixx_q0_orb(k,i,j,idx) = T1%chixx_q0_orb(k,i,j,idx) * factor &
-                                          *real(T1%norb)/real(T1%properties(ISPXX)%n)
-          enddo
-        enddo
+      do i = 1, T1%properties(ISPXX)%nClass
+        T1%chixx_q0_orb(i,0:T1%L-1,idx) = T1%chixx_q0_orb(i,0:T1%L-1,idx) * factor
+        T1%chixx_q0_orb_iw0(i,idx) = T1%chixx_q0_orb_iw0(i,idx) * factor 
+      enddo
+    endif
+
+    if (T1%flags(ISPZZ) == 1) then
+      do i = 1, T1%properties(ISPZZ)%nClass 
+        T1%chizz_r0_orb(i,0:T1%L-1,idx) = T1%chizz_r0_orb(i,0:T1%L-1,idx) * factor
+        T1%chizz_r0_orb_iw0(i,idx) = T1%chizz_r0_orb_iw0(i,idx) * factor
       enddo
     endif
 
     if (T1%flagsFT(ISPZZ) == 1) then
-      do i = 0, T1%norb-1
-        do j = 0, T1%norb-1
-          T1%chizz_q0_orb_iw0(i,j,idx) = T1%chizz_q0_orb_iw0(i,j,idx) * factor &
-                                          *real(T1%norb)/real(T1%properties(ISPZZ)%n) 
-          do k = 0, T1%L-1
-            T1%chizz_q0_orb(k,i,j,idx) = T1%chizz_q0_orb(k,i,j,idx) * factor &
-                                          *real(T1%norb)/real(T1%properties(ISPZZ)%n)
-          enddo
-        enddo
+      do i = 1, T1%properties(ISPZZ)%nClass
+        T1%chizz_q0_orb(i,0:T1%L-1,idx) = T1%chizz_q0_orb(i,0:T1%L-1,idx) * factor
+        T1%chizz_q0_orb_iw0(i,idx) = T1%chizz_q0_orb_iw0(i,idx) * factor 
       enddo
-    endif 
+    endif
 
     ! record the average of all local sum_r G(r, tau) for average N(w)
     if (T1%flags(IGFUN) == 1) then
@@ -1505,48 +1569,75 @@ contains
          endif
        enddo
 
-       ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-       if (T1%flagsFT(ISPXX) == 1) then
-         do i = 0, T1%norb-1
-           do j = 0, T1%norb-1
-             do k = 0, T1%L-1
-               data =  T1%chixx_q0_orb(k,i,j,1:n)
-               call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-               T1%chixx_q0_orb(k,i,j,avg) = average
-               T1%chixx_q0_orb(k,i,j,err) = error
-             enddo
+       if (T1%flags(ISPXX) == 1) then
+         do i = 1, T1%properties(ISPXX)%nClass
+           do k = 0, T1%L-1
+             data =  T1%chixx_r0_orb(i,k,1:n)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%chixx_r0_orb(i,k,avg) = average
+             T1%chixx_r0_orb(i,k,err) = error
            enddo
          enddo
 
-         do i = 0, T1%norb-1
-           do j = 0, T1%norb-1
-             data =  T1%chixx_q0_orb_iw0(i,j,1:n)
+         do i = 1, T1%properties(ISPXX)%nClass
+           data =  T1%chixx_r0_orb_iw0(i,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chixx_r0_orb_iw0(i,avg) = average
+           T1%chixx_r0_orb_iw0(i,err) = error
+         enddo
+       endif
+
+       if (T1%flagsFT(ISPXX) == 1) then
+         do i = 1, T1%properties(ISPXX)%nClass
+           do k = 0, T1%L-1
+             data =  T1%chixx_q0_orb(i,k,1:n)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chixx_q0_orb_iw0(i,j,avg) = average
-             T1%chixx_q0_orb_iw0(i,j,err) = error
+             T1%chixx_q0_orb(i,k,avg) = average
+             T1%chixx_q0_orb(i,k,err) = error
            enddo
+         enddo
+
+         do i = 1, T1%properties(ISPXX)%nClass
+           data =  T1%chixx_q0_orb_iw0(i,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chixx_q0_orb_iw0(i,avg) = average
+           T1%chixx_q0_orb_iw0(i,err) = error
+         enddo
+       endif
+
+       if (T1%flags(ISPZZ) == 1) then
+         do i = 1, T1%properties(ISPZZ)%nClass
+           do k = 0, T1%L-1
+             data =  T1%chizz_r0_orb(i,k,1:n)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%chizz_r0_orb(i,k,avg) = average
+             T1%chizz_r0_orb(i,k,err) = error
+           enddo
+         enddo
+
+         do i = 1, T1%properties(ISPZZ)%nClass
+           data =  T1%chizz_r0_orb_iw0(i,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chizz_r0_orb_iw0(i,avg) = average
+           T1%chizz_r0_orb_iw0(i,err) = error
          enddo
        endif
 
        if (T1%flagsFT(ISPZZ) == 1) then
-         do i = 0, T1%norb-1
-           do j = 0, T1%norb-1
-             do k = 0, T1%L-1
-               data =  T1%chizz_q0_orb(k,i,j,1:n)
-               call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-               T1%chizz_q0_orb(k,i,j,avg) = average
-               T1%chizz_q0_orb(k,i,j,err) = error
-             enddo
+         do i = 1, T1%properties(ISPZZ)%nClass
+           do k = 0, T1%L-1
+             data =  T1%chizz_q0_orb(i,k,1:n)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%chizz_q0_orb(i,k,avg) = average
+             T1%chizz_q0_orb(i,k,err) = error
            enddo
          enddo
 
-         do i = 0, T1%norb-1
-           do j = 0, T1%norb-1
-             data =  T1%chizz_q0_orb_iw0(i,j,1:n)
-             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chizz_q0_orb_iw0(i,j,avg) = average
-             T1%chizz_q0_orb_iw0(i,j,err) = error
-           enddo
+         do i = 1, T1%properties(ISPZZ)%nClass
+           data =  T1%chizz_q0_orb_iw0(i,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chizz_q0_orb_iw0(i,avg) = average
+           T1%chizz_q0_orb_iw0(i,err) = error
          enddo
        endif
 
@@ -1638,34 +1729,63 @@ contains
             endif
           enddo
 
-          ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-          if (T1%flagsFT(ISPXX) == 1) then
-            n = T1%norb*T1%norb
+          if (T1%flags(ISPXX) == 1) then
+            n = T1%properties(ISPXX)%nClass
             do k = 0, T1%L-1
-              binptr => T1%chixx_q0_orb(k,:,:,1)
-              aveptr => T1%chixx_q0_orb(k,:,:,avg)             
-              call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+              bins => T1%chixx_r0_orb(:,k,1)
+              aves => T1%chixx_r0_orb(:,k,avg)             
+              call mpi_allreduce(bins, aves, n, mpi_double, &
                  mpi_sum, mpi_comm_world, mpi_err)
             enddo
 
-            binptr => T1%chixx_q0_orb_iw0(:,:,1)
-            aveptr => T1%chixx_q0_orb_iw0(:,:,avg)
-            call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+            bins => T1%chixx_r0_orb_iw0(:,1)
+            aves => T1%chixx_r0_orb_iw0(:,avg)
+            call mpi_allreduce(bins, aves, n, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+          endif
+
+          if (T1%flagsFT(ISPXX) == 1) then
+            n = T1%properties(ISPXX)%nClass
+            do k = 0, T1%L-1
+              bins => T1%chixx_q0_orb(:,k,1)
+              aves => T1%chixx_q0_orb(:,k,avg)             
+              call mpi_allreduce(bins, aves, n, mpi_double, &
+                 mpi_sum, mpi_comm_world, mpi_err)
+            enddo
+
+            bins => T1%chixx_q0_orb_iw0(:,1)
+            aves => T1%chixx_q0_orb_iw0(:,avg)
+            call mpi_allreduce(bins, aves, n, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+          endif
+
+          if (T1%flags(ISPZZ) == 1) then
+            n = T1%properties(ISPZZ)%nClass
+            do k = 0, T1%L-1
+              bins => T1%chizz_r0_orb(:,k,1)
+              aves => T1%chizz_r0_orb(:,k,avg)             
+              call mpi_allreduce(bins, aves, n, mpi_double, &
+                 mpi_sum, mpi_comm_world, mpi_err)
+            enddo
+
+            bins => T1%chizz_r0_orb_iw0(:,1)
+            aves => T1%chizz_r0_orb_iw0(:,avg)
+            call mpi_allreduce(bins, aves, n, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            n = T1%norb*T1%norb
+            n = T1%properties(ISPZZ)%nClass
             do k = 0, T1%L-1
-              binptr => T1%chizz_q0_orb(k,:,:,1)
-              aveptr => T1%chizz_q0_orb(k,:,:,avg) 
-              call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+              bins => T1%chizz_q0_orb(:,k,1)
+              aves => T1%chizz_q0_orb(:,k,avg)             
+              call mpi_allreduce(bins, aves, n, mpi_double, &
                  mpi_sum, mpi_comm_world, mpi_err)
             enddo
 
-            binptr => T1%chizz_q0_orb_iw0(:,:,1)
-            aveptr => T1%chizz_q0_orb_iw0(:,:,avg)
-            call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+            bins => T1%chizz_q0_orb_iw0(:,1)
+            aves => T1%chizz_q0_orb_iw0(:,avg)
+            call mpi_allreduce(bins, aves, n, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
@@ -1720,32 +1840,60 @@ contains
             endif
           enddo
 
-          if (T1%flagsFT(ISPXX) == 1) then
+          if (T1%flags(ISPXX) == 1) then
             do k = 0, T1%L-1
-              binptr => T1%chixx_q0_orb(k,:,:,1)
-              aveptr => T1%chixx_q0_orb(k,:,:,avg) 
+              binptr => T1%chixx_r0_orb(:,:,1)
+              aveptr => T1%chixx_r0_orb(:,:,avg) 
               binptr = (aveptr - binptr) / dble(nproc - 1)
               binptr =  binptr / T1%sgn(1)
             enddo
 
-            binptr => T1%chixx_q0_orb_iw0(:,:,1)
-            aveptr => T1%chixx_q0_orb_iw0(:,:,avg)
-            binptr = (aveptr - binptr) / dble(nproc - 1)
-            binptr =  binptr / T1%sgn(1)
+            bins => T1%chixx_r0_orb_iw0(:,1)
+            aves => T1%chixx_r0_orb_iw0(:,avg)
+            bins = (aveptr - binptr) / dble(nproc - 1)
+            bins =  binptr / T1%sgn(1)
+          endif
+
+          if (T1%flagsFT(ISPXX) == 1) then
+            do k = 0, T1%L-1
+              binptr => T1%chixx_q0_orb(:,:,1)
+              aveptr => T1%chixx_q0_orb(:,:,avg) 
+              binptr = (aveptr - binptr) / dble(nproc - 1)
+              binptr =  binptr / T1%sgn(1)
+            enddo
+
+            bins => T1%chixx_q0_orb_iw0(:,1)
+            aves => T1%chixx_q0_orb_iw0(:,avg)
+            bins = (aveptr - binptr) / dble(nproc - 1)
+            bins =  binptr / T1%sgn(1)
+          endif
+
+          if (T1%flags(ISPZZ) == 1) then
+            do k = 0, T1%L-1
+              binptr => T1%chizz_r0_orb(:,:,1)
+              aveptr => T1%chizz_r0_orb(:,:,avg) 
+              binptr = (aveptr - binptr) / dble(nproc - 1)
+              binptr =  binptr / T1%sgn(1)
+            enddo
+
+            bins => T1%chizz_r0_orb_iw0(:,1)
+            aves => T1%chizz_r0_orb_iw0(:,avg)
+            bins = (aveptr - binptr) / dble(nproc - 1)
+            bins =  binptr / T1%sgn(1)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
             do k = 0, T1%L-1
-              binptr => T1%chizz_q0_orb(k,:,:,1)
-              aveptr => T1%chizz_q0_orb(k,:,:,avg)
+              binptr => T1%chizz_q0_orb(:,:,1)
+              aveptr => T1%chizz_q0_orb(:,:,avg) 
               binptr = (aveptr - binptr) / dble(nproc - 1)
               binptr =  binptr / T1%sgn(1)
             enddo
 
-            binptr => T1%chizz_q0_orb_iw0(:,:,1)
-            aveptr => T1%chizz_q0_orb_iw0(:,:,avg)
-            binptr = (aveptr - binptr) / dble(nproc - 1)
-            binptr =  binptr / T1%sgn(1)
+            bins => T1%chizz_q0_orb_iw0(:,1)
+            aves => T1%chizz_q0_orb_iw0(:,avg)
+            bins = (aveptr - binptr) / dble(nproc - 1)
+            bins =  binptr / T1%sgn(1)
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -1795,24 +1943,36 @@ contains
             endif
           enddo
 
-          if (T1%flagsFT(ISPXX) == 1) then
-            do k = 0, T1%L-1
-              aveptr => T1%chixx_q0_orb(k,:,:,avg)
-              aveptr =  aveptr / T1%sgn(avg)
-            enddo
-
-            aveptr => T1%chixx_q0_orb_iw0(:,:,avg)
+          if (T1%flags(ISPXX) == 1) then
+            aveptr => T1%chixx_r0_orb(:,:,avg)
             aveptr =  aveptr / T1%sgn(avg)
+
+            aves => T1%chixx_r0_orb_iw0(:,avg)
+            aves =  aveptr / T1%sgn(avg)
+          endif
+
+          if (T1%flagsFT(ISPXX) == 1) then
+            aveptr => T1%chixx_q0_orb(:,:,avg)
+            aveptr =  aveptr / T1%sgn(avg)
+
+            aves => T1%chixx_q0_orb_iw0(:,avg)
+            aves =  aveptr / T1%sgn(avg)
+          endif
+
+          if (T1%flags(ISPZZ) == 1) then
+            aveptr => T1%chizz_r0_orb(:,:,avg)
+            aveptr =  aveptr / T1%sgn(avg)
+
+            aves => T1%chizz_r0_orb_iw0(:,avg)
+            aves =  aveptr / T1%sgn(avg)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            do k = 0, T1%L-1
-              aveptr => T1%chizz_q0_orb(k,:,:,avg)
-              aveptr =  aveptr / T1%sgn(avg)
-            enddo
-
-            aveptr => T1%chizz_q0_orb_iw0(:,:,avg)
+            aveptr => T1%chizz_q0_orb(:,:,avg)
             aveptr =  aveptr / T1%sgn(avg)
+
+            aves => T1%chizz_q0_orb_iw0(:,avg)
+            aves =  aveptr / T1%sgn(avg)
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -1856,42 +2016,76 @@ contains
             endif
           enddo
 
-          if (T1%flagsFT(ISPXX) == 1) then
-            n = T1%norb*T1%norb
-            do k = 0, T1%L-1
-              binptr => T1%chixx_q0_orb(k,:,:,1)
-              aveptr => T1%chixx_q0_orb(k,:,:,avg)
-              errptr => T1%chixx_q0_orb(k,:,:,err)
-              call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
-                  mpi_sum, mpi_comm_world, mpi_err)
-              errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
-            enddo
-
-            binptr => T1%chixx_q0_orb_iw0(:,:,1)
-            aveptr => T1%chixx_q0_orb_iw0(:,:,avg)
-            errptr => T1%chixx_q0_orb_iw0(:,:,err)
+          if (T1%flags(ISPXX) == 1) then
+            n = T1%properties(ISPXX)%nClass * T1%L
+            binptr => T1%chixx_r0_orb(:,:,1)
+            aveptr => T1%chixx_r0_orb(:,:,avg)
+            errptr => T1%chixx_r0_orb(:,:,err)
             call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
+
+            n = T1%properties(ISPXX)%nClass
+            bins => T1%chixx_r0_orb_iw0(:,1)
+            aves => T1%chixx_r0_orb_iw0(:,avg)
+            errs => T1%chixx_r0_orb_iw0(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+
+          if (T1%flagsFT(ISPXX) == 1) then
+            n = T1%properties(ISPXX)%nClass * T1%L
+            binptr => T1%chixx_q0_orb(:,:,1)
+            aveptr => T1%chixx_q0_orb(:,:,avg)
+            errptr => T1%chixx_q0_orb(:,:,err)
+            call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
+
+            n = T1%properties(ISPXX)%nClass
+            bins => T1%chixx_q0_orb_iw0(:,1)
+            aves => T1%chixx_q0_orb_iw0(:,avg)
+            errs => T1%chixx_q0_orb_iw0(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
+
+          if (T1%flags(ISPZZ) == 1) then
+            n = T1%properties(ISPZZ)%nClass * T1%L
+            binptr => T1%chizz_r0_orb(:,:,1)
+            aveptr => T1%chizz_r0_orb(:,:,avg)
+            errptr => T1%chizz_r0_orb(:,:,err)
+            call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
+
+            n = T1%properties(ISPZZ)%nClass
+            bins => T1%chizz_r0_orb_iw0(:,1)
+            aves => T1%chizz_r0_orb_iw0(:,avg)
+            errs => T1%chizz_r0_orb_iw0(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            n = T1%norb*T1%norb
-            do k = 0, T1%L-1
-              binptr => T1%chizz_q0_orb(k,:,:,1)
-              aveptr => T1%chizz_q0_orb(k,:,:,avg)
-              errptr => T1%chizz_q0_orb(k,:,:,err)
-              call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
-                  mpi_sum, mpi_comm_world, mpi_err)
-              errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
-            enddo
-
-            binptr => T1%chizz_q0_orb_iw0(:,:,1)
-            aveptr => T1%chizz_q0_orb_iw0(:,:,avg)
-            errptr => T1%chizz_q0_orb_iw0(:,:,err)
+            n = T1%properties(ISPZZ)%nClass * T1%L
+            binptr => T1%chizz_q0_orb(:,:,1)
+            aveptr => T1%chizz_q0_orb(:,:,avg)
+            errptr => T1%chizz_q0_orb(:,:,err)
             call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
+
+            n = T1%properties(ISPZZ)%nClass
+            bins => T1%chizz_q0_orb_iw0(:,1)
+            aves => T1%chizz_q0_orb_iw0(:,avg)
+            errs => T1%chizz_q0_orb_iw0(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -1965,11 +2159,13 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)     :: OPT
 
-    integer             :: i, j, t, iprop, OPT1
+    integer             :: i, j, t, iprop, OPT1, b1, b2
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
     character(len=80)   :: ofile
+    character(label_len) :: lab
+    real :: band(T1%properties(ISPXX)%nclass,4)
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -1993,29 +2189,35 @@ contains
       endif
     enddo
 
-    ! For test comparing with chi_xx calculated in DQMC_TDM_Chi_q_orbital
-    ! print out chi(q,tau)
+    ! print out chi_q0_iw0 and chi_q0(tau):
     if (T1%flagsFT(ISPXX)==1 .and. T1%flagsFT(ISPZZ)==1) then
       call DQMC_open_file('chi_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
-      write(OPT1,"(a)") "  b  b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
+      write(OPT1,"(a)") "   b   b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
 
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          write(OPT1,'(2(i3),4(e16.8))') i, j, &
-                   T1%chixx_q0_orb_iw0(i,j,T1%avg), T1%chixx_q0_orb_iw0(i, j, T1%err), &
-                   T1%chizz_q0_orb_iw0(i,j,T1%avg), T1%chizz_q0_orb_iw0(i, j, T1%err)
-        enddo
+      do i = 1, T1%properties(ISPXX)%nclass
+        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
+        read(lab(1:4),*) band(i,1)
+        read(lab(5:8),*) band(i,2)
+        b1 = int(band(i,1))
+        b2 = int(band(i,2))
+
+        write(OPT1,'(2(i4),4(e16.8))') b1,b2, &
+                 T1%chixx_q0_orb_iw0(i,T1%avg), T1%chixx_q0_orb_iw0(i,T1%err), &
+                 T1%chizz_q0_orb_iw0(i,T1%avg), T1%chizz_q0_orb_iw0(i,T1%err)
       enddo
 
       write(OPT1,"(a)") "==================================================================================="
-      write(OPT1,"(a)") "  b  b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do t = 0, T1%L-1
-            write(OPT1,'(2(i3),f10.5,4(f16.8))') i, j, t*T1%dtau, &
-                   T1%chixx_q0_orb(t, i, j, T1%avg), T1%chixx_q0_orb(t, i, j, T1%err), &
-                   T1%chizz_q0_orb(t, i, j, T1%avg), T1%chizz_q0_orb(t, i, j, T1%err)
-          enddo
+      write(OPT1,"(a)") "   b   b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
+      do i = 1, T1%properties(ISPXX)%nclass
+        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
+        read(lab(1:4),*) band(i,1)
+        read(lab(5:8),*) band(i,2)
+        b1 = int(band(i,1))
+        b2 = int(band(i,2))
+        do t = 0, T1%L-1
+          write(OPT1,'(2(i4),f10.5,4(f16.8))') b1, b2, t*T1%dtau, &
+                 T1%chixx_q0_orb(i,t,T1%avg), T1%chixx_q0_orb(i,t,T1%err), &
+                 T1%chizz_q0_orb(i,t,T1%avg), T1%chizz_q0_orb(i,t,T1%err)
         enddo
       enddo
     endif
@@ -2026,7 +2228,7 @@ contains
   ! Below print out tdm quantities separately (if needed)
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2, OPT3, OPT4)
+  subroutine DQMC_TDM_Print_local(T1, ofile, OPT1, OPT2, OPT3, OPT4, OPT5)
     use dqmc_mpi
     !
     ! Purpose
@@ -2037,13 +2239,15 @@ contains
     ! =========
     !
     type(TDM), intent(in)   :: T1                 ! T1
-    integer                 :: OPT1, OPT2, OPT3, OPT4
+    integer                 :: OPT1, OPT2, OPT3, OPT4, OPT5
 
-    integer             :: i, j
+    integer             :: i, j, t, b1, b2
     real(wp)            :: tmp(T1%L, 2)
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
     character(len=80)   :: ofile
+    character(len=label_len)  :: lab
+    real :: band(T1%properties(ISPXX)%nclass,4)
 
     ! ... Executable ...
     if (.not.T1%compute .or. T1%flags(IGFUN) == 0) return
@@ -2163,6 +2367,45 @@ contains
          tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
+    endif
+
+    !############################################################################
+    ! print out chi_r0_iw0 and chi_r0(tau):
+    if (T1%flags(ISPXX)==1 .and. T1%flags(ISPZZ)==1) then
+      call DQMC_open_file('chi_r0_orb_'//adjustl(trim(ofile)),'replace', OPT5)
+      write(OPT5,"(a)") "   b   b     chi_xx(r=0,iw=0)       err    chi_zz(r=0,iw=0)       err"
+
+      do i = 1, T1%properties(ISPXX)%nclass
+        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
+        read(lab(1:4),*) band(i,1)
+        read(lab(5:8),*) band(i,2)
+        b1 = int(band(i,1))
+        b2 = int(band(i,2))
+
+        if (abs(T1%chixx_r0_orb_iw0(i,T1%avg))>1.e-4 .or. abs(T1%chizz_r0_orb_iw0(i,T1%avg))>1.e-4) then
+          write(OPT5,'(2(i4),4(e16.8))') b1,b2, &
+                   T1%chixx_r0_orb_iw0(i,T1%avg), T1%chixx_r0_orb_iw0(i,T1%err), &
+                   T1%chizz_r0_orb_iw0(i,T1%avg), T1%chizz_r0_orb_iw0(i,T1%err)
+        endif
+      enddo
+
+      write(OPT5,"(a)") "==================================================================================="
+      write(OPT5,"(a)") "   b   b    tau         chi_xx(r=0)           err       chi_zz(r=0)             err"
+      do i = 1, T1%properties(ISPXX)%nclass
+        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
+        read(lab(1:4),*) band(i,1)
+        read(lab(5:8),*) band(i,2)
+        b1 = int(band(i,1))
+        b2 = int(band(i,2))
+
+        do t = 0, T1%L-1
+          if (abs(T1%chixx_r0_orb(i,t,T1%avg))>1.e-4 .or. abs(T1%chizz_r0_orb(i,t,T1%avg))>1.e-4) then
+            write(OPT5,'(2(i4),f10.5,4(f16.8))') b1, b2, t*T1%dtau, &
+                   T1%chixx_r0_orb(i,t,T1%avg), T1%chixx_r0_orb(i,t,T1%err), &
+                   T1%chizz_r0_orb(i,t,T1%avg), T1%chizz_r0_orb(i,t,T1%err)
+          endif
+        enddo
+      enddo
     endif
 
   end subroutine DQMC_TDM_Print_local
@@ -2646,546 +2889,6 @@ contains
     enddo
 
   end subroutine DQMC_TDM_Print_SelfEnergy
-
-  !--------------------------------------------------------------------!
-  ! 2/14/2017:
-  ! Below three routines for orbital-dependent spin chi(q,tau)
-  ! further chi(q,iw) and others are computed in outside python scripts
-  ! Orbital is realized as different layer in the unit cell
-  ! Here chi(q) is computed independent on FT routines for any unit cell
-  ! Very similar to DQMC_TDM_GetKFT below
-  !--------------------------------------------------------------------!
-  subroutine DQMC_TDM_Chi_orbital(T1, Hub)
-    use DQMC_Hubbard
-    use dqmc_mpi
-    ! run after DQMC_TDM_GetErr in main.F90
-    ! Note that avg values of SPXX and SPZZ are known in DQMC_TDM_GetErr
-    ! For MPI run
-    ! binned values() (only 1 bin) are not from MC, which has been
-    ! updated in JackKnife among procs in DQMC_TDM_GetErr
-    ! avg value is already averaged over proc, similar to DQMC_TDM_GetKFT
-
-    type(TDM), intent(in)     :: T1                 
-    type(Hubbard), intent(in) :: Hub
-    integer              :: n, nclass
-
-    integer              :: i, j, k, t, b1, b2,  ibin
-    integer,     pointer :: F(:)
-    real(wp),    pointer :: vec(:,:)
-    real(wp),    pointer :: values(:)
-    character(label_len) :: label
-    real                 :: a(T1%properties(ISPXX)%nclass,4)
-    real(wp)             :: chiv, x, y
-
-    ! ... Executable ...
-    if (.not.T1%compute) return
-
-    n        =  Hub%S%nsite  
-    nclass   =  Hub%S%nclass
-    F        => Hub%S%F
-    vec      => Hub%S%vecClass
-
-    !-----------------------------------------------------------------
-    if (T1%flags(ISPXX) == 1) then
-      allocate(T1%chixx_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chixx_r0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chixx_q0_iw0_orb(0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chixx_r0_iw0_orb(0:T1%norb-1, 0:T1%norb-1, T1%err))
-
-      write(*,*) 'nclass=', nclass
-      do k = 1, nclass
-        write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-        write(*,*) 'class', k, 'clabel=', label
-        read(label(1:4)  ,*) a(k,1)
-        read(label(5:8)  ,*) a(k,2)
-        read(label(14:25),*) a(k,3)
-        read(label(26:37),*) a(k,4)
-        b1 = int(a(k,1))
-        b2 = int(a(k,2))
-        x  = real(a(k,3))
-        y  = real(a(k,4))
-        !write(*,'(2(a5,I4),2(a5,F12.7))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
-
-        !Compute chi_q=0(tau,orb,orb,ibin)
-        do ibin = T1%avg, 1, -1
-          values => T1%chixx_q_orb(0:T1%L-1,b1,b2,ibin)
-
-          ! See the top comment on 11/22/2017 
-          ! F(class) treats site pair (0,1) and (1,0) the same thing
-          ! so divided by 2 if b1/=b2
-          if (b1==b2) then
-            values = values + F(k)*T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
-          else
-            values = values + F(k)/2*T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
-          endif
-        enddo
-
-        !Compute chi_r=0(tau,orb,orb,ibin)
-        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-          do ibin = T1%avg, 1, -1
-            values => T1%chixx_r0_orb(0:T1%L-1,b1,b2,ibin)
-            values = values + T1%properties(ISPXX)%values(k,0:T1%L-1,ibin)
-          enddo
-        endif
-      enddo  
-      T1%chixx_q_orb = T1%chixx_q_orb*real(T1%norb)/real(n)
-
-      !Then compute chi_q0(iwm=0)
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do ibin = T1%avg, 1, -1
-            chiv = 0.0
-            ! special term for chi(beta) = chi(0)
-            chiv = chiv + 2.*T1%chixx_q_orb(0, i, j, ibin)
-            do t = 1, T1%L-1, 2
-              chiv = chiv + 4.*T1%chixx_q_orb(t, i, j, ibin)
-            enddo
-            do t = 2, T1%L-2, 2
-              chiv = chiv + 2.*T1%chixx_q_orb(t, i, j, ibin)
-            enddo
-            chiv = chiv * T1%dtau/3.0
-            T1%chixx_q0_iw0_orb(i,j,ibin) = chiv 
-          enddo
-        enddo
-      enddo
-
-      !Then compute chi_r0(iwm=0)
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do ibin = T1%avg, 1, -1
-            chiv = 0.0
-            ! special term for chi(beta) = chi(0)
-            chiv = chiv + 2.*T1%chixx_r0_orb(0, i, j, ibin)
-            do t = 1, T1%L-1, 2
-              chiv = chiv + 4.*T1%chixx_r0_orb(t, i, j, ibin)
-            enddo
-            do t = 2, T1%L-2, 2
-              chiv = chiv + 2.*T1%chixx_r0_orb(t, i, j, ibin)
-            enddo
-            chiv = chiv * T1%dtau/3.0
-            T1%chixx_r0_iw0_orb(i,j,ibin) = chiv
-          enddo
-        enddo
-      enddo
-    endif
-
-    !-----------------------------------------------------------------
-    if (T1%flags(ISPZZ) == 1) then
-      allocate(T1%chizz_q_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chizz_r0_orb(0:T1%L-1, 0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chizz_q0_iw0_orb(0:T1%norb-1, 0:T1%norb-1, T1%err))
-      allocate(T1%chizz_r0_iw0_orb(0:T1%norb-1, 0:T1%norb-1, T1%err))
-
-      do k = 1, nclass
-        write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-        read(label(1:4)  ,*) a(k,1)
-        read(label(5:8)  ,*) a(k,2)
-        read(label(14:25),*) a(k,3)
-        read(label(26:37),*) a(k,4)
-        b1 = int(a(k,1))
-        b2 = int(a(k,2))
-        x  = real(a(k,3))
-        y  = real(a(k,4))
-        !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=", x, "y=", y
-
-        !Compute chi_q=0(tau,orb,orb,ibin)
-        do ibin = T1%avg, 1, -1
-          values => T1%chizz_q_orb(0:T1%L-1,b1,b2,ibin)
-
-          ! See the top comment on 11/22/2017 
-          ! F(class) treats site pair (0,1) and (1,0) the same thing
-          ! so divided by 2 if b1/=b2
-          if (b1==b2) then
-            values = values + F(k)*T1%properties(ISPZZ)%values(k,0:T1%L-1,ibin)
-          else
-            values = values + F(k)/2*T1%properties(ISPZZ)%values(k,0:T1%L-1,ibin)
-          endif
-        enddo
-
-        !Compute chi_r=0(tau,orb,orb,ibin)
-        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-          do ibin = T1%avg, 1, -1
-            values => T1%chizz_r0_orb(0:T1%L-1,b1,b2,ibin)
-            values = values + T1%properties(ISPZZ)%values(k,0:T1%L-1,ibin)
-          enddo
-        endif
-      enddo  
-      T1%chizz_q_orb = T1%chizz_q_orb*real(T1%norb)/real(n)
-
-      !Then compute chi(iwm=0)
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do ibin = T1%avg, 1, -1
-            chiv = 0.0
-            ! special term for chi(beta) = chi(0)
-            chiv = chiv + 2.*T1%chizz_q_orb(0, i, j, ibin)
-            do t = 1, T1%L-1, 2
-              chiv = chiv + 4.*T1%chizz_q_orb(t, i, j, ibin)
-            enddo
-            do t = 2, T1%L-2, 2
-              chiv = chiv + 2.*T1%chizz_q_orb(t, i, j, ibin)
-            enddo
-            chiv = chiv * T1%dtau/3.0
-            T1%chizz_q0_iw0_orb(i,j,ibin) = chiv
-          enddo
-        enddo
-      enddo
-
-      !Then compute chi_r0(iwm=0)
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do ibin = T1%avg, 1, -1
-            chiv = 0.0
-            ! special term for chi(beta) = chi(0)
-            chiv = chiv + 2.*T1%chizz_r0_orb(0, i, j, ibin)
-            do t = 1, T1%L-1, 2
-              chiv = chiv + 4.*T1%chizz_r0_orb(t, i, j, ibin)
-            enddo
-            do t = 2, T1%L-2, 2
-              chiv = chiv + 2.*T1%chizz_r0_orb(t, i, j, ibin)
-            enddo
-            chiv = chiv * T1%dtau/3.0
-            T1%chizz_r0_iw0_orb(i,j,ibin) = chiv
-          enddo
-        enddo
-      enddo
-    endif
-
-  end subroutine DQMC_TDM_Chi_orbital
-
-  !--------------------------------------------------------------------!
-
-  subroutine DQMC_TDM_Chi_orbital_GetErr(T1)
-
-    use DQMC_MPI
-
-    type(tdm), intent(inout) :: T1
-
-    integer :: it, n, nproc, i
-
-    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
- 
-    !Loop over properties to Fourier transform
-    nproc = qmc_sim%size
-
-    if (.not.T1%compute) return
-
-    if (nproc .eq. 1) then
-
-        if (T1%flags(ISPXX) == 1) then
-          do it = 0, T1%L-1
-             !Note that chi_q_orb(avg) is known from DQMC_TDM_Chi_q_orb
-             !in which FT from chi_q_orb(avg), here do not need JackKnife again
-             !But chi_q_orb(err) is unknown
-             average  => T1%chixx_q_orb(it,:,:,T1%avg)
-             error    => T1%chixx_q_orb(it,:,:,T1%err)
-             do i = 1, T1%nbin
-                binval => T1%chixx_q_orb(it,:,:,i)
-                error  = error + (average-binval)**2
-             enddo 
-             error = error* dble(T1%nbin-1)/dble(T1%nbin)
-             error = sqrt(error)
-
-             average  => T1%chixx_r0_orb(it,:,:,T1%avg)
-             error    => T1%chixx_r0_orb(it,:,:,T1%err)
-             do i = 1, T1%nbin
-                binval => T1%chixx_r0_orb(it,:,:,i)
-                error  = error + (average-binval)**2
-             enddo
-             error = error* dble(T1%nbin-1)/dble(T1%nbin)
-             error = sqrt(error)
-          enddo
-
-          ! get error for chixx_q0_iw0_orb below
-          average  => T1%chixx_q0_iw0_orb(:,:,T1%avg)
-          error    => T1%chixx_q0_iw0_orb(:,:,T1%err)
-          do i = 1, T1%nbin
-             binval => T1%chixx_q0_iw0_orb(:,:,i)
-             error  = error + (average-binval)**2
-          enddo
-          error = error* dble(T1%nbin-1)/dble(T1%nbin)
-          error = sqrt(error)
-
-          ! get error for chixx_r0_iw0_orb below
-          average  => T1%chixx_r0_iw0_orb(:,:,T1%avg)
-          error    => T1%chixx_r0_iw0_orb(:,:,T1%err)
-          do i = 1, T1%nbin
-             binval => T1%chixx_r0_iw0_orb(:,:,i)
-             error  = error + (average-binval)**2
-          enddo
-          error = error* dble(T1%nbin-1)/dble(T1%nbin)
-          error = sqrt(error)
-        endif
-  
-        if (T1%flags(ISPZZ) == 1) then
-          do it = 0, T1%L-1
-             average  => T1%chizz_q_orb(it,:,:,T1%avg)
-             error    => T1%chizz_q_orb(it,:,:,T1%err)
-             do i = 1, T1%nbin
-                binval => T1%chizz_q_orb(it,:,:,i)
-                error  = error + (average-binval)**2
-             enddo
-             error = error* dble(T1%nbin-1)/dble(T1%nbin)
-             error = sqrt(error)
-
-             average  => T1%chizz_r0_orb(it,:,:,T1%avg)
-             error    => T1%chizz_r0_orb(it,:,:,T1%err)
-             do i = 1, T1%nbin
-                binval => T1%chizz_r0_orb(it,:,:,i)
-                error  = error + (average-binval)**2
-             enddo
-             error = error* dble(T1%nbin-1)/dble(T1%nbin)
-             error = sqrt(error)
-          enddo
-
-          ! get error for chizz_q0_iw0_orb below
-          average  => T1%chizz_q0_iw0_orb(:,:,T1%avg)
-          error    => T1%chizz_q0_iw0_orb(:,:,T1%err)
-          do i = 1, T1%nbin
-             binval => T1%chizz_q0_iw0_orb(:,:,i)
-             error  = error + (average-binval)**2
-          enddo
-          error = error* dble(T1%nbin-1)/dble(T1%nbin)
-          error = sqrt(error)
-
-          ! get error for chizz_r0_iw0_orb below
-          average  => T1%chizz_r0_iw0_orb(:,:,T1%avg)
-          error    => T1%chizz_r0_iw0_orb(:,:,T1%err)
-          do i = 1, T1%nbin
-             binval => T1%chizz_r0_iw0_orb(:,:,i)
-             error  = error + (average-binval)**2
-          enddo
-          error = error* dble(T1%nbin-1)/dble(T1%nbin)
-          error = sqrt(error)
-        endif
-    else
-
-#  ifdef _QMC_MPI
-      ! 11/20/2015: note here for MPI run
-      ! binned values() (only 1 bin) are not for MC, which has been
-      ! updated in JackKnife among procs in DQMC_TDM_Chi_q_orb_GetErr
-      ! avg value is already averaged over proc
-
-        if (T1%flags(ISPXX) == 1) then
-          n = T1%norb*T1%norb
-          allocate(temp(0:T1%norb-1,0:T1%norb-1))
-          do it = 0, T1%L-1
-             !Note that chi_q_orb(avg) is known from DQMC_TDM_Chi_q_orb
-             !in which FT from chi_q_orb(avg), here do not need JackKnife again
-             !But chi_q_orb(err) is unknown
-             average  => T1%chixx_q_orb(it,:,:,T1%avg)
-             binval   => T1%chixx_q_orb(it,:,:,1)
-
-             !Compute error: sum(y_i-avg_y)^2
-             error  => T1%chixx_q_orb(it,:,:,T1%err)
-             temp   =  (average-binval)**2
-
-             call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-             error = error*dble(nproc-1)/dble(nproc)
-             error = sqrt(error)
-
-             average  => T1%chixx_r0_orb(it,:,:,T1%avg)
-             binval   => T1%chixx_r0_orb(it,:,:,1)
-
-             !Compute error: sum(y_i-avg_y)^2
-             error  => T1%chixx_r0_orb(it,:,:,T1%err)
-             temp   =  (average-binval)**2
-
-             call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-             error = error*dble(nproc-1)/dble(nproc)
-             error = sqrt(error)
-          enddo
-
-          ! get error for chixx_q0_iw0_orb below
-          average  => T1%chixx_q0_iw0_orb(:,:,T1%avg)
-          binval   => T1%chixx_q0_iw0_orb(:,:,1)
-          error    => T1%chixx_q0_iw0_orb(:,:,T1%err)
-          temp   =  (average-binval)**2
-
-          call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-          error = error*dble(nproc-1)/dble(nproc)
-          error = sqrt(error)
-
-          ! get error for chixx_r0_iw0_orb below
-          average  => T1%chixx_r0_iw0_orb(:,:,T1%avg)
-          binval   => T1%chixx_r0_iw0_orb(:,:,1)
-          error    => T1%chixx_r0_iw0_orb(:,:,T1%err)
-          temp   =  (average-binval)**2
-
-          call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-          error = error*dble(nproc-1)/dble(nproc)
-          error = sqrt(error)
-          deallocate(temp)
-        endif
-
-        if (T1%flags(ISPZZ) == 1) then
-          n = T1%norb*T1%norb
-          allocate(temp(0:T1%norb-1,0:T1%norb-1))
-          do it = 0, T1%L-1
-             average  => T1%chizz_q_orb(it,:,:,T1%avg)
-             binval   => T1%chizz_q_orb(it,:,:,1)
-
-             !Compute error: sum(y_i-avg_y)^2
-             error  => T1%chizz_q_orb(it,:,:,T1%err)
-             temp   =  (average-binval)**2
-
-             call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-             error = error*dble(nproc-1)/dble(nproc)
-             error = sqrt(error)
-
-             average  => T1%chizz_r0_orb(it,:,:,T1%avg)
-             binval   => T1%chizz_r0_orb(it,:,:,1)
-
-             !Compute error: sum(y_i-avg_y)^2
-             error  => T1%chizz_r0_orb(it,:,:,T1%err)
-             temp   =  (average-binval)**2
-
-             call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-             error = error*dble(nproc-1)/dble(nproc)
-             error = sqrt(error)
-          enddo
-
-          ! get error for chizz_q0_iw0_orb below
-          average  => T1%chizz_q0_iw0_orb(:,:,T1%avg)
-          binval   => T1%chizz_q0_iw0_orb(:,:,1)
-          error    => T1%chizz_q0_iw0_orb(:,:,T1%err)
-          temp   =  (average-binval)**2
-
-          call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-          error = error*dble(nproc-1)/dble(nproc)
-          error = sqrt(error)
-
-          ! get error for chizz_r0_iw0_orb below
-          average  => T1%chizz_r0_iw0_orb(:,:,T1%avg)
-          binval   => T1%chizz_r0_iw0_orb(:,:,1)
-          error    => T1%chizz_r0_iw0_orb(:,:,T1%err)
-          temp   =  (average-binval)**2
-
-          call mpi_allreduce(temp, error, n, mpi_double, mpi_sum, mpi_comm_world, i)
-          error = error*dble(nproc-1)/dble(nproc)
-          error = sqrt(error)
-          deallocate(temp)
-        endif
-
-#  endif
-    endif
-
-  end subroutine DQMC_TDM_Chi_orbital_GetErr
-
-  !--------------------------------------------------------------------!
-
-  subroutine DQMC_TDM_Chi_orbital_Print(T1, OPT1, OPT2, OPT3, OPT4, ofile)
-    use dqmc_mpi
-    !
-    ! Purpose
-    ! =======
-    !    This subroutine prints properties to file
-    !
-    ! Arguments
-    ! =========
-    !
-    type(TDM), intent(in)   :: T1                 ! T1
-    integer                 :: OPT1, OPT2, OPT3, OPT4
-
-    integer             :: i, j, t
-    character(len=slen)   :: ofile
-
-    ! ... Executable ...
-    if (.not.T1%compute) return
-
-    if (qmc_sim%rank .ne. 0) return
-
-    ! first print chi(q, iwm=0) static chi using Composite Simpson's rule
-    if (T1%flagsFT(ISPZZ) == 1) then
-      call DQMC_open_file('chizz_q0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
-      write(OPT1,"(a)") "  b  b    chi_zz(q=0,iwm=0)         err"
-
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          write(OPT1,'(2(i4),2(e16.8))') i, j, T1%chizz_q0_iw0_orb(i, j, T1%avg), T1%chizz_q0_iw0_orb(i, j, T1%err)
-        enddo
-      enddo
-
-      ! Then print out chi(q,tau)
-      write(OPT1,"(a)") "  b  b   tau         chi_zz             err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do t = 0, T1%L-1
-            write(OPT1,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_q_orb(t, i, j, T1%avg), T1%chizz_q_orb(t, i, j, T1%err)
-          enddo
-        enddo
-      enddo
-    endif
-
-    if (T1%flagsFT(ISPXX) == 1) then
-      call DQMC_open_file('chixx_q0_orb_'//adjustl(trim(ofile)),'replace', OPT2)
-      write(OPT2,"(a)") "  b  b    chi_xx(q=0,iwm=0)         err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          write(OPT2,'(2(i4),2(e16.8))') i, j, T1%chixx_q0_iw0_orb(i, j, T1%avg), T1%chixx_q0_iw0_orb(i, j, T1%err)
-        enddo
-      enddo
-
-      ! Then print out chi(q,tau)
-      write(OPT2,"(a)") "  b  b   tau         chi_xx             err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          do t = 0, T1%L-1
-            write(OPT2,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_q_orb(t, i, j, T1%avg), T1%chixx_q_orb(t, i, j, T1%err)
-          enddo
-        enddo
-      enddo
-    endif
-
-    ! =======================================================================================
-    ! Below for chi_r0
-    ! first print chi(r0, iwm=0) static chi using Composite Simpson's rule
-    if (T1%flags(ISPZZ) == 1) then
-      call DQMC_open_file('chizz_r0_orb_'//adjustl(trim(ofile)),'replace', OPT3)
-      write(OPT3,"(a)") "  b  b    chi_zz(r=0,iwm=0)         err"
-
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          if (abs(T1%chizz_r0_iw0_orb(i, j, T1%avg))>1.e-4) then
-            write(OPT3,'(2(i4),2(e16.8))') i, j, T1%chizz_r0_iw0_orb(i, j, T1%avg), T1%chizz_r0_iw0_orb(i, j, T1%err)
-          endif
-        enddo
-      enddo
-
-      ! Then print out chi(r0,tau)
-    !  write(OPT3,"(a)") "  b  b   tau         chi_zz             err"
-    !  do i = 0, T1%norb-1
-    !    do j = i, T1%norb-1
-    !      do t = 0, T1%L-1
-    !        write(OPT3,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chizz_r0_orb(t, i, j, T1%avg), T1%chizz_r0_orb(t, i, j, T1%err)
-    !      enddo
-    !    enddo
-    !  enddo
-    endif
-
-    if (T1%flags(ISPXX) == 1) then
-      call DQMC_open_file('chixx_r0_orb_'//adjustl(trim(ofile)),'replace', OPT4)
-      write(OPT4,"(a)") "  b  b    chi_xx(r=0,iwm=0)         err"
-      do i = 0, T1%norb-1
-        do j = i, T1%norb-1
-          if (abs(T1%chixx_r0_iw0_orb(i, j, T1%avg))>1.e-4) then
-            write(OPT4,'(2(i4),2(e16.8))') i, j, T1%chixx_r0_iw0_orb(i, j, T1%avg), T1%chixx_r0_iw0_orb(i, j, T1%err)
-          endif
-        enddo
-      enddo
-
-      ! Then print out chi(q,tau)
-    !  write(OPT4,"(a)") "  b  b   tau         chi_xx             err"
-    !  do i = 0, T1%norb-1
-    !    do j = i, T1%norb-1
-    !      do t = 0, T1%L-1
-    !        write(OPT4,'(2(i4),f10.5,e16.8,e16.8)') i, j, t*T1%dtau, T1%chixx_r0_orb(t, i, j, T1%avg), T1%chixx_r0_orb(t, i, j, T1%err)
-    !      enddo
-    !    enddo
-    !  enddo
-    endif
-
-  end subroutine DQMC_TDM_Chi_orbital_Print
 
   !--------------------------------------------------------------------!
   ! Below three routines for new FT of tdm quantities

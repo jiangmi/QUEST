@@ -15,6 +15,7 @@ real :: tt=1.0, xmin, xmax, x, y, p, q
 integer, dimension(5) :: Natom_ring = (/ 6,12,18,24,30 /)
 
 ! coordinates of droplet rings
+integer :: dr = 1   ! control the distance between rings: two types of rings
 real :: x0, y0
 real, dimension(6)  :: x1, y1
 real, dimension(12) :: x2, y2
@@ -24,9 +25,9 @@ real, dimension(30) :: x5, y5
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
-integer :: i, j, k, m, cnt=0, a, b, N=30, Nring=3, Nmetal, Nimp, Naj
+integer :: i, j, k, m, cnt=0, a, b, N=24, Nring=5, Nmetal, Nimp, Naj
 character*3 :: str 
-character*1 :: s1
+character*1 :: s1, s2
 
 ! map from coordinate (x,y) into index of atom
 integer, allocatable :: xy2idx(:,:)   
@@ -38,8 +39,9 @@ xy2idx = 0
 idx_atom = 0
 
 write(s1,'(I1)') Nring
+write(s2,'(I1)') dr
 write(str,'(I3)') N
-open(unit=11,file='g_Anderson_droplet_Nring'//s1//'_N'//adjustl(str),status='replace', action='write')
+open(unit=11,file='g_Anderson_droplet_Nring'//s1//'_dr'//s2//'_N'//adjustl(str),status='replace', action='write')
 write(11,"(A5)") "#NDIM"
 write(11,'(A1)') "2"
 write(11,'(A5)') "#PRIM"
@@ -127,12 +129,29 @@ p = N/3
 ! following denotes the *-th atom at jth line
 x0 = p
 y0 = p
-x1 = (/ p-1, p,   p-1, p+1, p-1, p   /)
-y1 = (/ p-1, p-1, p,   p,   p+1, p+1 /)
-x2 = (/ p-2, p-1, p,   p-2, p+1, p-2, p+2, p-2, p+1, p-2, p-1, p   /)
-y2 = (/ p-2, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+2 /)
-x3 = (/ p-3, p-2, p-1, p,   p-3, p+1, p-3, p+2, p-3, p+3, p-3, p+2, p-3, p+1, p-3, p-2, p-1, p   /)
-y3 = (/ p-3, p-3, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+3, p+3 /)
+if (dr==1) then
+  x1 = (/ p-1, p,   p-1, p+1, p-1, p   /)
+  y1 = (/ p-1, p-1, p,   p,   p+1, p+1 /)
+  x2 = (/ p-2, p-1, p,   p-2, p+1, p-2, p+2, p-2, p+1, p-2, p-1, p   /)
+  y2 = (/ p-2, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+2 /)
+  x3 = (/ p-3, p-2, p-1, p,   p-3, p+1, p-3, p+2, p-3, p+3, p-3, p+2, p-3, p+1, p-3, p-2, p-1, p   /)
+  y3 = (/ p-3, p-3, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+3, p+3 /)
+  x4 = (/ p-4, p-3, p-2, p-1, p,   p-4, p+1, p-4, p+2, p-4, p+3, p-4, p+4, p-4, p+3, p-4, p+2, p-4, p+1, p-4, p-3, p-2, p-1, p   /)
+  y4 = (/ p-4, p-4, p-4, p-4, p-4, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+4, p+4, p+4, p+4, p+4 /)
+  x5 = (/ p-5, p-4, p-3, p-2, p-1, p,   p-5, p+1, p-5, p+2, p-5, p+3, p-5, p+4, p-5, p+5, p-5, p+4, p-5, p+3, p-5, p+2, p-5, p+1, p-5, p-4, p-3, p-2, p-1, p   /)
+  y5 = (/ p-5, p-5, p-5, p-5, p-5, p-5, p-4, p-4, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+4, p+4, p+5, p+5, p+5, p+5, p+5, p+5 /)
+elseif (dr==2) then
+  x1 = (/ p-1, p-2, p+1, p-2, p+1, p-1 /)
+  y1 = (/ p-2, p-1, p-1, p+1, p+1, p+2 /)
+  x2 = (/ p-2, p-3, p,   p-4, p+2, p-3, p+3, p-4, p+2, p-3, p,   p-2 /)
+  y2 = (/ p-4, p-3, p-3, p-2, p-2, p,   p,   p+2, p+2, p+3, p+3, p+4 /)
+  x3 = (/ p-3, p-4, p-1, p-5, p+1, p-6, p+3, p-5, p+4, p-5, p+4, p-6, p+3, p-5, p+1, p-4, p-1, p-3 /)
+  y3 = (/ p-6, p-5, p-5, p-4, p-4, p-3, p-3, p-1, p-1, p+1, p+1, p+3, p+3, p+4, p+4, p+5, p+5, p+6 /)
+  x4 = (/ p-4, p-5, p-2, p-6, p,   p-7, p+2, p-8, p+4, p-7, p+5, p-6, p+6, p-7, p+5, p-8, p+4, p-7, p+2, p-6, p,   p-5, p-2, p-4 /)
+  y4 = (/ p-8, p-7, p-7, p-6, p-6, p-5, p-5, p-4, p-4, p-2, p-2, p,   p,   p+2, p+2, p+4, p+4, p+5, p+5, p+6, p+6, p+7, p+7, p+8 /)
+  x5 = (/ p-5,  p-6, p-3, p-7, p-1, p-8, p+1, p-9, p+3, p-10, p+5, p-9, p+6, p-8, p+7, p-8, p+7, p-9, p+6, p-10, p+5, p-9, p+3, p-8, p+1, p-7, p-1, p-6, p-3, p-5  /)
+  y5 = (/ p-10, p-9, p-9, p-8, p-8, p-7, p-7, p-6, p-6, p-5,  p-5, p-3, p-3, p-1, p-1, p+1, p+1, p+3, p+3, p+5,  p+5, p+6, p+6, p+7, p+7, p+8, p+8, p+9, p+9, p+10 /)
+endif
 
 ! single atom in the center:
 if (cnt<10) then
@@ -147,10 +166,12 @@ else
 endif
 
 idx_atom(1,:) = (/ xy2idx(N/3,N/3), cnt /)
+write(*,*) 'ring 0:'
 write(*,*) xy2idx(N/3,N/3), cnt
 cnt = cnt+1
 
 ! ring 1:
+write(*,*) 'ring 1:'
 if (Nring>=1) then
   do i = 1,Natom_ring(1)
     if (y1(i)<=N/3) then
@@ -180,6 +201,7 @@ if (Nring>=1) then
 endif
 
 ! ring 2:
+write(*,*) 'ring 2:'
 if (Nring>=2) then
   do i = 1,Natom_ring(2)
     if (y2(i)<=N/3) then
@@ -209,6 +231,7 @@ if (Nring>=2) then
 endif
 
 ! ring 3:
+write(*,*) 'ring 3:'
 if (Nring>=3) then
   do i = 1,Natom_ring(3)
     if (y3(i)<=N/3) then
@@ -233,6 +256,66 @@ if (Nring>=3) then
 
     idx_atom(i+19,:) = (/ xy2idx(x3(i),y3(i)), cnt /)
     write(*,*) xy2idx(x3(i),y3(i)), cnt
+    cnt = cnt+1
+  enddo
+endif
+
+! ring 4:
+write(*,*) 'ring 4:'
+if (Nring>=4) then
+  do i = 1,Natom_ring(4)
+    if (y4(i)<=N/3) then
+      xmin = N/3.0-y4(i)*0.5
+    else
+      xmin = N/6.0+(y4(i)-N/3)*0.5
+    endif
+
+    x = xmin + x4(i)
+    y = y4(i)*pa
+
+    if (cnt<10) then
+      write(str,'(I1)') cnt
+      write(11,'(A2, A1, F4.1, A2, F10.7, A2, A3)') 's'//str," ",x," ",y," ","1.0"
+    else if (cnt<100) then
+      write(str,'(I2)') cnt
+      write(11,'(A3, A1, F4.1, A2, F10.7, A2, A3)') 's'//str," ",x," ",y," ","1.0"
+    else
+      write(str,'(I3)') cnt
+      write(11,'(A4, A1, F4.1, A2, F10.7, A2, A3)') 's'//str," ",x," ",y," ","1.0"
+    endif
+
+    idx_atom(i+37,:) = (/ xy2idx(x4(i),y4(i)), cnt /)
+    write(*,*) xy2idx(x4(i),y4(i)), cnt
+    cnt = cnt+1
+  enddo
+endif
+
+! ring 5:
+write(*,*) 'ring 5:'
+if (Nring>=5) then
+  do i = 1,Natom_ring(5)
+    if (y5(i)<=N/3) then
+      xmin = N/3.0-y5(i)*0.5
+    else
+      xmin = N/6.0+(y5(i)-N/3)*0.5
+    endif
+
+    x = xmin + x5(i)
+    y = y5(i)*pa
+
+    if (cnt<10) then
+      write(str,'(I1)') cnt
+      write(11,'(A2, A1, F4.1, A2, F10.7, A2, A3)') 's'//str," ",x," ",y," ","1.0"
+    else if (cnt<100) then
+      write(str,'(I2)') cnt
+      write(11,'(A3, A1, F4.1, A2, F10.7, A2, A3)') 's'//str," ",x," ",y," ","1.0"
+    else
+      write(str,'(I3)') cnt
+      write(11,'(A4, A1, F4.1, A2, F10.7, A2, A3)') 's'//str," ",x," ",y," ","1.0"
+    endif
+
+    idx_atom(i+61,:) = (/ xy2idx(x5(i),y5(i)), cnt /)
+    write(*,*) xy2idx(x5(i),y5(i)), cnt
     cnt = cnt+1
   enddo
 endif

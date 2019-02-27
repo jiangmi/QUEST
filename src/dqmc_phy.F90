@@ -74,7 +74,7 @@ module DQMC_Phy
   !
 
   ! Array    
-  integer, parameter  :: narrays = 10
+  integer, parameter  :: narrays = 12
 
   ! Index of the array varaiables
   integer, parameter  :: IMEAS = 0
@@ -87,7 +87,9 @@ module DQMC_Phy
   integer, parameter  :: IDEN0 = 7
   integer, parameter  :: IDEN1 = 8
   integer, parameter  :: IPAIR = 9
-  integer, parameter  :: IMlocal = 10
+  integer, parameter  :: IMloc = 10
+  integer, parameter  :: INdou = 11
+  integer, parameter  :: IEloc = 12
 
   ! Parameter for the index of scalar variables (IMEAS)
   integer, parameter :: P0_DENSITY   = 1
@@ -201,7 +203,9 @@ module DQMC_Phy
      real(wp), pointer :: Den0(:, :)     ! Density-density correlation 
      real(wp), pointer :: Den1(:, :)     ! up-up (0) and up-dn (1) 
      real(wp), pointer :: Pair(:, :)     ! on-site pairing
-     real(wp), pointer :: Mlocal(:, :)   !local moment
+     real(wp), pointer :: Mloc(:, :)     ! local moment
+     real(wp), pointer :: Ndou(:, :)     ! local double occupancy
+     real(wp), pointer :: Eloc(:, :)     ! local entangelment entropy
 
      ! working space
      real(wp), pointer :: up(:) 
@@ -289,7 +293,9 @@ contains
     P0%Den0    => P0%AllProp(P0%IARR(IDEN0):P0%IARR(IDEN0 + 1) - 1, :)
     P0%Den1    => P0%AllProp(P0%IARR(IDEN1):P0%IARR(IDEN1 + 1) - 1, :)
     P0%Pair    => P0%AllProp(P0%IARR(IPAIR):P0%IARR(IPAIR + 1) - 1, :)
-    P0%Mlocal  => P0%AllProp(P0%IARR(IMlocal):P0%IARR(IMlocal + 1) - 1, :)
+    P0%Mloc    => P0%AllProp(P0%IARR(IMloc):P0%IARR(IMloc + 1) - 1, :)
+    P0%Ndou    => P0%AllProp(P0%IARR(INdou):P0%IARR(INdou + 1) - 1, :)
+    P0%Eloc    => P0%AllProp(P0%IARR(IEloc):P0%IARR(IEloc + 1) - 1, :)
 
     !allocate(P0%meas(P0%nMeas, nBin+2))
     !allocate(P0%sign(3, nBin+2))
@@ -302,7 +308,7 @@ contains
     !allocate(P0%Den0   (nClass, nBin+2))
     !allocate(P0%Den1   (nClass, nBin+2))
     !allocate(P0%Pair   (nClass, nBin+2))
-    !allocate(P0%Mlocal (nClass, nBin+2))
+    !allocate(P0%Mloc (nClass, nBin+2))
 
     ! Initialize 
     P0%meas    = ZERO
@@ -316,8 +322,10 @@ contains
     P0%Den0    = ZERO
     P0%Den1    = ZERO
     P0%Pair    = ZERO
-    P0%Mlocal  = ZERO
-    
+    P0%Mloc    = ZERO
+    P0%Ndou    = ZERO    
+    P0%Eloc    = ZERO
+
     P0%up => WS%R5
     P0%dn => WS%R6
 
@@ -386,7 +394,7 @@ contains
        nullify(P0%meas)
        nullify(P0%G_fun, P0%Gf_up, P0%Gf_dn)
        nullify(P0%SpinXX, P0%SpinZZ, P0%AveSpin)
-       nullify(P0%Den0, P0%Den1, P0%Pair, P0%Mlocal)
+       nullify(P0%Den0, P0%Den1, P0%Pair, P0%Mloc, P0%Ndou, P0%Eloc)
 
        deallocate(P0%AllProp, P0%sign)
 
@@ -434,7 +442,7 @@ contains
     integer  :: i, j, k, ph                      ! Loop iterator
     integer  :: tmp, idx, m                      ! Helper variables
     real(wp) :: sgn                        
-    real(wp) :: var1, var2, var3          
+    real(wp) :: var1, var2, var3, var4      
     integer, pointer  :: start(:) 
     integer, pointer  :: r(:) 
     integer, pointer  :: A(:) 
@@ -461,7 +469,9 @@ contains
     P0%SpinXX(:,tmp) = ZERO
     P0%SpinZZ(:,tmp) = ZERO
     P0%Pair(:,tmp)   = ZERO
-    P0%Mlocal(:,tmp) = ZERO
+    P0%Mloc(:,tmp)   = ZERO
+    P0%Ndou(:,tmp)   = ZERO
+    P0%Eloc(:,tmp)   = ZERO
 
     ! Compute the site density for spin up and spin down
     do i = 1, n
@@ -475,16 +485,31 @@ contains
        P0%meas(P0_NUD, tmp) = P0%meas(P0_NUD, tmp) + P0%up(i) * P0%dn(i)
 
        !=================================================================! 
+       ! local double occupancy <n_up*n_dn>     
+       !=================================================================! 
+       var1 = P0%up(i) * P0%dn(i)
+       k = S%D(i,i)
+       P0%Ndou(k, tmp) = P0%Ndou(k, tmp) + var1
+
+       !=================================================================! 
        ! avg <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
        !=================================================================! 
-       var1 = P0%up(i) + P0%dn(i) - 2.0d0 * P0%up(i) * P0%dn(i)
-       P0%meas(P0_M2, tmp) = P0%meas(P0_M2, tmp) + var1
+       var2 = P0%up(i) + P0%dn(i) - 2.0d0 * var1
+       P0%meas(P0_M2, tmp) = P0%meas(P0_M2, tmp) + var2
 
        !=================================================================! 
        ! local <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
        !=================================================================! 
-       k = S%D(i,i)
-       P0%Mlocal(k, tmp) = P0%Mlocal(k, tmp) + var1
+       P0%Mloc(k, tmp) = P0%Mloc(k, tmp) + var2
+
+       !=================================================================! 
+       ! local entropy     
+       !=================================================================! 
+       var2 = P0%up(i) - var1
+       var3 = P0%dn(i) - var1
+       var4 = 1.0d0 - P0%up(i) - P0%dn(i) + var1
+       P0%Eloc(k, tmp) = P0%Eloc(k, tmp) - var1*log(var1) - var2*log(var2) &
+                                         - var3*log(var3) - var4*log(var4)
 
        !=====================================================================!
        ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
@@ -770,7 +795,9 @@ contains
        P0%Den0  (i, tmp) = P0%Den0  (i, tmp) / S%F(i) * HALF
        P0%Den1  (i, tmp) = P0%Den1  (i, tmp) / S%F(i)
        P0%Pair  (i, tmp) = P0%Pair  (i, tmp) / S%F(i)
-       P0%Mlocal(i, tmp) = P0%Mlocal(i, tmp) / S%F(i)
+       P0%Mloc  (i, tmp) = P0%Mloc  (i, tmp) / S%F(i)
+       P0%Ndou  (i, tmp) = P0%Ndou  (i, tmp) / S%F(i)
+       P0%Eloc  (i, tmp) = P0%Eloc  (i, tmp) / S%F(i)
     end do
 
 !    if (P0%compSAF) then
@@ -791,7 +818,9 @@ contains
     call blas_daxpy(m, sgn, P0%Den0  (1:m,tmp), 1, P0%Den0  (1:m,idx), 1)
     call blas_daxpy(m, sgn, P0%Den1  (1:m,tmp), 1, P0%Den1  (1:m,idx), 1)
     call blas_daxpy(m, sgn, P0%Pair  (1:m,tmp), 1, P0%Pair  (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Mlocal(1:m,tmp), 1, P0%Mlocal(1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Mloc  (1:m,tmp), 1, P0%Mloc  (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Ndou  (1:m,tmp), 1, P0%Ndou  (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Eloc  (1:m,tmp), 1, P0%Eloc  (1:m,idx), 1)
 
     P0%sign(P0_SGN,   idx) =  P0%sign(P0_SGN,   idx) + sgn
     P0%sign(P0_SGNUP, idx) =  P0%sign(P0_SGNUP, idx) + sgnup
@@ -852,7 +881,9 @@ contains
     call blas_dscal(n, factor, P0%Den0  (1:n, idx), 1)
     call blas_dscal(n, factor, P0%Den1  (1:n, idx), 1)
     call blas_dscal(n, factor, P0%Pair  (1:n, idx), 1)
-    call blas_dscal(n, factor, P0%Mlocal(1:n, idx), 1)
+    call blas_dscal(n, factor, P0%Mloc  (1:n, idx), 1)
+    call blas_dscal(n, factor, P0%Ndou  (1:n, idx), 1)
+    call blas_dscal(n, factor, P0%Eloc  (1:n, idx), 1)
 
     ! Change bin
     P0%idx = P0%idx + 1
@@ -974,8 +1005,22 @@ contains
 
        ! local moment
        do i = 1, P0%nClass
-          data = P0%Mlocal(i, 1:n)
-          call DQMC_SignJackKnife(n, P0%Mlocal(i, avg), P0%Mlocal(i, err), &
+          data = P0%Mloc(i, 1:n)
+          call DQMC_SignJackKnife(n, P0%Mloc(i, avg), P0%Mloc(i, err), &
+               data, y, sgn, sum_sgn)
+       end do
+
+       ! local double occupancy
+       do i = 1, P0%nClass
+          data = P0%Ndou(i, 1:n)
+          call DQMC_SignJackKnife(n, P0%Ndou(i, avg), P0%Ndou(i, err), &
+               data, y, sgn, sum_sgn)
+       end do
+
+       ! local entangelment entropy
+       do i = 1, P0%nClass
+          data = P0%Eloc(i, 1:n)
+          call DQMC_SignJackKnife(n, P0%Eloc(i, avg), P0%Eloc(i, err), &
                data, y, sgn, sum_sgn)
        end do
 
@@ -1156,7 +1201,8 @@ contains
     avg    = P0%avg
     err    = P0%err
 
-    call DQMC_open_file('local_moment_orb_'//adjustl(trim(ofile)),'replace', OPT)
+    call DQMC_open_file('local_orb_'//adjustl(trim(ofile)),'replace', OPT)
+    write(OPT,'(a13)') 'Local moment:'
     do i = 1, nClass
       write(lab,*) trim(adjustl(S%clabel(i)))
       read(lab(1:4),*) band(i,1)
@@ -1164,9 +1210,33 @@ contains
       b1 = int(band(i,1))
       b2 = int(band(i,2))
       if (b1==b2) then
-        write(OPT,'((i4),4(e16.8))') b1, P0%Mlocal(i,avg), P0%Mlocal(i,err)
+        write(OPT,'((i4),4(e16.8))') b1, P0%Mloc(i,avg), P0%Mloc(i,err)
       endif
     enddo 
+
+    write(OPT,'(a24)') 'Local double occupancy:'
+    do i = 1, nClass
+      write(lab,*) trim(adjustl(S%clabel(i)))
+      read(lab(1:4),*) band(i,1)
+      read(lab(5:8),*) band(i,2)
+      b1 = int(band(i,1))
+      b2 = int(band(i,2))
+      if (b1==b2) then
+        write(OPT,'((i4),4(e16.8))') b1, P0%Ndou(i,avg), P0%Ndou(i,err)
+      endif
+    enddo
+
+    write(OPT,'(a28)') 'Local entanglement entropy:'
+    do i = 1, nClass
+      write(lab,*) trim(adjustl(S%clabel(i)))
+      read(lab(1:4),*) band(i,1)
+      read(lab(5:8),*) band(i,2)
+      b1 = int(band(i,1))
+      b2 = int(band(i,2))
+      if (b1==b2) then
+        write(OPT,'((i4),4(e16.8))') b1, P0%Eloc(i,avg), P0%Eloc(i,err)
+      endif
+    enddo
 
   end subroutine DQMC_Phy_Print_local
  

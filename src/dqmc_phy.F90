@@ -200,6 +200,7 @@ module DQMC_Phy
      real(wp), pointer :: Den0(:, :)     ! Density-density correlation 
      real(wp), pointer :: Den1(:, :)     ! up-up (0) and up-dn (1) 
      real(wp), pointer :: Pair(:, :)     ! on-site pairing
+     real(wp), pointer :: Mlocal(:, :)   !local moment
 
      ! working space
      real(wp), pointer :: up(:) 
@@ -288,6 +289,8 @@ contains
     P0%Den1    => P0%AllProp(P0%IARR(IDEN1):P0%IARR(IDEN1 + 1) - 1, :)
     P0%Pair    => P0%AllProp(P0%IARR(IPAIR):P0%IARR(IPAIR + 1) - 1, :)
 
+    allocate(P0%Mlocal(P0%nClass, nBin+2))
+
     !allocate(P0%meas(P0%nMeas, nBin+2))
     !allocate(P0%sign(3, nBin+2))
     !allocate(P0%G_fun  (nClass, nBin+2))
@@ -299,7 +302,6 @@ contains
     !allocate(P0%Den0   (nClass, nBin+2))
     !allocate(P0%Den1   (nClass, nBin+2))
     !allocate(P0%Pair   (nClass, nBin+2))
-
 
     ! Initialize 
     P0%meas    = ZERO
@@ -313,6 +315,7 @@ contains
     P0%Den0    = ZERO
     P0%Den1    = ZERO
     P0%Pair    = ZERO
+    P0%Mlocal  = ZERO
     
     P0%up => WS%R5
     P0%dn => WS%R6
@@ -382,8 +385,7 @@ contains
        nullify(P0%meas)
        nullify(P0%G_fun, P0%Gf_up, P0%Gf_dn)
        nullify(P0%SpinXX, P0%SpinZZ, P0%AveSpin)
-       nullify(P0%Den0, P0%Den1)
-       nullify(P0%Pair)
+       nullify(P0%Den0, P0%Den1, P0%Pair)
 
        deallocate(P0%AllProp, P0%sign)
 
@@ -394,6 +396,7 @@ contains
        endif
     end if
 
+    deallocate(P0%Mlocal)
     deallocate(P0%rt)
     deallocate(P0%lf)
     deallocate(P0%top)
@@ -417,7 +420,7 @@ contains
     ! =========
     !
     integer, intent(in)          :: n            ! Number of sites
-    type(Phy), intent(inout)    :: P0           ! Phy
+    type(Phy), intent(inout)     :: P0           ! Phy
     real(wp), intent(in)         :: G_up(n,n)    ! Green's function
     real(wp), intent(in)         :: G_dn(n,n)    ! for spin up and down
     real(wp), intent(in)         :: sgnup, sgndn ! Sgn for det(G_up) det(G_dn)
@@ -458,6 +461,7 @@ contains
     P0%SpinXX(:,tmp) = ZERO
     P0%SpinZZ(:,tmp) = ZERO
     P0%Pair(:,tmp)   = ZERO
+    P0%Mlocal(:,tmp) = ZERO
 
     ! Compute the site density for spin up and spin down
     do i = 1, n
@@ -468,19 +472,35 @@ contains
        !======================================================!
        P0%up(i)  = ONE - G_up(i, i)
        P0%dn(i)  = ONE - G_dn(i, i)
-       P0%meas(P0_NUD, tmp) = P0%meas(P0_NUD, tmp)+ &
-            P0%up(i) * P0%dn(i)
+       P0%meas(P0_NUD, tmp) = P0%meas(P0_NUD, tmp) + P0%up(i) * P0%dn(i)
+
+       !=================================================================! 
+       ! avg <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
+       !=================================================================! 
+       var1 = P0%up(i) + P0%dn(i) - 2.0d0 * P0%up(i) * P0%dn(i)
+       P0%meas(P0_M2, tmp) = P0%meas(P0_M2, tmp) + var1
+
+       !=================================================================! 
+       ! local <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
+       !=================================================================! 
+       k = S%D(i,i)
+       P0%Mlocal(k, tmp) = P0%Mlocal(k, tmp) + var1
+
        !=====================================================================!
        ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
        !=====================================================================!
-       P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + &
-            P0%up(i) * P0%dn(i) * U(S%Map(i))
+       P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + P0%up(i) * P0%dn(i) * U(S%Map(i))
        !     (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
     end do
 
     P0%meas(P0_NUP, tmp) = sum(P0%up)
     P0%meas(P0_NDN, tmp) = sum(P0%dn)
     
+    !=================================================================!
+    ! Total occupancy = nup + ndn
+    !=================================================================!
+    P0%meas(P0_DENSITY, tmp) = P0%meas(P0_NUP, tmp) + P0%meas(P0_NDN, tmp)      
+
     !=================================================================!
     ! Kinetic energy = Hopping energy + mu term 
     !=================================================================!
@@ -514,12 +534,13 @@ contains
        P0%meas(P0_KE_UP, tmp)  = P0%meas(P0_KE_UP, tmp) - var1
        P0%meas(P0_KE_DN, tmp)  = P0%meas(P0_KE_DN, tmp) - var2
        P0%meas(P0_KE, tmp)     = P0%meas(P0_KE, tmp)    - var3
-    end do
 
-    !=================================================================!
-    ! Total energy = kinetic energy + potential energy
-    !=================================================================!
-    P0%meas(P0_ENERGY, tmp) = P0%meas(P0_KE, tmp) + P0%meas(P0_PE, tmp)
+       !=================================================================!
+       ! Total energy = kinetic energy + potential energy
+       !=================================================================!
+       P0%meas(P0_ENERGY, tmp) = P0%meas(P0_ENERGY, tmp) - var3 &
+                                 + P0%up(i) * P0%dn(i) * U(S%Map(i))
+    end do
 
     !=================================================================!
     ! KE in x direction <-Kx> for D and Ds (up and dn spins)
@@ -539,18 +560,6 @@ contains
        P0%meas(P0_Kx_dn, tmp) = P0%meas(P0_Kx_dn, tmp) + var2
        P0%meas(P0_Kx, tmp)    = P0%meas(P0_Kx, tmp)    + var3
     enddo
-
-    !=================================================================!
-    ! Total occupancy = nup + ndn
-    !=================================================================!
-    P0%meas(P0_DENSITY, tmp) = P0%meas(P0_NUP, tmp) + &                                                                  
-         P0%meas(P0_NDN, tmp)      
-
-    !=================================================================! 
-    ! <m^2> = <n_up+n_dn> - 2<n_up*n_dn>     
-    !=================================================================! 
-    P0%meas(P0_M2, tmp) = P0%meas(P0_density, tmp) -&
-     2 * P0%meas(P0_NUD, tmp)
 
     !=========================================!
     ! Chi_thermal 
@@ -760,7 +769,8 @@ contains
        P0%SpinZZ(i, tmp) = P0%SpinZZ(i, tmp) / S%F(i)
        P0%Den0  (i, tmp) = P0%Den0  (i, tmp) / S%F(i) * HALF
        P0%Den1  (i, tmp) = P0%Den1  (i, tmp) / S%F(i)
-       P0%Pair(i, tmp)   = P0%Pair(i, tmp) / S%F(i)
+       P0%Pair  (i, tmp) = P0%Pair  (i, tmp) / S%F(i)
+       P0%Mlocal(i, tmp) = P0%Mlocal(i, tmp) / S%F(i)
     end do
 
 !    if (P0%compSAF) then
@@ -780,7 +790,8 @@ contains
     call blas_daxpy(m, sgn, P0%SpinZZ(1:m,tmp), 1, P0%SpinZZ(1:m,idx), 1)
     call blas_daxpy(m, sgn, P0%Den0  (1:m,tmp), 1, P0%Den0  (1:m,idx), 1)
     call blas_daxpy(m, sgn, P0%Den1  (1:m,tmp), 1, P0%Den1  (1:m,idx), 1)
-    call blas_daxpy(m, sgn, P0%Pair  (1:m,tmp), 1, P0%Pair(1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Pair  (1:m,tmp), 1, P0%Pair  (1:m,idx), 1)
+    call blas_daxpy(m, sgn, P0%Mlocal(1:m,tmp), 1, P0%Mlocal(1:m,idx), 1)
 
     P0%sign(P0_SGN,   idx) =  P0%sign(P0_SGN,   idx) + sgn
     P0%sign(P0_SGNUP, idx) =  P0%sign(P0_SGNUP, idx) + sgnup
@@ -841,6 +852,7 @@ contains
     call blas_dscal(n, factor, P0%Den0  (1:n, idx), 1)
     call blas_dscal(n, factor, P0%Den1  (1:n, idx), 1)
     call blas_dscal(n, factor, P0%Pair  (1:n, idx), 1)
+    call blas_dscal(n, factor, P0%Mlocal(1:n, idx), 1)
 
     ! Change bin
     P0%idx = P0%idx + 1
@@ -960,6 +972,13 @@ contains
                data, y, sgn, sum_sgn)
        end do
 
+       ! local moment
+       do i = 1, P0%nClass
+          data = P0%Mlocal(i, 1:n)
+          call DQMC_SignJackKnife(n, P0%Mlocal(i, avg), P0%Mlocal(i, err), &
+               data, y, sgn, sum_sgn)
+       end do
+
        ! Store Jackknife in bins
        do i = 1, n
           P0%sign(:,i) = (n*P0%sign(:,avg) - P0%sign(:,i)) / dble(n-1)
@@ -1007,13 +1026,19 @@ contains
           call mpi_allreduce(P0%AllProp(:,1), P0%AllProp(:,avg), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
+          call mpi_allreduce(P0%Mlocal(:,1), P0%Mlocal(:,avg), P0%nClass, mpi_double, &
+             mpi_sum, mpi_comm_world, mpi_err)
+
           P0%AllProp(:,1) = (P0%AllProp(:,avg) - P0%AllProp(:,1)) / dble(nproc - 1)
+          P0%Mlocal(:,1)  = (P0%Mlocal(:,avg) - P0%Mlocal(:,1))   / dble(nproc - 1)
           P0%sign(:,1)    = (P0%sign(:,avg) - P0%sign(:,1)) / dble(nproc - 1)
-          P0%AllProp(:,1)   = P0%AllProp(:,1) / P0%sign(P0_SGN,1)
+          P0%AllProp(:,1) = P0%AllProp(:,1) / P0%sign(P0_SGN,1)
+          P0%Mlocal(:,1)  = P0%Mlocal(:,1)  / P0%sign(P0_SGN,1)
 
           ! similar to avg = sum_x/sum_sgn step in DQMC_SignJackKnife_Real
           ! both divided by dble(nproc), below two lines cannot switch 
           P0%AllProp(:,avg) = P0%AllProp(:,avg) / P0%sign(P0_SGN,avg) 
+          P0%Mlocal(:,avg)  = P0%Mlocal(:,avg)  / P0%sign(P0_SGN,avg) 
           P0%sign(:,avg)    = P0%sign(:,avg) / dble(nproc)
 
           !i Compute proper chi_thermal and C_v
@@ -1025,6 +1050,10 @@ contains
           call mpi_allreduce((P0%AllProp(:,1)-P0%AllProp(:,avg))**2, P0%AllProp(:,err), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
           P0%AllProp(:,err) = sqrt(P0%AllProp(:,err) * dble(nproc-1)/dble(nproc))
+
+          call mpi_allreduce((P0%Mlocal(:,1)-P0%Mlocal(:,avg))**2, P0%Mlocal(:,err), P0%nClass, mpi_double, &
+             mpi_sum, mpi_comm_world, mpi_err)
+          P0%Mlocal(:,err) = sqrt(P0%Mlocal(:,err) * dble(nproc-1)/dble(nproc))
 
           call mpi_allreduce((P0%sign(:,1)-P0%sign(:,avg))**2, P0%sign(:,err), 3, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
@@ -1114,8 +1143,43 @@ contains
          S%clabel, P0%Pair(:, avg:avg), P0%Pair(:, err:err), OPT)
     
   end subroutine DQMC_Phy_Print
-  
-  !====================================================================!
+ 
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_Phy_Print_local(P0, ofile, S, OPT)
+    use dqmc_mpi
+    !
+    type(Phy), intent(in)    :: P0   ! Phy
+    type(Struct), intent(in) :: S    ! Underline lattice structure
+    integer                  :: OPT  ! Output file handle
+    integer                  :: i, b1, b2
+    character(len=80)        :: ofile
+    character(len=label_len) :: lab
+    real    :: band(S%nClass,4)
+    integer :: nClass, avg, err
+
+    ! ... Executable ...
+
+   if (qmc_sim%rank /= 0) return
+
+    nClass = P0%nClass
+    avg    = P0%avg
+    err    = P0%err
+
+    call DQMC_open_file('local_moment_orb_'//adjustl(trim(ofile)),'replace', OPT)
+    do i = 1, nClass
+      write(lab,*) trim(adjustl(S%clabel(i)))
+      read(lab(1:4),*) band(i,1)
+      read(lab(5:8),*) band(i,2)
+      b1 = int(band(i,1))
+      b2 = int(band(i,2))
+      if (b1==b2) then
+        write(OPT,'(2(i4),4(e16.8))') b1, b2, P0%Mlocal(i,avg), P0%Mlocal(i,err)
+      endif
+    enddo 
+
+  end subroutine DQMC_Phy_Print_local
+ 
   !--------------------------------------------------------------------!
 
   subroutine DQMC_Phy_GetFT(P0, class, phase, ft_wgt_t, ft_wgt_g, nkt, nkg, na, nt)

@@ -25,7 +25,7 @@ program dqmc_ggeom
   integer             :: na, nt, nkt, nkg, i, j, k, slice, nhist, comp_tdm
   integer             :: nBin, nIter
   character(len=slen) :: ofile  
-  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT10,OPT11
+  integer             :: OPT,OPT1,OPT2,OPT3,OPT4,OPT5,OPT6,OPT7,OPT10
   !integer             :: HSF_output_file_unit
   integer             :: symmetries_output_file_unit
   integer             :: FLD_UNIT, TDM_UNIT
@@ -227,14 +227,15 @@ program dqmc_ggeom
   !Print P0 results: determine if qmc_sim%rank==0 in subroutines
   call DQMC_Hub_OutputParam(Hub, OPT)
   call DQMC_Phy_Print(Hub%P0, Hub%S, OPT)
+  call DQMC_Phy_Print_local(Hub%P0, ofile, Hub%S, OPT1)
 
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then
     if (qmc_sim%rank == qmc_sim%aggr_root) then
       call DQMC_open_file(adjustl(trim(ofile))//'.tdm.out','unknown', TDM_UNIT)
     endif
-    call DQMC_TDM_Print(tm, ofile, TDM_UNIT, OPT11)
-    call DQMC_TDM_Print_local(tm, ofile, OPT1, OPT2, OPT3, OPT4, OPT5)
+    call DQMC_TDM_Print(tm, ofile, TDM_UNIT, OPT2)
+    call DQMC_TDM_Print_local(tm, ofile, OPT3, OPT4, OPT5, OPT6, OPT7)
   endif
 
 ! ==============  Fourier transform ============================================
@@ -244,7 +245,7 @@ program dqmc_ggeom
   call DQMC_TDM_GetKFTold(tm)
   call DQMC_TDM_GetErrKFTold(tm)
   call DQMC_TDM_PrintKFTold(tm, TDM_UNIT)
-!  call DQMC_TDM_PrintKFT_allBins(tm, TDM_UNIT, ofile, OPT5, OPT6)
+!  call DQMC_TDM_PrintKFT_allBins(tm, TDM_UNIT, ofile, OPT8, OPT9)
 
 ! ==== curr-curr(qx=0,qy;iwn=0) is estimated by linear extrapolation of two smallest qy ======
   !Direct access to binned data; no need to be in the loop above

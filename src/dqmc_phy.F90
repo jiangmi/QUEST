@@ -74,7 +74,7 @@ module DQMC_Phy
   !
 
   ! Array    
-  integer, parameter  :: narrays = 9
+  integer, parameter  :: narrays = 10
 
   ! Index of the array varaiables
   integer, parameter  :: IMEAS = 0
@@ -87,6 +87,7 @@ module DQMC_Phy
   integer, parameter  :: IDEN0 = 7
   integer, parameter  :: IDEN1 = 8
   integer, parameter  :: IPAIR = 9
+  integer, parameter  :: IMlocal = 10
 
   ! Parameter for the index of scalar variables (IMEAS)
   integer, parameter :: P0_DENSITY   = 1
@@ -288,8 +289,7 @@ contains
     P0%Den0    => P0%AllProp(P0%IARR(IDEN0):P0%IARR(IDEN0 + 1) - 1, :)
     P0%Den1    => P0%AllProp(P0%IARR(IDEN1):P0%IARR(IDEN1 + 1) - 1, :)
     P0%Pair    => P0%AllProp(P0%IARR(IPAIR):P0%IARR(IPAIR + 1) - 1, :)
-
-    allocate(P0%Mlocal(P0%nClass, nBin+2))
+    P0%Mlocal  => P0%AllProp(P0%IARR(IMlocal):P0%IARR(IMlocal + 1) - 1, :)
 
     !allocate(P0%meas(P0%nMeas, nBin+2))
     !allocate(P0%sign(3, nBin+2))
@@ -302,6 +302,7 @@ contains
     !allocate(P0%Den0   (nClass, nBin+2))
     !allocate(P0%Den1   (nClass, nBin+2))
     !allocate(P0%Pair   (nClass, nBin+2))
+    !allocate(P0%Mlocal (nClass, nBin+2))
 
     ! Initialize 
     P0%meas    = ZERO
@@ -385,7 +386,7 @@ contains
        nullify(P0%meas)
        nullify(P0%G_fun, P0%Gf_up, P0%Gf_dn)
        nullify(P0%SpinXX, P0%SpinZZ, P0%AveSpin)
-       nullify(P0%Den0, P0%Den1, P0%Pair)
+       nullify(P0%Den0, P0%Den1, P0%Pair, P0%Mlocal)
 
        deallocate(P0%AllProp, P0%sign)
 
@@ -396,7 +397,6 @@ contains
        endif
     end if
 
-    deallocate(P0%Mlocal)
     deallocate(P0%rt)
     deallocate(P0%lf)
     deallocate(P0%top)
@@ -1026,19 +1026,13 @@ contains
           call mpi_allreduce(P0%AllProp(:,1), P0%AllProp(:,avg), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
-          call mpi_allreduce(P0%Mlocal(:,1), P0%Mlocal(:,avg), P0%nClass, mpi_double, &
-             mpi_sum, mpi_comm_world, mpi_err)
-
           P0%AllProp(:,1) = (P0%AllProp(:,avg) - P0%AllProp(:,1)) / dble(nproc - 1)
-          P0%Mlocal(:,1)  = (P0%Mlocal(:,avg) - P0%Mlocal(:,1))   / dble(nproc - 1)
           P0%sign(:,1)    = (P0%sign(:,avg) - P0%sign(:,1)) / dble(nproc - 1)
           P0%AllProp(:,1) = P0%AllProp(:,1) / P0%sign(P0_SGN,1)
-          P0%Mlocal(:,1)  = P0%Mlocal(:,1)  / P0%sign(P0_SGN,1)
 
           ! similar to avg = sum_x/sum_sgn step in DQMC_SignJackKnife_Real
           ! both divided by dble(nproc), below two lines cannot switch 
           P0%AllProp(:,avg) = P0%AllProp(:,avg) / P0%sign(P0_SGN,avg) 
-          P0%Mlocal(:,avg)  = P0%Mlocal(:,avg)  / P0%sign(P0_SGN,avg) 
           P0%sign(:,avg)    = P0%sign(:,avg) / dble(nproc)
 
           !i Compute proper chi_thermal and C_v
@@ -1050,10 +1044,6 @@ contains
           call mpi_allreduce((P0%AllProp(:,1)-P0%AllProp(:,avg))**2, P0%AllProp(:,err), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
           P0%AllProp(:,err) = sqrt(P0%AllProp(:,err) * dble(nproc-1)/dble(nproc))
-
-          call mpi_allreduce((P0%Mlocal(:,1)-P0%Mlocal(:,avg))**2, P0%Mlocal(:,err), P0%nClass, mpi_double, &
-             mpi_sum, mpi_comm_world, mpi_err)
-          P0%Mlocal(:,err) = sqrt(P0%Mlocal(:,err) * dble(nproc-1)/dble(nproc))
 
           call mpi_allreduce((P0%sign(:,1)-P0%sign(:,avg))**2, P0%sign(:,err), 3, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
@@ -1174,7 +1164,7 @@ contains
       b1 = int(band(i,1))
       b2 = int(band(i,2))
       if (b1==b2) then
-        write(OPT,'(2(i4),4(e16.8))') b1, b2, P0%Mlocal(i,avg), P0%Mlocal(i,err)
+        write(OPT,'((i4),4(e16.8))') b1, P0%Mlocal(i,avg), P0%Mlocal(i,err)
       endif
     enddo 
 

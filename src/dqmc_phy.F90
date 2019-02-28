@@ -475,6 +475,8 @@ contains
 
     ! Compute the site density for spin up and spin down
     do i = 1, n
+       k = S%D(i,i)
+
        !======================================================!
        ! The density of electrons of spin up(dn) on site i    !
        ! is 1-G_up(i,i) (1-G_dn(i,i)).                        !
@@ -488,7 +490,6 @@ contains
        ! local double occupancy <n_up*n_dn>     
        !=================================================================! 
        var1 = P0%up(i) * P0%dn(i)
-       k = S%D(i,i)
        P0%Ndou(k, tmp) = P0%Ndou(k, tmp) + var1
 
        !=================================================================! 
@@ -508,6 +509,8 @@ contains
        var2 = P0%up(i) - var1
        var3 = P0%dn(i) - var1
        var4 = 1.0d0 - P0%up(i) - P0%dn(i) + var1
+       ! var4 sometimes can be negative in MC process so that Eloc = NaN
+       !write(*,*) 'Eloc ', var4
        P0%Eloc(k, tmp) = P0%Eloc(k, tmp) - var1*log(var1) - var2*log(var2) &
                                          - var3*log(var3) - var4*log(var4)
 
@@ -849,8 +852,8 @@ contains
     type(Phy), intent(inout) :: P0     ! Phy
     
     ! ... local scalar ...
-    real(wp) :: factor
-    integer  :: idx, n
+    real(wp) :: factor, var1, var2, var3, var4
+    integer  :: idx, n, k
 
     ! ... Executable ...
     idx = P0%idx
@@ -883,7 +886,19 @@ contains
     call blas_dscal(n, factor, P0%Pair  (1:n, idx), 1)
     call blas_dscal(n, factor, P0%Mloc  (1:n, idx), 1)
     call blas_dscal(n, factor, P0%Ndou  (1:n, idx), 1)
-    call blas_dscal(n, factor, P0%Eloc  (1:n, idx), 1)
+   ! call blas_dscal(n, factor, P0%Eloc  (1:n, idx), 1)
+
+    ! calculate local entanglement entropy
+    do k = 1, n
+      var1 = P0%Ndou(k, idx)
+      var2 = 1.0d0 - P0%Gf_up(k, idx) - var1
+      var3 = 1.0d0 - P0%Gf_dn(k, idx) - var1
+      var4 = 1.0d0 - var1 - var2 - var3
+      P0%Eloc(k, idx) = - var1*log(var1) - var2*log(var2) &
+                        - var3*log(var3) - var4*log(var4)
+    enddo
+
+    !write(*,*) 'DQMC_Phy_Avg var4= ', var4, ", Eloc=", P0%Eloc(1,idx)
 
     ! Change bin
     P0%idx = P0%idx + 1
@@ -1191,6 +1206,7 @@ contains
     character(len=80)        :: ofile
     character(len=label_len) :: lab
     real    :: band(S%nClass,4)
+    real(wp) :: x, y
     integer :: nClass, avg, err
 
     ! ... Executable ...
@@ -1207,33 +1223,48 @@ contains
       write(lab,*) trim(adjustl(S%clabel(i)))
       read(lab(1:4),*) band(i,1)
       read(lab(5:8),*) band(i,2)
+      read(lab(14:25),*) band(i,3)
+      read(lab(26:37),*) band(i,4)
       b1 = int(band(i,1))
       b2 = int(band(i,2))
-      if (b1==b2) then
+      x  = real(band(i,3))
+      y  = real(band(i,4))
+
+      if (b1==b2 .and. abs(x)<1.e-5 .and. abs(y)<1.e-5) then
         write(OPT,'((i4),4(e16.8))') b1, P0%Mloc(i,avg), P0%Mloc(i,err)
       endif
     enddo 
 
-    write(OPT,'(a24)') 'Local double occupancy:'
+    write(OPT,'(a23)') 'Local double occupancy:'
     do i = 1, nClass
       write(lab,*) trim(adjustl(S%clabel(i)))
       read(lab(1:4),*) band(i,1)
       read(lab(5:8),*) band(i,2)
+      read(lab(14:25),*) band(i,3)
+      read(lab(26:37),*) band(i,4)
       b1 = int(band(i,1))
       b2 = int(band(i,2))
-      if (b1==b2) then
+      x  = real(band(i,3))
+      y  = real(band(i,4))
+
+      if (b1==b2 .and. abs(x)<1.e-5 .and. abs(y)<1.e-5) then
         write(OPT,'((i4),4(e16.8))') b1, P0%Ndou(i,avg), P0%Ndou(i,err)
       endif
     enddo
 
-    write(OPT,'(a28)') 'Local entanglement entropy:'
+    write(OPT,'(a27)') 'Local entanglement entropy:'
     do i = 1, nClass
       write(lab,*) trim(adjustl(S%clabel(i)))
       read(lab(1:4),*) band(i,1)
       read(lab(5:8),*) band(i,2)
+      read(lab(14:25),*) band(i,3)
+      read(lab(26:37),*) band(i,4)
       b1 = int(band(i,1))
       b2 = int(band(i,2))
-      if (b1==b2) then
+      x  = real(band(i,3))
+      y  = real(band(i,4))
+
+      if (b1==b2 .and. abs(x)<1.e-5 .and. abs(y)<1.e-5) then
         write(OPT,'((i4),4(e16.8))') b1, P0%Eloc(i,avg), P0%Eloc(i,err)
       endif
     enddo

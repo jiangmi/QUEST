@@ -1767,8 +1767,8 @@ contains
           if (T1%flags(ISPXX) == 1) then
             bins => T1%chixx_r0_orb_iw0(:,1)
             aves => T1%chixx_r0_orb_iw0(:,avg)
-            bins = (aveptr - binptr) / dble(nproc - 1)
-            bins =  binptr / T1%sgn(1)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
@@ -1781,15 +1781,15 @@ contains
 
             bins => T1%chixx_q0_orb_iw0(:,1)
             aves => T1%chixx_q0_orb_iw0(:,avg)
-            bins = (aveptr - binptr) / dble(nproc - 1)
-            bins =  binptr / T1%sgn(1)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
           endif
 
           if (T1%flags(ISPZZ) == 1) then
             bins => T1%chizz_r0_orb_iw0(:,1)
             aves => T1%chizz_r0_orb_iw0(:,avg)
-            bins = (aveptr - binptr) / dble(nproc - 1)
-            bins =  binptr / T1%sgn(1)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
@@ -1802,8 +1802,8 @@ contains
 
             bins => T1%chizz_q0_orb_iw0(:,1)
             aves => T1%chizz_q0_orb_iw0(:,avg)
-            bins = (aveptr - binptr) / dble(nproc - 1)
-            bins =  binptr / T1%sgn(1)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -1855,7 +1855,7 @@ contains
 
           if (T1%flags(ISPXX) == 1) then
             aves => T1%chixx_r0_orb_iw0(:,avg)
-            aves =  aveptr / T1%sgn(avg)
+            aves =  aves / T1%sgn(avg)
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
@@ -1863,12 +1863,12 @@ contains
             aveptr =  aveptr / T1%sgn(avg)
 
             aves => T1%chixx_q0_orb_iw0(:,avg)
-            aves =  aveptr / T1%sgn(avg)
+            aves =  aves / T1%sgn(avg)
           endif
 
           if (T1%flags(ISPZZ) == 1) then
             aves => T1%chizz_r0_orb_iw0(:,avg)
-            aves =  aveptr / T1%sgn(avg)
+            aves =  aves / T1%sgn(avg)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
@@ -1876,7 +1876,7 @@ contains
             aveptr =  aveptr / T1%sgn(avg)
 
             aves => T1%chizz_q0_orb_iw0(:,avg)
-            aves =  aveptr / T1%sgn(avg)
+            aves =  aves / T1%sgn(avg)
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -2366,9 +2366,9 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer :: ip, it, nproc, i
+    integer :: ip, it, nproc, n, i
 
-    complex(wp), pointer  :: average(:), binval(:), error(:)
+    complex(wp), pointer  :: average(:), binval(:), error(:), temp(:)
  
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
@@ -2860,9 +2860,9 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer :: ip, it, nproc, i
+    integer :: ip, it, nproc, n, i
 
-    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:)
+    real(wp), pointer  :: average(:,:), binval(:,:), error(:,:), temp(:,:)
  
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
@@ -3231,7 +3231,7 @@ contains
 
     integer :: nproc, i, j, s, Nq
 
-    real(wp), pointer  :: average(:), binval(:), error(:)
+    real(wp), pointer  :: average(:), binval(:), error(:), temp(:)
 
     if (.not.T1%compute .or. T1%flags(ICOND)==0) return
 

@@ -16,7 +16,7 @@ integer, dimension(9) :: Natom_ring = (/ 6,12,18,24,30,36,42,48,54 /)
 
 ! coordinates of droplet rings
 character*1 :: AB = 'B'
-integer :: dr = 3   ! control the distance between rings
+integer :: dr = 4   ! control the distance between rings
 integer :: N=30, Nring=1, pp
 real :: x0, y0
 real, dimension(6)  :: x1, y1

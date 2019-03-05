@@ -1,25 +1,26 @@
 program geom
-! Generate geometry file for Anderson droplet on square lattice
+! Generate geometry file for Anderson droplet on triangular lattice 
 ! (single supercell as the whole lattice)
-! then Anderson droplet put in the center
+! the whole lattice is a square lattice with additional diagonal hoppings so
+! that triangular lattice, then Anderson droplet put in the center
 ! This program used PBC
 implicit none
 
-real :: x, y, N=12.0, U=4.0, p, q, V=1.0, N2
+real :: x, y, N=12.0, U=4.0, p, q, V=1.2, N2
 
 ! No. of atoms for each ring and their locations:
-integer, dimension(5) :: Natom_ring = (/ 4,8,12,16,20 /)
+integer, dimension(5) :: Natom_ring = (/ 6,12,18,24,30 /)
 
 ! coordinates of droplet rings
-real, dimension(4)  :: x1, y1
-real, dimension(8) :: x2, y2
-real, dimension(12) :: x3, y3
-real, dimension(16) :: x4, y4
-real, dimension(20) :: x5, y5
+real, dimension(6)  :: x1, y1
+real, dimension(12) :: x2, y2
+real, dimension(18) :: x3, y3
+real, dimension(24) :: x4, y4
+real, dimension(30) :: x5, y5
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
-integer :: i, j, k, a, b, Nring=5, Nhop_droplet
+integer :: i, j, k, a, b, Nring=2, Nhop_droplet
 character*3 :: str 
 character*1 :: s1
 real*8, allocatable :: r(:)
@@ -70,16 +71,12 @@ end do
 Nhop_droplet = sum(Natom_ring(1:Nring))+1
 allocate(idx_atom(Nhop_droplet, 2))
 p = N/2   
-x1 = (/ p,   p-1, p+1, p   /)
-y1 = (/ p-1, p,   p,   p+1 /)
-x2 = (/ p,   p-1, p+1, p-2, p+2, p-1, p+1, p   /)
-y2 = (/ p-2, p-1, p-1, p,   p,   p+1, p+1, p+2 /)
-x3 = (/ p,   p-1, p+1, p-2, p+2, p-3, p+3, p-2, p+2, p-1, p+1, p /)
-y3 = (/ p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3 /)
-x4 = (/ p,   p-1, p+1, p-2, p+2, p-3, p+3, p-4, p+4, p-3, p+3, p-2, p+2, p-1, p+1, p /)
-y4 = (/ p-4, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+4 /)
-x5 = (/ p,   p-1, p+1, p-2, p+2, p-3, p+3, p-4, p+4, p-5, p+5, p-4, p+4, p-3, p+3, p-2, p+2, p-1, p+1, p /)
-y5 = (/ p-5, p-4, p-4, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+4, p+4, p+5 /)
+x1 = (/ p-1, p,   p-1, p+1, p,   p+1 /)
+y1 = (/ p-1, p-1, p,   p,   p+1, p+1 /)
+x2 = (/ p-2, p-1, p,   p-2, p+1, p-2, p+2, p-1, p+2, p,   p+1, p+2 /)
+y2 = (/ p-2, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+2 /)
+x3 = (/ p-3, p-2, p-1, p,   p-3, p+1, p-3, p+2, p-3, p+3, p-2, p+3, p-1, p+3, p,   p+1, p+2, p+3 /)
+y3 = (/ p-3, p-3, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+3, p+3 /)
 
 ! single atom in the center:
 a = N*N
@@ -130,7 +127,7 @@ if (Nring>=2) then
       write(11,'(A4, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x2(i)," ",y2(i)," ","1.0"
     endif
 
-    idx_atom(i+5,:) = (/ y2(i)*N+x2(i), real(a) /)
+    idx_atom(i+7,:) = (/ y2(i)*N+x2(i), real(a) /)
   enddo
 endif
 
@@ -149,48 +146,9 @@ if (Nring>=3) then
       write(11,'(A4, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x3(i)," ",y3(i)," ","1.0"
     endif
 
-    idx_atom(i+13,:) = (/ y3(i)*N+x3(i), real(a) /)
+    idx_atom(i+19,:) = (/ y3(i)*N+x3(i), real(a) /)
   enddo
 endif
-
-! ring 4:
-if (Nring>=4) then
-  do i = 1,Natom_ring(4)
-    a = N*N+Natom_ring(1)+Natom_ring(2)+Natom_ring(3)+i
-    if (a<10) then
-      write(str,'(I1)') int(a)
-      write(11,'(A2, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x4(i)," ",y4(i)," ","1.0"
-    else if (a<100) then
-      write(str,'(I2)') int(a)
-      write(11,'(A3, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x4(i)," ",y4(i)," ","1.0"
-        else
-      write(str,'(I3)') int(a)
-      write(11,'(A4, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x4(i)," ",y4(i)," ","1.0"
-    endif
-
-    idx_atom(i+25,:) = (/ y4(i)*N+x4(i), real(a) /)
-  enddo
-endif
-
-! ring 5:
-if (Nring>=5) then
-  do i = 1,Natom_ring(5)
-    a = N*N+Natom_ring(1)+Natom_ring(2)+Natom_ring(3)+Natom_ring(4)+i
-    if (a<10) then
-      write(str,'(I1)') int(a)
-      write(11,'(A2, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x5(i)," ",y5(i)," ","1.0"
-    else if (a<100) then
-      write(str,'(I2)') int(a)
-      write(11,'(A3, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x5(i)," ",y5(i)," ","1.0"
-        else
-      write(str,'(I3)') int(a)
-      write(11,'(A4, A1, F4.1, A2, F4.1, A2, A3)') 's'//str," ",x5(i)," ",y5(i)," ","1.0"
-    endif
-
-    idx_atom(i+41,:) = (/ y5(i)*N+x5(i), real(a) /)
-  enddo
-endif
-
 
 write(11,'(A30)') "#HAMILT            tup  tdn  U"
 ! hopping along x direction
@@ -272,6 +230,71 @@ do i = N**2-N+1, N**2
     endif
 end do
 
+! hopping along (1,1) direction
+do j = 0, N-2
+  do i = 0, N-2
+    a = j*N+i
+    b = (j+1)*N+(i+1)
+    if(a<10 .and. b<10) then
+      write(11,'(I1, A1, I1, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<10 .and. b<100) then
+      write(11,'(I1, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<100 .and. b<100) then
+      write(11,'(I2, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<100 .and. b<1000) then
+      write(11,'(I2, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else
+      write(11,'(I3, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    endif
+  enddo
+enddo
+! PBC:
+do j = 0, N-2
+   a = j*N+(N-1)
+   b = a+1
+    if(a<10 .and. b<10) then
+      write(11,'(I1, A1, I1, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<10 .and. b<100) then
+      write(11,'(I1, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<100 .and. b<100) then
+      write(11,'(I2, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<100 .and. b<1000) then
+      write(11,'(I2, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else
+      write(11,'(I3, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    endif
+end do
+do i = 0, N-2
+   a = (N-1)*N+i
+   b = i+1
+    if(a<10 .and. b<10) then
+      write(11,'(I1, A1, I1, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<10 .and. b<100) then
+      write(11,'(I1, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<100 .and. b<100) then
+      write(11,'(I2, A1, I2, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else if (a<100 .and. b<1000) then
+      write(11,'(I2, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    else
+      write(11,'(I3, A1, I3, A2, A3, A1, A3, A1, A3, A2, A3, A2, A3, A2, A3)') a," ",b," ","1.0"," ","1.0"&
+               ," ","0.0"," ","1.0"," ","1.0"," ","0.0"
+    endif
+end do
+
 ! local hopping between Anderson droplet and metal
 do i = 1, Nhop_droplet
     j = idx_atom(i,1)
@@ -323,10 +346,24 @@ end do
 
 ! =======================================================
 write(11,'(A5)') "#SYMM"
-write(11,'(A3,F4.1, A2, F10.7,A24)') "c6 ",p, " ", p, " 0.0d0 0.0d0 0.0d0 1.0d0"
-write(11,'(A3,F4.1, A2, F10.7,A24)') "c6 ",p, " ", p, " 1.0d0 0.0d0 0.0d0 1.0d0"
-write(11,'(A3,F4.1, A2, F10.7,A24)') "d  ",p, " ", p, " 0.0d0 0.0d0 1.0d0 0.0d0"
-write(11,'(A3,F4.1, A2, F10.7,A24)') "d  ",p, " ", p, " 1.0d0 0.0d0 1.0d0 0.0d0"
+do j = 0, N-1
+  write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",real(j), " ", real(j), " 0.0d0 1.0d0 1.0d0 0.0d0"
+enddo
+! droplet impurities:
+do j = -Nring, Nring
+  q = p+real(j)
+  write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",q, " ", q, " 1.0d0 1.0d0 1.0d0 0.0d0"
+enddo
+
+! center site of the lattice has additional symm
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 0.0d0 0.0d0"
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 0.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 1.0d0 -1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 0.0d0 -1.0d0 1.0d0 0.0d0"
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 0.0d0 0.0d0"
+!write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 0.0d0 1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 1.0d0 -1.0d0 0.0d0"
+write(11,'(A3,F4.1, A2, F4.1,A25)') "d  ",p, " ", p, " 1.0d0 -1.0d0 1.0d0 0.0d0"
 
 write(11,'(A4)') "#END"
 end program geom

@@ -9,15 +9,15 @@ implicit none
 ! Variable declarations:
 
 real :: pa = 0.8660254  ! sqrt(3)/2
-real :: tt=1.0, xmin, xmax, x, y, p, q
+real :: tt = 1.0, xmin, xmax, x, y, p, q
 
 ! No. of atoms for each ring and their locations:
-integer, dimension(9) :: Natom_ring = (/ 6,12,18,24,30,36,42,48,54 /)
+integer, dimension(10) :: Natom_ring = (/ 6,12,18,24,30,36,42,48,54,60 /)
 
 ! coordinates of droplet rings
-character*1 :: AB = 'B'
-integer :: dr = 4   ! control the distance between rings
-integer :: N=30, Nring=1, pp
+character*1 :: AB = 'A'
+integer :: dr = 1   ! control the distance between rings
+integer :: N=30, Nring=10, pp
 real :: x0, y0
 real, dimension(6)  :: x1, y1
 real, dimension(12) :: x2, y2
@@ -28,11 +28,13 @@ real, dimension(36) :: x6, y6
 real, dimension(42) :: x7, y7
 real, dimension(48) :: x8, y8
 real, dimension(54) :: x9, y9
+real, dimension(60) :: x10, y10
 integer, allocatable :: idx_atom(:,:)  ! orbital index for droplet atoms and
                                        ! correponding metallic atoms
 
 integer :: i, j, k, m, cnt=0, a, b, Nmetal, Nimp, Naj
 character*3 :: str 
+character*2 :: s1a
 character*1 :: s1, s2
 
 ! map from coordinate (x,y) into index of atom
@@ -46,10 +48,15 @@ allocate(idx_atom(1:Nimp, 2))
 xy2idx = 0
 idx_atom = 0
 
-write(s1,'(I1)') Nring
 write(s2,'(I1)') dr
 write(str,'(I3)') N/3
-open(unit=11,file='g_Anderson_droplet_'//AB//s2//'_Nr'//s1//'_L'//adjustl(str),status='replace', action='write')
+if (Nring<10) then
+  write(s1,'(I1)') Nring
+  open(unit=11,file='g_Anderson_droplet_'//AB//s2//'_Nr'//s1//'_L'//adjustl(str),status='replace', action='write')
+else
+  write(s1a,'(I2)') Nring
+  open(unit=11,file='g_Anderson_droplet_'//AB//s2//'_Nr'//s1a//'_L'//adjustl(str),status='replace', action='write')
+endif
 write(11,"(A5)") "#NDIM"
 write(11,'(A1)') "2"
 write(11,'(A5)') "#PRIM"
@@ -176,6 +183,14 @@ if (AB=='A') then
   y9 = (/ p-9, p-9, p-9, p-9, p-9, p-9, p-9, p-9, p-9, p-9, p-8, p-8, p-7, p-7, p-6, p-6, p-5, p-5, p-4, p-4, &
         p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+4, p+4, p+5, p+5, p+6, p+6, &
         p+7, p+7, p+8, p+8, p+9, p+9, p+9, p+9, p+9, p+9, p+9, p+9, p+9, p+9 /)
+
+  x10 = (/ p-10, p-9, p-8, p-7, p-6, p-5, p-4, p-3, p-2, p-1, p,   p-10, p+1, p-10, p+2, p-10, p+3, p-10, p+4, p-10, &
+           p+5, p-10, p+6, p-10, p+7, p-10, p+8, p-10, p+9, p-10, p+10, p-10, p+9, p-10, p+8, p-10, p+7, p-10, p+6, &    
+           p-10,p+5, p-10, p+4, p-10, p+3, p-10, p+2, p-10, p+1, p-10, p-9, p-8, p-7, p-6, p-5, p-4, p-3, p-2, p-1, p /)
+    
+  y10 = (/ p-10, p-10, p-10, p-10, p-10, p-10, p-10, p-10, p-10, p-10, p-10, p-9, p-9, p-8, p-8, p-7, p-7, p-6, p-6, &
+           p-5, p-5, p-4, p-4, p-3, p-3, p-2, p-2, p-1, p-1, p,   p,   p+1, p+1, p+2, p+2, p+3, p+3, p+4, p+4, p+5, &
+           p+5, p+6, p+6, p+7, p+7, p+8, p+8, p+9, p+9, p+10, p+10, p+10, p+10, p+10, p+10, p+10, p+10, p+10, p+10, p+10 /)
 elseif (AB=='B') then
   x1 = (/ p-1, p-2, p+1, p-2, p+1, p-1 /)
   y1 = (/ p-2, p-1, p-1, p+1, p+1, p+2 /)
@@ -385,6 +400,25 @@ if (dr==1) then
 
         idx_atom(i+217,:) = (/ xy2idx(x9(i),y9(i)), cnt /)
         write(*,*) xy2idx(x9(i),y9(i)), cnt
+        cnt = cnt+1
+      enddo
+    endif
+    ! ring 10:
+    write(*,*) 'ring 10:'
+    if (Nring>=10) then
+      do i = 1,Natom_ring(10)
+        if (y10(i)<=N/3) then
+          xmin = N/3.0-y10(i)*0.5
+        else
+          xmin = N/6.0+(y10(i)-N/3)*0.5
+        endif
+
+        x = xmin + x10(i)
+        y = y10(i)*pa
+        call writefile(cnt, x, y)
+
+        idx_atom(i+271,:) = (/ xy2idx(x10(i),y10(i)), cnt /)
+        write(*,*) xy2idx(x10(i),y10(i)), cnt
         cnt = cnt+1
       enddo
     endif

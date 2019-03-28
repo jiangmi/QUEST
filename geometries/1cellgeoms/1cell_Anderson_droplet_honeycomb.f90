@@ -15,9 +15,9 @@ real :: tt = 1.0, xmin, xmax, x, y, p, q
 integer, dimension(10) :: Natom_ring = (/ 6,12,18,24,30,36,42,48,54,60 /)
 
 ! coordinates of droplet rings
-character*1 :: AB = 'A'
-integer :: dr = 1   ! control the distance between rings
-integer :: N=30, Nring=10, pp
+character*1 :: AB = 'B'
+integer :: dr = 4   ! control the distance between rings
+integer :: N=36, Nring=1, pp
 real :: x0, y0
 real, dimension(6)  :: x1, y1
 real, dimension(12) :: x2, y2
@@ -605,6 +605,92 @@ elseif (dr==4) then
 
         idx_atom(i+25,:) = (/ xy2idx(x8(i),y8(i)), cnt /)
         write(*,*) xy2idx(x8(i),y8(i)), cnt
+        cnt = cnt+1
+      enddo
+    endif
+! ===========================
+! dr=5
+elseif (dr==5) then
+    ! ring 1:
+    write(*,*) 'ring 1:'
+    if (Nring>=1) then
+      do i = 1,Natom_ring(5)
+        if (y5(i)<=N/3) then
+          xmin = N/3.0-y5(i)*0.5
+        else
+          xmin = N/6.0+(y5(i)-N/3)*0.5
+        endif
+
+        x = xmin + x5(i)
+        y = y5(i)*pa
+        call writefile(cnt, x, y)
+
+        idx_atom(i+1,:) = (/ xy2idx(x5(i),y5(i)), cnt /)
+        write(*,*) xy2idx(x5(i),y5(i)), cnt
+        cnt = cnt+1
+      enddo
+    endif
+
+    ! ring 2:
+    write(*,*) 'ring 2:'
+    if (Nring>=2) then
+      do i = 1,Natom_ring(10)
+        if (y10(i)<=N/3) then
+          xmin = N/3.0-y10(i)*0.5
+        else
+          xmin = N/6.0+(y10(i)-N/3)*0.5
+        endif
+
+        x = xmin + x10(i)
+        y = y10(i)*pa
+        call writefile(cnt, x, y)
+
+        idx_atom(i+31,:) = (/ xy2idx(x10(i),y10(i)), cnt /)
+        write(*,*) xy2idx(x10(i),y10(i)), cnt
+        cnt = cnt+1
+      enddo
+    endif
+! ===========================
+! dr=6
+elseif (dr==6) then
+    ! ring 1:
+    write(*,*) 'ring 1:'
+    if (Nring>=1) then
+      do i = 1,Natom_ring(6)
+        if (y6(i)<=N/3) then
+          xmin = N/3.0-y6(i)*0.5
+        else
+          xmin = N/6.0+(y6(i)-N/3)*0.5
+        endif
+
+        x = xmin + x6(i)
+        y = y6(i)*pa
+        call writefile(cnt, x, y)
+
+        idx_atom(i+1,:) = (/ xy2idx(x6(i),y6(i)), cnt /)
+        write(*,*) xy2idx(x6(i),y6(i)), cnt
+        cnt = cnt+1
+      enddo
+    endif
+! ===========================
+! dr=7
+elseif (dr==7) then
+    ! ring 1:
+    write(*,*) 'ring 1:'
+    if (Nring>=1) then
+      do i = 1,Natom_ring(7)
+        if (y7(i)<=N/3) then
+          xmin = N/3.0-y7(i)*0.5
+        else
+          xmin = N/6.0+(y7(i)-N/3)*0.5
+        endif
+
+        x = xmin + x7(i)
+        y = y7(i)*pa
+        call writefile(cnt, x, y)
+
+        idx_atom(i+1,:) = (/ xy2idx(x7(i),y7(i)), cnt /)
+        write(*,*) xy2idx(x7(i),y7(i)), cnt
         cnt = cnt+1
       enddo
     endif

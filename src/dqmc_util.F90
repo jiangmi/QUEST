@@ -1238,6 +1238,32 @@ contains
 
   !--------------------------------------------------------------------!
 
+  subroutine convert_to_iw0(tdmtau, tdmiw0, L, dtau)
+     ! 3/28/2019:
+     ! convert G(tau) or spin-spin(tau) to G(iw=0) or spin(iw=0) component
+     ! using composite Simpson's rule
+ 
+     integer,     intent(in)  :: L
+     complex(wp), intent(in)  :: tdmtau(0:L-1)
+     complex(wp), intent(out) :: tdmiw0
+     integer :: it
+     real*8  :: dtau
+
+     tdmiw0 = 0.0
+     ! special term for chi(beta) = chi(0)
+     tdmiw0 = tdmiw0 + tdmtau(0)
+       do it = 1, L-1, 2
+         tdmiw0 = tdmiw0 + 4.*tdmtau(it)
+       enddo
+       do it = 2, L-2, 2
+         tdmiw0 = tdmiw0 + 2.*tdmtau(it)
+       enddo
+     tdmiw0 = tdmiw0 * dtau/3.0
+
+  end subroutine convert_to_iw0
+
+  !--------------------------------------------------------------------!
+
   subroutine DQMC_getFTw(gl,gw,maxl,dtau,bose,nmax)
      ! Fourier transform g(n,l) to get g(n,w) (Fermi or Bose frequencies).
 

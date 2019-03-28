@@ -61,6 +61,7 @@ module DQMC_TDM
 
      real(wp),    pointer :: values(:,:,:)
      complex(wp), pointer :: valueskold(:,:,:) ! old FT, now only for selfE
+     complex(wp), pointer :: valueskold_iw0(:,:)
      real(wp),    pointer :: valuesk(:,:,:,:)  ! (kx,ky,tau,bin)
 
      real(wp),    pointer :: tlink(:,:)
@@ -317,7 +318,6 @@ contains
 
           nclass = S%nClass
           np     = Gwrap%lattice%natom
-          npp    = (np*(np+1))/2
 
           nullify(T1%properties(iprop)%tlink)
           T1%properties(iprop)%n      =  S%nSite
@@ -334,7 +334,6 @@ contains
 
           nclass = S%nClass
           np     = Gwrap%lattice%natom
-          npp    = (np*(np+1))/2
 
           nullify(T1%properties(iprop)%tlink)
           T1%properties(iprop)%n      =  S%nSite
@@ -353,7 +352,6 @@ contains
           ! modify nClass=1 to be same as other quantities
           nclass = S%nClass
           np     = Gwrap%lattice%natom
-          npp    = (np*(np+1))/2
 
           nullify(T1%properties(iprop)%tlink)
           T1%properties(iprop)%n      =  S%nSite
@@ -372,10 +370,6 @@ contains
      end select
 
      T1%properties(iprop)%values  = 0.0_wp
-     if(associated(T1%properties(iprop)%valueskold)) &
-         T1%properties(iprop)%valueskold = 0.0_wp
-     if(associated(T1%properties(iprop)%valuesk)) &
-         T1%properties(iprop)%valuesk = 0.0_wp
 
   end subroutine DQMC_TDM_InitProp
 
@@ -406,6 +400,7 @@ contains
           T1%properties(iprop)%nk     =  nk
           T1%properties(iprop)%ftk    => Gwrap%RecipLattice%FourierC
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
        case(ISPXX, ISPZZ, IDENS, IPAIR)
@@ -416,6 +411,7 @@ contains
           T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
           T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
@@ -428,6 +424,7 @@ contains
           T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
           T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
+          allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
         ! used in meas for average, for conductivity, renormalized by lattice
@@ -438,9 +435,9 @@ contains
         !  directions
      end select
 
-     T1%properties(iprop)%values  = 0.0_wp
      if(associated(T1%properties(iprop)%valueskold)) &
          T1%properties(iprop)%valueskold = 0.0_wp
+         T1%properties(iprop)%valueskold_iw0 = 0.0_wp
      if(associated(T1%properties(iprop)%valuesk)) &
          T1%properties(iprop)%valuesk = 0.0_wp
 
@@ -519,6 +516,7 @@ contains
        if (T1%flagsFT(i)==1) then
          nullify(T1%properties(i)%ftk)
          deallocate(T1%properties(i)%valueskold)
+         deallocate(T1%properties(i)%valueskold_iw0)
          deallocate(T1%properties(i)%valuesk)
        endif
     enddo
@@ -2310,13 +2308,14 @@ contains
 
     type(tdm), intent(inout) :: T1
 
-    integer              :: ip, it, n, nclass, np, nk, ibin
+    integer              :: ip, it, n, nclass, np, npp, nk, ibin, j
     integer,     pointer :: class(:,:)
     complex(wp), pointer :: wgtftk(:,:)
     integer,     pointer :: phase(:,:)
 
     real(wp)   , pointer :: value(:)
     complex(wp), pointer :: valuek(:)
+    complex(wp), pointer :: valuek_iw0
 
     if (.not.T1%compute) return
  
@@ -2333,6 +2332,7 @@ contains
          class    => T1%properties(ip)%D
          wgtftk   => T1%properties(ip)%ftk
          phase    => T1%properties(ip)%phase
+         npp      =  (np*(np+1))/2
 
          !Fourier transform each bin and average
          !For MPI run, nbin=1 so T1%avg=T1%nBin+1 = 2
@@ -2352,6 +2352,13 @@ contains
                !npp will obtained in dqmc_GetFTk
                call dqmc_GetFTk(value, n, nclass, class, np, nk, wgtftk, phase, valuek)
             enddo
+
+            ! FT convert to iw=0 quantity
+            do j = 1,nk*npp
+               valuek     =>  T1%properties(ip)%valueskold(j,:,ibin)
+               valuek_iw0 =>  T1%properties(ip)%valueskold_iw0(j,ibin)
+               call convert_to_iw0(valuek, valuek_iw0, T1%L, T1%dtau)
+            enddo
          enddo ! Loop over bins
       endif
     enddo ! Loop over properties
@@ -2369,7 +2376,7 @@ contains
     integer :: ip, it, nproc, n, i
 
     complex(wp), pointer  :: average(:), binval(:), error(:), temp(:)
- 
+
     !Loop over properties to Fourier transform
     nproc = qmc_sim%size
 
@@ -2391,12 +2398,24 @@ contains
 
              do i = 1, T1%nbin
                 binval => T1%properties(ip)%valueskold(:,it,i)
-                error  = error  +  cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+                error  = error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
              enddo 
 
-             error  = error* dble(T1%nbin-1)/dble(T1%nbin)
+             error = error* dble(T1%nbin-1)/dble(T1%nbin)
              error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
           enddo
+
+          ! Then iw=0 component:
+          average  => T1%properties(ip)%valueskold_iw0(:,T1%avg)
+          error    => T1%properties(ip)%valueskold_iw0(:,T1%err)
+
+          do i = 1, T1%nbin
+             binval => T1%properties(ip)%valueskold_iw0(:,i)
+             error  = error + cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+          enddo
+
+          error = error* dble(T1%nbin-1)/dble(T1%nbin)
+          error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
         endif
       enddo 
 
@@ -2427,6 +2446,18 @@ contains
              error  = error*dble(nproc-1)/dble(nproc)
              error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
           enddo
+
+          ! Then iw=0 component:
+          average  => T1%properties(ip)%valueskold_iw0(:,T1%avg)
+          binval   => T1%properties(ip)%valueskold_iw0(:,1)
+
+          !Compute error: sum(y_i-avg_y)^2
+          error  => T1%properties(ip)%valueskold_iw0(:,T1%err)
+          temp   = cmplx((real(average-binval))**2,(aimag(average-binval))**2)
+          call mpi_allreduce(temp, error, n, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+          error  = error*dble(nproc-1)/dble(nproc)
+          error = cmplx(sqrt(real(error)),sqrt(aimag(error)))
 
           deallocate(temp)
         endif
@@ -2490,6 +2521,29 @@ contains
                   write(OPT,'(1x)')
                enddo
             enddo
+         enddo
+      endif
+    enddo
+
+    ! Then print out iw=0 component
+    do iprop = 1, NTDMARRAY-1 ! -1 for exclusion of conductivity for FT
+       if (T1%flags(iprop)==1) then
+         if (.not.associated(T1%properties(iprop)%valueskold_iw0)) cycle
+         np = T1%properties(iprop)%np
+         npp = (np*(np+1))/2
+         do k = 1, T1%properties(iprop)%nk
+            i = (k-1)*npp                  
+            write(OPT,'(A,i3,A)') pname(iprop)//' cell_site_pair   k=',k,', iw=0'
+
+            do ip = 1, np
+               do jp = ip, np
+                  i = i + 1
+                  tmp(1, 1:2) = T1%properties(iprop)%valueskold_iw0(i, T1%avg:T1%err)
+                  write(OPT,"(I4,I4,e16.8,e16.8)") ip-1,jp-1, dble(tmp(1, 1:1)), dble(tmp(1, 2:2))
+               enddo
+            enddo
+            write(OPT,FMT_DBLINE)
+            write(OPT,'(1x)')
          enddo
       endif
     enddo

@@ -2432,6 +2432,8 @@ contains
           if (.not.associated(T1%properties(ip)%valueskold)) cycle
     
           n = T1%properties(ip)%nk * T1%properties(ip)%np*(T1%properties(ip)%np+1)/2          
+          allocate(temp(n))
+
           do it = 0, T1%L-1
              !Note that avg value is already averaged over proc in DQMC_TDM_GetKFT
              !and binval is JackKnifed among proc

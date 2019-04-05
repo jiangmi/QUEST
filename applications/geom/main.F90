@@ -242,6 +242,7 @@ program dqmc_ggeom
   !Compute Fourier transform
   !Direct access to binned data; no need to be in the loop above
 !  call DQMC_TDM_GetKFT(tm, Hub)
+  write(*,*) "Start FT of tdm quantities:"
   call DQMC_TDM_GetKFTold(tm)
   call DQMC_TDM_GetErrKFTold(tm)
   call DQMC_TDM_PrintKFTold(tm, TDM_UNIT)

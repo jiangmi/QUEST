@@ -273,8 +273,6 @@ program dqmc_ggeom
 
   !In DQMC_TDM_GetKFT determines if comp_tdm>0
   if (SelfE > 0)  then
-    call DQMC_TDM_GetKFTold(tm)
-    call DQMC_TDM_GetErrKFTold(tm)
     call DQMC_TDM_SelfEnergy(tm, tau)
   endif
 

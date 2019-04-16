@@ -271,11 +271,6 @@ program dqmc_ggeom
     call DQMC_Phy_GetErrFT(Hub%P0)
   endif
 
-  !In DQMC_TDM_GetKFT determines if comp_tdm>0
-  if (SelfE > 0)  then
-    call DQMC_TDM_SelfEnergy(tm, tau)
-  endif
-
   !Printing: determine if qmc_sim%rank==0 in subroutines
   if (FTphy > 0) then
      !Print info on k-points and construct clabel, in dqmc_geom_wrap.F90
@@ -284,7 +279,7 @@ program dqmc_ggeom
      call DQMC_Phy_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
   if (SelfE > 0) then
-     call DQMC_TDM_PrintKFTold(tm, TDM_UNIT)
+     call DQMC_TDM_SelfEnergy(tm, tau)
      call DQMC_TDM_Print_SelfEnergy(tm, TDM_UNIT)
   endif
 

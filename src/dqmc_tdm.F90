@@ -165,7 +165,12 @@ module DQMC_TDM
      ! used for self-energy, (natom, natom, L, nk, 3)
      ! natom for unit cell, nk for cluster(cell) K values, 3 for G, Gup, Gdn
      complex(wp), pointer :: GkwAvg(:,:,:,:,:), GkwErr(:,:,:,:,:)
-     complex(wp), pointer :: SEavg(:,:,:,:,:), SEerr(:,:,:,:,:)
+     complex(wp), pointer :: SEkavg(:,:,:,:,:), SEkerr(:,:,:,:,:)
+
+     ! 5/9/2019
+     ! sigma(r,tau) and sigma(r,iw=0) with (natom, natom, L, 3)
+     complex(wp), pointer :: GrwAvg(:,:,:,:), GrwErr(:,:,:,:)
+     complex(wp), pointer :: SEravg(:,:,:,:), SErerr(:,:,:,:)
 
   end type TDM
  
@@ -2554,7 +2559,251 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_SelfEnergy(T1, tau)
+  subroutine DQMC_TDM_SelfEnergy_r0(T1, tau)
+    ! May.14, 2019: obtain sigma(r=0,iwm=0), here r=0 means within the
+    ! same unit cell instead of intercell
+
+    use DQMC_MPI
+
+    type(TDM), intent(inout) :: T1
+    type(gtau), intent(inout) :: tau
+
+    real(wp),    allocatable  :: g0tau(:,:), tmp(:,:)
+    complex(wp), allocatable  :: tdmg0(:,:,:), tdmg(:,:,:)
+    complex(wp), allocatable  :: tdmg0w(:,:,:), tdmgw(:,:,:)
+    complex(wp), pointer      :: avgGw(:,:,:), errGw(:,:,:)
+    complex(wp), pointer      :: avgSE(:,:,:), errSE(:,:,:)
+    complex(wp), allocatable  :: binSE(:,:,:),binGw(:,:,:)
+
+    integer :: i, j, k, h, m, nproc, ia, ja, it, jt
+    integer :: L, n, nclass, np, nt
+    real(wp):: factor
+    integer,     pointer :: class(:,:), ph(:,:)
+    complex(wp), pointer :: ftw(:,:)
+
+    integer, parameter  :: gflist(3) = (/IGFUN, IGFUP, IGFDN/)
+    integer, parameter  :: splist(3) = (/  0, TAU_UP, TAU_DN/)
+
+    if (.not.T1%compute) return
+
+    nproc = qmc_sim%size
+
+    L      =  T1%L
+    n      =  T1%properties(IGFUN)%n
+    nclass =  T1%properties(IGFUN)%nclass
+    np     =  T1%properties(IGFUN)%np
+    class  => T1%properties(IGFUN)%D
+    ftw    => T1%properties(IGFUN)%ftw
+    ph     => T1%properties(IGFUN)%phase
+
+    nt = n / np
+    !npp = np*(np+1)/2
+
+    !non-interacting green's function
+    allocate(tmp(nclass,0:L-1))
+    allocate(g0tau(n,n))
+    allocate(tdmg0(np,np,0:L-1))
+    allocate(tdmg (np,np,0:L-1))
+
+    !frequency dependent green's functions
+    allocate(tdmg0w(np,np,0:L-1))
+    allocate(tdmgw (np,np,0:L-1))
+
+    !self energy: (np, np, L, 3)
+    ! natom np for unit cell, 3 for G, Gup, Gdn
+    allocate(T1%SEravg(np,np,0:L-1,3))
+    allocate(T1%SErerr(np,np,0:L-1,3))
+    allocate(binSE(np,np,0:L-1))
+
+    allocate(T1%GrwAvg(np,np,0:L-1,3))
+    allocate(T1%GrwErr(np,np,0:L-1,3))
+    allocate(binGw(np,np,0:L-1))
+
+    do h = 1, 1
+
+      if (T1%flags(gflist(h))==1) then
+       ! Get G0 and G_avg in real space for the non-interacting system
+       tmp = 0.0_wp
+       do m = 0, L-1
+          call dqmc_Gtau_GetG0(n, tau, splist(h), m, g0tau)                                          
+          do i = 1, n
+             do j = 1, n
+                k = class(i,j)
+                tmp(k,m) = tmp(k,m) + g0tau(i,j)                                                  
+             enddo                                                                                   
+          enddo                                                                                      
+       enddo
+       do k = 1, T1%properties(h)%nClass
+          tmp(k,:) = tmp(k,:) / T1%properties(IGFUN)%F(k)     
+       enddo                                                                                          
+
+        do m = 0,L-1
+          do ia = 1, np
+            do ja = 1, np
+              !sum over translations
+              do it = 1, nt
+                 do jt = 1, nt
+                   !Find atom which is the translation of "ja" by "it"
+                   !Note that jt=it now because we only want within the same
+                   !unit cell, which is different from sigma_k
+                   i = (it-1) * np + ia
+                   j = (jt-1) * np + ja
+                   k = class(i,j)
+                   tdmg0(ja,ia,m) = cmplx(tmp(k,m)) 
+                   tdmg(ja,ia,m)  = cmplx(T1%properties(gflist(h))%values(k,m,T1%avg))
+                 enddo
+               enddo
+            enddo
+          enddo
+        enddo
+
+       ! Transform G0 from tau to iw, note for MPI, only ONE bin
+       call convert_to_iwn(tdmg0, tdmg0w)
+       call invertG(tdmg0w)
+
+       ! Get self-energy and errorbar
+       avgSE => T1%SEravg(:,:,0:L-1,h)
+       errSE => T1%SErerr(:,:,0:L-1,h)
+
+       avgGw => T1%GrwAvg(:,:,0:L-1,h)
+       errGw => T1%GrwErr(:,:,0:L-1,h)
+
+       ! Compute average self-energy; For MPI, avgSE is already averaged over proc
+       call convert_to_iwn(tdmg, tdmgw)
+       avgGw = tdmgw
+       call invertG(tdmgw)
+       avgSE = tdmg0w - tdmgw
+ 
+       if (nproc .eq. 1) then
+
+         do m = 1, T1%nbin
+           ! Transform G from tau to iwn for bin "m"
+           do ia = 1, np
+             do ja = 1, np
+               !sum over translations
+               do it = 1, nt
+                 do jt = 1, nt
+                   !Find atom which is the translation of "ja" by "it"
+                   i = (it-1) * np + ia
+                   j = (jt-1) * np + ja
+                   k = class(i,j)
+                   tdmg(ja,ia,0:L-1) = cmplx(T1%properties(gflist(h))%values(k,0:L-1,m))
+                 enddo
+               enddo
+             enddo
+           enddo
+
+           call convert_to_iwn(tdmg, tdmgw)
+
+           ! collect G(r,w) for each bin
+           binGw = tdmgw
+           errGw = ZERO
+           errGw = errGw + cmplx((real(binGw-avgGw))**2,(aimag(binGw-avgGw))**2)
+
+           call invertG(tdmgw)
+
+           ! Compute self-energy for bin
+           binSE = tdmg0w - tdmgw
+           errSE = ZERO
+           errSE = errSE + cmplx((real(binSE-avgSE))**2,(aimag(binSE-avgSE))**2)
+         enddo 
+
+         errGw  = cmplx(sqrt(real(errGw)),sqrt(aimag(errGw))) * sqrt(dble(T1%nbin-1)/dble(T1%nbin))
+         errSE  = cmplx(sqrt(real(errSE)),sqrt(aimag(errSE))) * sqrt(dble(T1%nbin-1)/dble(T1%nbin))
+
+       else
+
+#  ifdef _QMC_MPI
+         ! 11/20/2015: note here for MPI run
+         ! binned values() (only 1 bin) are not for MC, which has been
+         ! updated in JackKnife among procs in DQMC_TDM_GetErr
+         ! avg value is already averaged over proc
+         ! see DQMC_TDM_GetKFT
+
+         m = np*np*L
+
+         ! Compute self-energy for bin for each proc
+         do ia = 1, np
+           do ja = 1, np
+             !sum over translations
+             do it = 1, nt
+               do jt = 1, nt
+                 !Find atom which is the translation of "ja" by "it"
+                 i = (it-1) * np + ia
+                 j = (jt-1) * np + ja
+                 k = class(i,j)
+                 tdmg(ja,ia,0:L-1) = cmplx(T1%properties(gflist(h))%values(k,0:L-1,1))
+               enddo
+             enddo
+           enddo
+         enddo
+
+         call convert_to_iwn(tdmg, tdmgw)
+         binGw = tdmgw
+         call invertG(tdmgw)
+         binSE = tdmg0w - tdmgw
+
+         !Compute error of G(k,w): sum(y_i-avg_y)^2
+         tdmgw =  cmplx((real(binGw-avgGw))**2,(aimag(binGw-avgGw))**2)
+         call mpi_allreduce(tdmgw, errGw, m, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+         errGw = cmplx(sqrt(real(errGw)),sqrt(aimag(errGw))) * sqrt(dble(nproc-1)/dble(nproc))
+
+         !Compute error of self-energy: sum(y_i-avg_y)^2
+         tdmgw =  cmplx((real(binSE-avgSE))**2,(aimag(binSE-avgSE))**2)
+         call mpi_allreduce(tdmgw, errSE, m, mpi_double_complex, mpi_sum, mpi_comm_world, i)
+
+         errSE = cmplx(sqrt(real(errSE)),sqrt(aimag(errSE))) * sqrt(dble(nproc-1)/dble(nproc))
+# endif
+       endif
+     endif   ! end if flags=1
+    enddo    ! end loop h
+
+    contains
+
+       subroutine convert_to_iwn(tdmgtau, tdmgw)
+          complex(wp), intent(in)  :: tdmgtau(np, np, 0:L-1)
+          complex(wp), intent(out) :: tdmgw  (np, np, 0:L-1)
+          ! Local variables
+          complex(wp) :: valuetl(0:L-1), valuewl(0:L-1)
+          integer     :: ipl, jpl
+          complex(wp), parameter :: unum=(1.0_wp,0.0_wp), nil=(0.0_wp,0.0_wp)
+
+          do ipl = 1, np
+             do jpl = ipl, np
+                valuetl = tdmgtau(jpl, ipl, 0:L-1)
+                if (ipl .eq. jpl) valuetl(0) = valuetl(0) - 0.5_wp
+                call zgemv('N', L, L, unum, ftw, L, valuetl, 1, nil, valuewl, 1)
+                tdmgw(ipl, jpl, 0:L-1) = valuewl
+                if (ipl .ne. jpl) then
+                   valuetl = conjg(tdmgtau(jpl, ipl, 0:L-1))
+                   call zgemv('N', L, L, unum, ftw, L, valuetl, 1, nil, valuewl, 1)
+                   tdmgw(jpl, ipl, 0:L-1) = valuewl
+                endif
+             enddo
+          enddo
+       end subroutine convert_to_iwn
+
+       subroutine invertG(tdmgw)
+          complex(wp), target, intent(inout) :: tdmgw(np, np, 0:L-1)
+          ! Local variables
+          complex(wp) :: work(np)
+          complex(wp), pointer :: gw(:,:)
+          integer     :: ipiv(np)
+          integer     :: iwl, info
+          do iwl = 0, L-1
+             ! Fill matrix. Note that G is complex symmetric. Not hermitian.
+             gw => tdmgw(1:np, 1:np, iwl)
+             call zgetrf(np, np, gw, np, ipiv, info)
+             call zgetri(np, gw, np, ipiv, work, np, info)
+          enddo
+       end subroutine invertG
+
+  end subroutine DQMC_TDM_SelfEnergy_r0
+
+  !--------------------------------------------------------------------!
+
+  subroutine DQMC_TDM_SelfEnergy_k(T1, tau)
 
     use DQMC_MPI
 
@@ -2569,7 +2818,7 @@ contains
     complex(wp), allocatable  :: binSE(:,:,:),binGkw(:,:,:)
 
     integer :: i, j, k, h, m, nproc
-    integer :: L, n, nclass, np, nk, npp
+    integer :: L, n, nclass, np, nk, npp, ia, ja, it, nt
     integer,     pointer :: class(:,:), ph(:,:)
     complex(wp), pointer :: ftk(:,:), ftw(:,:)
 
@@ -2606,8 +2855,8 @@ contains
 
     !self energy: (natom, natom, L, nk, 3)
     ! natom for unit cell, nk for cluster(cell) K values, 3 for G, Gup, Gdn
-    allocate(T1%SEavg(np,np,0:L-1,nk,3))
-    allocate(T1%SEerr(np,np,0:L-1,nk,3))
+    allocate(T1%SEkavg(np,np,0:L-1,nk,3))
+    allocate(T1%SEkerr(np,np,0:L-1,nk,3))
     allocate(binSE(np,np,0:L-1))
 
     allocate(T1%GkwAvg(np,np,0:L-1,nk,3))
@@ -2639,8 +2888,8 @@ contains
 
        do k = 1, nk 
 
-          avgSE => T1%SEavg(:,:,0:L-1,k,h)
-          errSE => T1%SEerr(:,:,0:L-1,k,h)
+          avgSE => T1%SEkavg(:,:,0:L-1,k,h)
+          errSE => T1%SEkerr(:,:,0:L-1,k,h)
 
           avgGkw => T1%GkwAvg(:,:,0:L-1,k,h)
           errGkw => T1%GkwErr(:,:,0:L-1,k,h)
@@ -2736,7 +2985,10 @@ contains
              do jpl = ipl, np
                 ijpl = ijpl + 1
                 valuetl = tdmgtau(ijpl, 0:L-1)
+
+                ! why is there this correction for local equal-time G(k,tau)?
                 if (ipl .eq. jpl) valuetl(0) = valuetl(0) - 0.5_wp
+
                 call zgemv('N', L, L, unum, ftw, L, valuetl, 1, nil, valuewl, 1)
                 tdmgw(ipl, jpl, 0:L-1) = valuewl
                 if (ipl .ne. jpl) then
@@ -2764,8 +3016,7 @@ contains
           enddo
        end subroutine invertG
 
-
-  end subroutine DQMC_TDM_SelfEnergy
+  end subroutine DQMC_TDM_SelfEnergy_k
 
   !--------------------------------------------------------------------!
 
@@ -2774,7 +3025,7 @@ contains
     use DQMC_MPI
 
     type(TDM), intent(in)    :: T1
-    integer, intent(in)       :: OPT
+    integer, intent(in)      :: OPT
 
     character(len=10)    :: label(T1%L)
     character(len=50)    :: title
@@ -2801,8 +3052,8 @@ contains
         do k = 1, T1%properties(IGFUN)%nk
           do i = 1, T1%properties(IGFUN)%np
              do j = 1, T1%properties(IGFUN)%np
-                tmp(1:T1%L,1) = T1%SEavg(i,j,0:T1%L,k,h)
-                tmp(1:T1%L,2) = T1%SEerr(i,j,0:T1%L,k,h)
+                tmp(1:T1%L,1) = T1%SEkavg(i,j,0:T1%L,k,h)
+                tmp(1:T1%L,2) = T1%SEkerr(i,j,0:T1%L,k,h)
                 write(title,'(A,i3)') trim(pname(gflist(h)))//" SelfEn k=", k
                 write(title,'(A,i3,A,i3)') trim(adjustl(title))//'   cell_site_pair=',i-1,',',j-1  ! site index starts from 0
                 call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
@@ -2828,6 +3079,38 @@ contains
              enddo
           enddo
         enddo
+      endif
+    enddo
+
+    ! print self-energy(r,iwn)
+    do h = 1, 3
+      if (T1%flags(gflist(h))==1) then
+          do i = 1, T1%properties(IGFUN)%np
+             do j = 1, T1%properties(IGFUN)%np
+                tmp(1:T1%L,1) = T1%SEravg(i,j,0:T1%L,h)
+                tmp(1:T1%L,2) = T1%SErerr(i,j,0:T1%L,h)
+                write(title,'(A,i3)') trim(pname(gflist(h)))//" SelfEn r"
+                write(title,'(A,i3,A,i3)') trim(adjustl(title))//'   cell_site_pair=',i-1,',',j-1  ! site index starts from 0
+                call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+                write(OPT,'(1x)')
+             enddo
+          enddo
+      endif
+    enddo
+
+    ! print G(r,iwn)
+    do h = 1, 3
+      if (T1%flags(gflist(h))==1) then
+          do i = 1, T1%properties(IGFUN)%np
+             do j = 1, T1%properties(IGFUN)%np
+                tmp(1:T1%L,1) = T1%GrwAvg(i,j,0:T1%L,h)
+                tmp(1:T1%L,2) = T1%GrwErr(i,j,0:T1%L,h)
+                write(title,'(A,i3)') trim(pname(gflist(h)))//" r"
+                write(title,'(A,i3,A,i3)') trim(adjustl(title))//'   cell_site_pair=',i-1,',',j-1  ! site index starts from 0
+                call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+                write(OPT,'(1x)')
+             enddo
+          enddo
       endif
     enddo
 

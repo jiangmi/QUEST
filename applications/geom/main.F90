@@ -279,7 +279,8 @@ program dqmc_ggeom
      call DQMC_Phy_PrintFT(Hub%P0, na, nkt, nkg, OPT)
   endif
   if (SelfE > 0) then
-     call DQMC_TDM_SelfEnergy(tm, tau)
+     call DQMC_TDM_SelfEnergy_k(tm, tau)
+     call DQMC_TDM_SelfEnergy_r0(tm, tau)
      call DQMC_TDM_Print_SelfEnergy(tm, TDM_UNIT)
   endif
 

@@ -5,7 +5,7 @@
 
 # Intel Fortran compiler
 # ----------------------
-FC = mpiifort   # in case -D_QMC_MPI or ifort in case not MPI mode
+FC = ifort   # in case -D_QMC_MPI or ifort in case not MPI mode
 FC_FLAGS = -m64 -O3 -unroll  -warn all
 NOOPT_FLAGS = -O0 -warn all
 
@@ -71,6 +71,6 @@ RANLIB     = ranlib
 #    -D_OpenBC : use open boundary condition
 #
 
-PRG_FLAGS = -D_CKB -D_QMC_MPI #-DDQMC_ASQRD  # -DDQMC_PROFILE -DDQMC_CUDA -D_CKBP -D_SXX
+PRG_FLAGS = -D_CKB #-D_QMC_MPI #-DDQMC_ASQRD  # -DDQMC_PROFILE -DDQMC_CUDA -D_CKBP -D_SXX
 
 FLAGS = $(FC_FLAGS) $(PRG_FLAGS)

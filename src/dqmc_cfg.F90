@@ -1135,8 +1135,8 @@ contains
 
           ! some possible errors
           if (id==41) then
-             if (n/=10) then
-                call DQMC_Error("There should be 10 tdm flags, check input !",0)
+             if (n/=11) then
+                call DQMC_Error("There should be 11 tdm flags, check input !",0)
              endif
              if (value(1)==0) then
                 call DQMC_Error("GFUN(tau) has to be computed in tdm !",0)

@@ -71,7 +71,7 @@ module DQMC_TDM
   end type tdmarray
 
   ! Index of the array varaiables
-  integer, parameter  :: NTDMARRAY = 10
+  integer, parameter  :: NTDMARRAY = 11
   integer, parameter  :: IGFUN = 1
   integer, parameter  :: IGFUP = 2
   integer, parameter  :: IGFDN = 3
@@ -79,9 +79,10 @@ module DQMC_TDM
   integer, parameter  :: ISPZZ = 5
   integer, parameter  :: IDENS = 6
   integer, parameter  :: IPAIRs = 7
-  integer, parameter  :: ICOND  = 8
-  integer, parameter  :: ICONDup = 9
-  integer, parameter  :: ICONDdn = 10
+  integer, parameter  :: IPAIRd = 8
+  integer, parameter  :: ICOND  = 9
+  integer, parameter  :: ICONDup = 10
+  integer, parameter  :: ICONDdn = 11
   integer             :: ntdm = NTDMARRAY ! if needed, decrease it for not cond, d-wave sus etc.
 
   ! Index of the array varaiables
@@ -94,6 +95,7 @@ module DQMC_TDM
                   "SzSz     ", &
                   "Den-Den  ", &
                   "s-wave   ", &
+                  "d-wave   ", &
                   "Cond     ", &
                   "Cond_up  ", &
                   "Cond_dn  " /)
@@ -335,7 +337,7 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
-       case(ISPXX, ISPZZ, IDENS, IPAIRs)
+       case(ISPXX, ISPZZ, IDENS, IPAIRs, IPAIRd)
 
           nclass = S%nClass
           np     = Gwrap%lattice%natom
@@ -408,7 +410,7 @@ contains
           allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
-       case(ISPXX, ISPZZ, IDENS, IPAIRs)
+       case(ISPXX, ISPZZ, IDENS, IPAIRs, IPAIRd)
 
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
@@ -973,6 +975,44 @@ contains
        end do
      endif
 
+     if (T1%flags(IPAIRd) == 1) then
+       value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
+       value2  => T1%properties(IPAIRd)%values(:, dt2, T1%tmp)
+       ! D_i*D_j = sum_{dd'} Gup(i,j)*Gdn(i+d,j+d')
+       do i = 1,  T1%properties(IPAIRd)%n
+          do j = 1,  T1%properties(IPAIRd)%n
+             ! Delta^+_i = c^+_i,up * c^+_i,dn 
+             ! So rules for value1 --> value2:
+             ! upt0 <--> -up0t, dnt0 <--> -dn0t
+             k = T1%properties(IPAIRd)%D(i,j)
+
+             ! 4 neighbors of each site so that totally 16 terms
+             ! with different phase factors for d-wave pairing
+             ! record all 16 possible Gdn(i+d,j+d') as a below
+             a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &
+                -dnt0(T1%rt(i), T1%lf(j)) + dnt0(T1%rt(i), T1%dn(j))  &
+                -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &
+                +dnt0(T1%up(i), T1%lf(j)) - dnt0(T1%up(i), T1%dn(j))  &
+                -dnt0(T1%lf(i), T1%rt(j)) + dnt0(T1%lf(i), T1%up(j))  &
+                +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
+                +dnt0(T1%dn(i), T1%rt(j)) - dnt0(T1%dn(i), T1%up(j))  &
+                -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
+
+             b = dn0t(T1%rt(i), T1%rt(j)) - dn0t(T1%rt(i), T1%up(j))  &
+                -dn0t(T1%rt(i), T1%lf(j)) + dn0t(T1%rt(i), T1%dn(j))  &
+                -dn0t(T1%up(i), T1%rt(j)) + dn0t(T1%up(i), T1%up(j))  &
+                +dn0t(T1%up(i), T1%lf(j)) - dn0t(T1%up(i), T1%dn(j))  &
+                -dn0t(T1%lf(i), T1%rt(j)) + dn0t(T1%lf(i), T1%up(j))  &
+                +dn0t(T1%lf(i), T1%lf(j)) - dn0t(T1%lf(i), T1%dn(j))  &
+                +dn0t(T1%dn(i), T1%rt(j)) - dn0t(T1%dn(i), T1%up(j))  &
+                -dn0t(T1%dn(i), T1%lf(j)) + dn0t(T1%dn(i), T1%dn(j))
+
+             value1(k)  = value1(k) + upt0(i,j)*a *0.5_wp
+             value2(k)  = value2(k) + up0t(i,j)*b *0.5_wp
+          end do
+       end do
+     endif
+
      if (T1%flags(ICOND) == 1) then
        ! J-J correlation is not following Simone's trick of link correlation here
        ! here use standard definition <sum_ij jx(i,tau)*jx(j,0)>
@@ -1261,6 +1301,30 @@ contains
              ! k is the distance index of site i and site j
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
+          end do
+       end do
+     endif
+
+     if (T1%flags(IPAIRd) == 1) then
+       value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
+       ! D_i*D_j = sum_{dd'} Gup(i,j)*Gdn(i+d,j+d')
+       do i = 1,  T1%properties(IPAIRd)%n
+          do j = 1,  T1%properties(IPAIRd)%n
+             k = T1%properties(IPAIRd)%D(i,j)
+
+             ! 4 neighbors of each site so that totally 16 terms
+             ! with different phase factors for d-wave pairing
+             ! record all 16 possible Gdn(i+d,j+d') as a below
+             a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &
+                -dnt0(T1%rt(i), T1%lf(j)) + dnt0(T1%rt(i), T1%dn(j))  &
+                -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &
+                +dnt0(T1%up(i), T1%lf(j)) - dnt0(T1%up(i), T1%dn(j))  &
+                -dnt0(T1%lf(i), T1%rt(j)) + dnt0(T1%lf(i), T1%up(j))  &
+                +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
+                +dnt0(T1%dn(i), T1%rt(j)) - dnt0(T1%dn(i), T1%up(j))  &
+                -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
+
+             value1(k)  = value1(k) + upt0(i,j)*a 
           end do
        end do
      endif

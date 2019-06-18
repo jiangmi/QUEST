@@ -1249,13 +1249,16 @@ contains
      integer :: it
      real*8  :: dtau
 
+     write(*,*) 'tau L=',L
      tdmiw0 = 0.0
      ! special term for chi(beta) = chi(0)
      tdmiw0 = tdmiw0 + 2.0*tdmtau(0)
        do it = 1, L-1, 2
+          write(*,*) 'it=',it
          tdmiw0 = tdmiw0 + 4.*tdmtau(it)
        enddo
        do it = 2, L-2, 2
+         write(*,*) 'it=',it
          tdmiw0 = tdmiw0 + 2.*tdmtau(it)
        enddo
      tdmiw0 = tdmiw0 * dtau/3.0

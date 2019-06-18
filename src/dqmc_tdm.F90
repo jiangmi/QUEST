@@ -1007,8 +1007,10 @@ contains
                 +dn0t(T1%dn(i), T1%rt(j)) - dn0t(T1%dn(i), T1%up(j))  &
                 -dn0t(T1%dn(i), T1%lf(j)) + dn0t(T1%dn(i), T1%dn(j))
 
-             value1(k)  = value1(k) + upt0(i,j)*a *0.5_wp
-             value2(k)  = value2(k) + up0t(i,j)*b *0.5_wp
+             ! *0.25 or /4 accounts for the convention for definition
+             ! See 1989 PRB paper: Numerical study of 2D Hubbard model
+             value1(k)  = value1(k) + upt0(i,j)*a *0.5_wp*0.25
+             value2(k)  = value2(k) + up0t(i,j)*b *0.5_wp*0.25
           end do
        end do
      endif
@@ -1324,7 +1326,7 @@ contains
                 +dnt0(T1%dn(i), T1%rt(j)) - dnt0(T1%dn(i), T1%up(j))  &
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
 
-             value1(k)  = value1(k) + upt0(i,j)*a 
+             value1(k)  = value1(k) + upt0(i,j)*a*0.25
           end do
        end do
      endif

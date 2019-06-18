@@ -1251,7 +1251,7 @@ contains
 
      tdmiw0 = 0.0
      ! special term for chi(beta) = chi(0)
-     tdmiw0 = tdmiw0 + tdmtau(0)
+     tdmiw0 = tdmiw0 + 2.0*tdmtau(0)
        do it = 1, L-1, 2
          tdmiw0 = tdmiw0 + 4.*tdmtau(it)
        enddo

@@ -146,6 +146,14 @@ module DQMC_TDM
      ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
      real(wp), pointer :: swaveAvg(:,:)
 
+     ! correlated and uncorrelated/non-vertex d-wave susceptibility
+     ! and Gamma_d = Pd^-1 - Pd0^-1
+     real(wp), pointer :: Pd0tau(:,:)
+     real(wp), pointer :: Pdtau(:,:)
+     real(wp), pointer :: Pd0(:)
+     real(wp), pointer :: Pd(:)
+     real(wp), pointer :: Gammad(:)
+
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
 
@@ -274,6 +282,19 @@ contains
     if (T1%flags(IPAIRs) == 1) then
       allocate(T1%swaveAvg(0:T1%L-1,T1%err))
       T1%swaveAvg = 0.0_wp
+    endif
+
+    if (T1%flags(IPAIRd) == 1) then
+      allocate(T1%Pdtau(0:T1%L-1, 1:T1%err))
+      allocate(T1%Pd0tau(0:T1%L-1, 1:T1%err))
+      allocate(T1%Pd(1:T1%err))
+      allocate(T1%Pd0(1:T1%err))
+      allocate(T1%Gammad(1:T1%err))
+      T1%Pdtau  = 0.0_wp
+      T1%Pd0tau = 0.0_wp
+      T1%Pd  = 0.0_wp
+      T1%Pd0 = 0.0_wp
+      T1%Gammad = 0.0_wp
     endif
 
     ! used for conductivity, d-wave paring sus etc.
@@ -560,6 +581,13 @@ contains
     if (T1%flags(IPAIRs) == 1) then
       deallocate(T1%swaveAvg)
     endif
+    if (T1%flags(IPAIRd) == 1) then
+      deallocate(T1%Pdtau)
+      deallocate(T1%Pd0tau)
+      deallocate(T1%Pd)
+      deallocate(T1%Pd0)
+      deallocate(T1%Gammad)
+    endif
 
     deallocate(T1%rt)
     deallocate(T1%lf)
@@ -673,34 +701,18 @@ contains
             !compute chixx_r0_iw0 with composite Simpson's rule:
             if (iprop==ISPXX) then
               chiv = 0.0
-              ! special term for chi(beta) = chi(0)
-              chiv = chiv + 2.*values(i,0,T1%tmp)
-              do it = 1, L-1, 2
-                chiv = chiv + 4.*values(i,it,T1%tmp)
-              enddo
-              do it = 2, L-2, 2
-                chiv = chiv + 2.*values(i,it,T1%tmp)
-              enddo
-              chiv = chiv * T1%dtau/3.0
+              call convert_to_iw0_real(values(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
               T1%chixx_r0_orb_iw0(i,T1%idx) = T1%chixx_r0_orb_iw0(i,T1%idx) + factor*chiv  
             endif
 
             !compute chizz_r0_iw0 with composite Simpson's rule:
             if (iprop==ISPZZ) then
               chiv = 0.0
-              ! special term for chi(beta) = chi(0)
-              chiv = chiv + 2.*values(i,0,T1%tmp)
-              do it = 1, L-1, 2
-                chiv = chiv + 4.*values(i,it,T1%tmp)
-              enddo
-              do it = 2, L-2, 2
-                chiv = chiv + 2.*values(i,it,T1%tmp)
-              enddo
-              chiv = chiv * T1%dtau/3.0
+              call convert_to_iw0_real(values(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
               T1%chizz_r0_orb_iw0(i,T1%idx) = T1%chizz_r0_orb_iw0(i,T1%idx) + factor*chiv  
             endif
           end do
-          values(:,:,T1%tmp)   = ZERO
+          values(:,:,T1%tmp) = ZERO
        endif
     enddo
 
@@ -712,15 +724,7 @@ contains
 
         ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
         chiv = 0.0
-        ! special term for chi(beta) = chi(0)
-        chiv = chiv + 2.*T1%chixx_q0_orb(i,0,T1%tmp)
-        do it = 1, T1%L-1, 2
-          chiv = chiv + 4.*T1%chixx_q0_orb(i,it,T1%tmp)
-        enddo
-        do it = 2, T1%L-2, 2
-          chiv = chiv + 2.*T1%chixx_q0_orb(i,it,T1%tmp)
-        enddo
-        chiv = chiv * T1%dtau/3.0
+        call convert_to_iw0_real(T1%chixx_q0_orb(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
         T1%chixx_q0_orb_iw0(i,T1%idx) = T1%chixx_q0_orb_iw0(i,T1%idx) + factor*chiv
       enddo
 
@@ -736,20 +740,24 @@ contains
 
         ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
         chiv = 0.0
-        ! special term for chi(beta) = chi(0)
-        chiv = chiv + 2.*T1%chizz_q0_orb(i,0,T1%tmp)
-        do it = 1, T1%L-1, 2
-          chiv = chiv + 4.*T1%chizz_q0_orb(i,it,T1%tmp)
-        enddo
-        do it = 2, T1%L-2, 2
-          chiv = chiv + 2.*T1%chizz_q0_orb(i,it,T1%tmp)
-        enddo
-        chiv = chiv * T1%dtau/3.0
+        call convert_to_iw0_real(T1%chizz_q0_orb(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
         T1%chizz_q0_orb_iw0(i,T1%idx) = T1%chizz_q0_orb_iw0(i,T1%idx) + factor*chiv
       enddo
 
       T1%chizz_q0_orb(:,:,T1%tmp) = ZERO
       T1%chizz_q0_orb_iw0(:,T1%tmp) = ZERO
+    endif
+
+    if (T1%flags(IPAIRd) == 1) then
+      chiv = 0.0
+      factor = sgn/(T1%properties(IPAIRd)%n*cnt)
+      T1%Pdtau(0:T1%L-1, T1%idx) = T1%Pdtau(0:T1%L-1, T1%idx) &
+                                 + T1%Pdtau(0:T1%L-1, T1%tmp) * factor
+      call convert_to_iw0_real(T1%Pdtau(0:T1%L-1, T1%tmp), chiv, T1%L, T1%dtau)
+      T1%Pd(T1%idx) = T1%Pd(T1%idx) + factor*chiv
+
+      T1%Pdtau(:, T1%tmp) = ZERO
+      T1%Pd(T1%tmp) = ZERO
     endif
 
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
@@ -978,6 +986,7 @@ contains
      if (T1%flags(IPAIRd) == 1) then
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRd)%values(:, dt2, T1%tmp)
+
        ! D_i*D_j = sum_{dd'} Gup(i,j)*Gdn(i+d,j+d')
        do i = 1,  T1%properties(IPAIRd)%n
           do j = 1,  T1%properties(IPAIRd)%n
@@ -1009,8 +1018,12 @@ contains
 
              ! *0.25 or /4 accounts for the convention for definition
              ! See 1989 PRB paper: Numerical study of 2D Hubbard model
-             value1(k)  = value1(k) + upt0(i,j)*a *0.5_wp*0.25
-             value2(k)  = value2(k) + up0t(i,j)*b *0.5_wp*0.25
+             a = a*0.5_wp*0.25
+             b = b*0.5_wp*0.25
+             value1(k)  = value1(k) + upt0(i,j)*a
+             value2(k)  = value2(k) + up0t(i,j)*b
+             T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
+             T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
           end do
        end do
      endif
@@ -1309,6 +1322,7 @@ contains
 
      if (T1%flags(IPAIRd) == 1) then
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
+
        ! D_i*D_j = sum_{dd'} Gup(i,j)*Gdn(i+d,j+d')
        do i = 1,  T1%properties(IPAIRd)%n
           do j = 1,  T1%properties(IPAIRd)%n
@@ -1326,7 +1340,9 @@ contains
                 +dnt0(T1%dn(i), T1%rt(j)) - dnt0(T1%dn(i), T1%up(j))  &
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
 
-             value1(k)  = value1(k) + upt0(i,j)*a*0.25
+             a = a*0.25
+             value1(k)  = value1(k) + upt0(i,j)*a
+             T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
           end do
        end do
      endif
@@ -1431,8 +1447,11 @@ contains
     type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
-    integer  :: nl, idx, i, j, k
-    real(wp) :: factor
+    integer  :: nl, idx, i, j, k, it
+    real(wp) :: factor, a
+    real(wp), allocatable :: value1(:), value2(:)
+    allocate(value1(1:T1%properties(IGFUN)%nClass))
+    allocate(value2(1:T1%properties(IGFUN)%nClass))
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -1526,7 +1545,8 @@ contains
       enddo
     endif
 
-    ! record the average of all local sum_r pair(r, tau) for average pair susceptibility
+    ! record the average of all local sum_r pair(r, tau) for average pair
+    ! susceptibility
     if (T1%flags(IPAIRs) == 1) then
       do j = 0, T1%L-1
          do i = 1, T1%properties(IPAIRs)%n    ! avg over n sites
@@ -1535,6 +1555,80 @@ contains
                    + T1%properties(IPAIRs)%values(k,j,idx) / T1%properties(IPAIRs)%n
          end do
       enddo
+    endif
+
+    ! Correlated d-wave susceptibility Pd
+    if (T1%flags(IPAIRd) == 1) then
+       T1%Pdtau(0:T1%L-1, T1%idx) = T1%Pdtau(0:T1%L-1, T1%idx) * factor
+       T1%Pd(T1%idx) = T1%Pd(T1%idx) * factor
+    endif
+
+    ! compute uncorrelated or non-vertex d-wave susceptibility Pd^bar
+    ! D_i*D_j = sum_{dd'} <Gup(i,j)>*<Gdn(i+d,j+d')>
+    ! Pd0 = int^beta_0 sum_ij D_i*D_j
+    if (T1%flags(IPAIRd) == 1) then
+       do it = 0, T1%L-1
+         ! Note that precisely value1 (value2) should use
+         ! Gup and Gdn respectively. Because sometimes the code
+         ! input file does not specify computing them
+         ! Here assume that G = Gup = Gdn
+         value1 = T1%properties(IGFUN)%values(:, it, idx)
+         value2 = T1%properties(IGFUN)%values(:, it, idx)
+
+         a = 0.0_wp
+         do i = 1,  T1%properties(IPAIRd)%n
+            do j = 1,  T1%properties(IPAIRd)%n
+               ! 4 neighbors of each site so that totally 16 terms
+               ! with different phase factors for d-wave pairing
+               ! record all 16 possible Gdn(i+d,j+d') as a below
+               ! *0.25 or /4 is convention, see the computation of Pd
+
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%rt(j))
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%up(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%lf(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%dn(j))                                        
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%rt(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%up(j))                                        
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%lf(j))                                        
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%dn(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%rt(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%up(j))                                        
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%lf(j))                                        
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%dn(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%rt(j))                                        
+               a = a + value2(k)
+               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%up(j))                                        
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%lf(j))
+               a = a - value2(k)
+               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%dn(j))
+               a = a + value2(k)
+
+               k = T1%properties(IPAIRd)%D(i,j)
+
+               ! 6/18/2019:
+               ! *2.0 is only aimed to agree with RTScode and Pd at U=0
+               ! The reason may be that computing Pd in TDM_Compute assume
+               ! G(i,j) = G(j,i) because (i,j) and (j,i) have same class k
+               T1%Pd0tau(it, idx) = T1%Pd0tau(it, idx) + &
+                       value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+            end do
+         end do
+         !write(*,*) T1%Pd0tau(it)
+       enddo
+       call convert_to_iw0_real(T1%Pd0tau(0:T1%L-1, idx), T1%Pd0(idx), T1%L, T1%dtau)
     endif
 
     T1%sgn(idx) = T1%sgn(idx)*factor
@@ -1700,6 +1794,29 @@ contains
          enddo
        endif
 
+       if (T1%flags(IPAIRd) == 1) then
+         do j = 0, T1%L-1
+           data =  T1%Pdtau(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Pdtau(j, avg) = average
+           T1%Pdtau(j, err) = error
+         enddo
+         do j = 0, T1%L-1
+           data =  T1%Pd0tau(j, 1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Pd0tau(j, avg) = average
+           T1%Pd0tau(j, err) = error
+         enddo
+         data =  T1%Pd(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%Pd(avg) = average
+         T1%Pd(err) = error
+         data =  T1%Pd0(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%Pd0(avg) = average
+         T1%Pd0(err) = error
+       endif
+
     else
 
        mpi_err = 0
@@ -1818,6 +1935,22 @@ contains
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
+          if (T1%flags(IPAIRd) == 1) then
+             bins => T1%Pdtau(:, 1)
+             aves => T1%Pdtau(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+
+             bins => T1%Pd0tau(:, 1)
+             aves => T1%Pd0tau(:, avg)
+             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+
+             call mpi_allreduce(T1%Pd(1), T1%Pd(avg), 1, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+             call mpi_allreduce(T1%Pd0(1), T1%Pd0(avg), 1, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+          endif
 
           ! Compute y_i, note original binned values will be updated
           ! non-MPI version of code would not update binned values
@@ -1911,6 +2044,22 @@ contains
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
           endif
+          if (T1%flags(IPAIRd) == 1) then
+             bins => T1%Pdtau(:, 1)
+             aves => T1%Pdtau(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+
+             bins => T1%Pd0tau(:, 1)
+             aves => T1%Pd0tau(:, avg)
+             bins = (aves - bins) / dble(nproc - 1)
+             bins =  bins / T1%sgn(1)
+
+             T1%Pd(1) = (T1%Pd(avg) - T1%Pd(1)) / dble(nproc - 1)
+             T1%Pd(1) =  T1%Pd(1) / T1%sgn(1)
+             T1%Pd0(1) = (T1%Pd0(avg) - T1%Pd0(1)) / dble(nproc - 1)
+             T1%Pd0(1) =  T1%Pd0(1) / T1%sgn(1)
+          endif
 
           ! Compute avg_y = avg_x = sum_x/sum_sgn
           ! because in previous compute sum(x) step
@@ -1971,6 +2120,16 @@ contains
           if (T1%flags(IPAIRs) == 1) then
              aves => T1%swaveAvg(:, avg)
              aves =  aves / T1%sgn(avg)
+          endif
+          if (T1%flags(IPAIRd) == 1) then
+             aves => T1%Pdtau(:, avg)
+             aves =  aves / T1%sgn(avg)
+
+             aves => T1%Pd0tau(:, avg)
+             aves =  aves / T1%sgn(avg)
+
+             T1%Pd (avg) = T1%Pd (avg) / T1%sgn(avg)
+             T1%Pd0(avg) = T1%Pd0(avg) / T1%sgn(avg)
           endif
 
           T1%sgn(avg)  = T1%sgn(avg) / dble(nproc)
@@ -2093,6 +2252,29 @@ contains
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
+          if (T1%flags(IPAIRd) == 1) then
+             bins => T1%Pdtau(:, 1)
+             aves => T1%Pdtau(:, avg)
+             errs => T1%Pdtau(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+             bins => T1%Pd0tau(:, 1)
+             aves => T1%Pd0tau(:, avg)
+             errs => T1%Pd0tau(:, err)
+             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+             call mpi_allreduce((T1%Pd(1)-T1%Pd(avg))**2, T1%Pd(err), 1, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+             call mpi_allreduce((T1%Pd0(1)-T1%Pd0(avg))**2, T1%Pd0(err), 1, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+          endif
 
 #      endif
 
@@ -2146,6 +2328,30 @@ contains
         enddo
       endif
     enddo
+
+    if (T1%flags(IPAIRd) == 1) then
+       ! Pd(tau) and Pd
+       do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err)
+       enddo
+       title="Pd(tau)"
+       call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+       write(OPT,'(1x)')
+
+       write(OPT,"(a20,e16.8,e16.8)") 'Pd = ', T1%Pd(T1%avg), T1%Pd(T1%err)
+       write(OPT,FMT_DBLINE)
+
+       ! Pd0(tau) and Pd0
+       do j = 0, T1%L-1
+          tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err)
+       enddo
+       title="Pd0 (nonvertex) (tau)"
+       call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+       write(OPT,'(1x)')
+
+       write(OPT,"(a20,e16.8,e16.8)") 'Pd0 (nonvertex) = ', T1%Pd0(T1%avg), T1%Pd0(T1%err)
+       write(OPT,FMT_DBLINE)
+    endif
 
     ! print out chi_q0_iw0 and chi_q0(tau):
     if (T1%flagsFT(ISPXX)==1 .and. T1%flagsFT(ISPZZ)==1) then

@@ -4,7 +4,7 @@
         integer histno
 c       in the next line if l is not a multiple of 12,
 c         l/12 is truncated
-        parameter(n=4,l=20)
+        parameter(n=4,l=30)
         parameter(volume=n*n*l,toff=n*n)
         parameter (tausk=10,ndiv=l/12+1,intrat=4,denswp=50,doall=1)
         parameter (writeall=0)

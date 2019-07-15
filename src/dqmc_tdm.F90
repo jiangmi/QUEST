@@ -999,21 +999,21 @@ contains
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
              a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &
-                -dnt0(T1%rt(i), T1%lf(j)) + dnt0(T1%rt(i), T1%dn(j))  &
+                +dnt0(T1%rt(i), T1%lf(j)) - dnt0(T1%rt(i), T1%dn(j))  &
                 -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &
-                +dnt0(T1%up(i), T1%lf(j)) - dnt0(T1%up(i), T1%dn(j))  &
-                -dnt0(T1%lf(i), T1%rt(j)) + dnt0(T1%lf(i), T1%up(j))  &
+                -dnt0(T1%up(i), T1%lf(j)) + dnt0(T1%up(i), T1%dn(j))  &
+                +dnt0(T1%lf(i), T1%rt(j)) - dnt0(T1%lf(i), T1%up(j))  &
                 +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
-                +dnt0(T1%dn(i), T1%rt(j)) - dnt0(T1%dn(i), T1%up(j))  &
+                -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  &
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
 
              b = dn0t(T1%rt(i), T1%rt(j)) - dn0t(T1%rt(i), T1%up(j))  &
-                -dn0t(T1%rt(i), T1%lf(j)) + dn0t(T1%rt(i), T1%dn(j))  &
+                +dn0t(T1%rt(i), T1%lf(j)) - dn0t(T1%rt(i), T1%dn(j))  &
                 -dn0t(T1%up(i), T1%rt(j)) + dn0t(T1%up(i), T1%up(j))  &
-                +dn0t(T1%up(i), T1%lf(j)) - dn0t(T1%up(i), T1%dn(j))  &
-                -dn0t(T1%lf(i), T1%rt(j)) + dn0t(T1%lf(i), T1%up(j))  &
+                -dn0t(T1%up(i), T1%lf(j)) + dn0t(T1%up(i), T1%dn(j))  &
+                +dn0t(T1%lf(i), T1%rt(j)) - dn0t(T1%lf(i), T1%up(j))  &
                 +dn0t(T1%lf(i), T1%lf(j)) - dn0t(T1%lf(i), T1%dn(j))  &
-                +dn0t(T1%dn(i), T1%rt(j)) - dn0t(T1%dn(i), T1%up(j))  &
+                -dn0t(T1%dn(i), T1%rt(j)) + dn0t(T1%dn(i), T1%up(j))  &
                 -dn0t(T1%dn(i), T1%lf(j)) + dn0t(T1%dn(i), T1%dn(j))
 
              ! *0.25 or /4 accounts for the convention for definition
@@ -1332,12 +1332,12 @@ contains
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
              a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &
-                -dnt0(T1%rt(i), T1%lf(j)) + dnt0(T1%rt(i), T1%dn(j))  &
+                +dnt0(T1%rt(i), T1%lf(j)) - dnt0(T1%rt(i), T1%dn(j))  &
                 -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &
-                +dnt0(T1%up(i), T1%lf(j)) - dnt0(T1%up(i), T1%dn(j))  &
-                -dnt0(T1%lf(i), T1%rt(j)) + dnt0(T1%lf(i), T1%up(j))  &
+                -dnt0(T1%up(i), T1%lf(j)) + dnt0(T1%up(i), T1%dn(j))  &
+                +dnt0(T1%lf(i), T1%rt(j)) - dnt0(T1%lf(i), T1%up(j))  &
                 +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
-                +dnt0(T1%dn(i), T1%rt(j)) - dnt0(T1%dn(i), T1%up(j))  &
+                -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  &
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
 
              a = a*0.25

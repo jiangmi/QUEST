@@ -153,6 +153,7 @@ module DQMC_TDM
      real(wp), pointer :: Pd0(:)
      real(wp), pointer :: Pd(:)
      real(wp), pointer :: Gammad(:)
+     real(wp), pointer :: Gd_Pd0(:)
 
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
@@ -290,11 +291,13 @@ contains
       allocate(T1%Pd(1:T1%err))
       allocate(T1%Pd0(1:T1%err))
       allocate(T1%Gammad(1:T1%err))
+      allocate(T1%Gd_Pd0(1:T1%err))
       T1%Pdtau  = 0.0_wp
       T1%Pd0tau = 0.0_wp
       T1%Pd  = 0.0_wp
       T1%Pd0 = 0.0_wp
       T1%Gammad = 0.0_wp
+      T1%Gd_Pd0 = 0.0_wp
     endif
 
     ! used for conductivity, d-wave paring sus etc.
@@ -587,6 +590,7 @@ contains
       deallocate(T1%Pd)
       deallocate(T1%Pd0)
       deallocate(T1%Gammad)
+      deallocate(T1%Gd_Pd0)
     endif
 
     deallocate(T1%rt)
@@ -1631,6 +1635,14 @@ contains
        call convert_to_iw0_real(T1%Pd0tau(0:T1%L-1, idx), T1%Pd0(idx), T1%L, T1%dtau)
     endif
 
+    ! calculate the d-wave pairing vertex Gammad
+    T1%Gammad(T1%idx) = 1.0/T1%Pd(T1%idx) - 1.0/T1%Pd0(idx)
+
+    ! product of d-wave pairing vertex Gammad and Pd0
+    ! superconducting instability is signified by Gd_Pd0 -> -1
+    ! See PRB 86, 184506 (2012)
+    T1%Gd_Pd0(T1%idx) = T1%Gammad(T1%idx)*T1%Pd0(idx)
+
     T1%sgn(idx) = T1%sgn(idx)*factor
     T1%cnt = 0
     T1%idx = T1%idx + 1
@@ -1807,14 +1819,26 @@ contains
            T1%Pd0tau(j, avg) = average
            T1%Pd0tau(j, err) = error
          enddo
+
          data =  T1%Pd(1:n)
          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
          T1%Pd(avg) = average
          T1%Pd(err) = error
+
          data =  T1%Pd0(1:n)
          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
          T1%Pd0(avg) = average
          T1%Pd0(err) = error
+
+         data =  T1%Gammad(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%Gammad(avg) = average
+         T1%Gammad(err) = error
+
+         data =  T1%Gd_Pd0(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%Gd_Pd0(avg) = average
+         T1%Gd_Pd0(err) = error
        endif
 
     else
@@ -1950,6 +1974,10 @@ contains
                      mpi_sum, mpi_comm_world, mpi_err)
              call mpi_allreduce(T1%Pd0(1), T1%Pd0(avg), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
+             call mpi_allreduce(T1%Gammad(1), T1%Gammad(avg), 1, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
+             call mpi_allreduce(T1%Gd_Pd0(1), T1%Gd_Pd0(avg), 1, mpi_double, &
+                     mpi_sum, mpi_comm_world, mpi_err)
           endif
 
           ! Compute y_i, note original binned values will be updated
@@ -2059,6 +2087,10 @@ contains
              T1%Pd(1) =  T1%Pd(1) / T1%sgn(1)
              T1%Pd0(1) = (T1%Pd0(avg) - T1%Pd0(1)) / dble(nproc - 1)
              T1%Pd0(1) =  T1%Pd0(1) / T1%sgn(1)
+             T1%Gammad(1) = (T1%Gammad(avg) - T1%Gammad(1)) / dble(nproc - 1)
+             T1%Gammad(1) =  T1%Gammad(1) / T1%sgn(1)
+             T1%Gd_Pd0(1) = (T1%Gd_Pd0(avg) - T1%Gd_Pd0(1)) / dble(nproc - 1)
+             T1%Gd_Pd0(1) =  T1%Gd_Pd0(1) / T1%sgn(1)
           endif
 
           ! Compute avg_y = avg_x = sum_x/sum_sgn
@@ -2130,6 +2162,8 @@ contains
 
              T1%Pd (avg) = T1%Pd (avg) / T1%sgn(avg)
              T1%Pd0(avg) = T1%Pd0(avg) / T1%sgn(avg)
+             T1%Gammad(avg) = T1%Gammad(avg) / T1%sgn(avg)
+             T1%Gd_Pd0(avg) = T1%Gd_Pd0(avg) / T1%sgn(avg)
           endif
 
           T1%sgn(avg)  = T1%sgn(avg) / dble(nproc)
@@ -2269,11 +2303,19 @@ contains
 
              call mpi_allreduce((T1%Pd(1)-T1%Pd(avg))**2, T1%Pd(err), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+             T1%Pd(err) = sqrt(T1%Pd(err) * dble(nproc-1)/dble(nproc))
 
              call mpi_allreduce((T1%Pd0(1)-T1%Pd0(avg))**2, T1%Pd0(err), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+             T1%Pd0(err) = sqrt(T1%Pd0(err) * dble(nproc-1)/dble(nproc))
+
+             call mpi_allreduce((T1%Gammad(1)-T1%Gammad(avg))**2, T1%Gammad(err), 1, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             T1%Gammad(err) = sqrt(T1%Gammad(err) * dble(nproc-1)/dble(nproc))
+
+             call mpi_allreduce((T1%Gd_Pd0(1)-T1%Gd_Pd0(avg))**2, T1%Gd_Pd0(err), 1, mpi_double, &
+                    mpi_sum, mpi_comm_world, mpi_err)
+             T1%Gd_Pd0(err) = sqrt(T1%Gd_Pd0(err) * dble(nproc-1)/dble(nproc))
           endif
 
 #      endif
@@ -2351,7 +2393,13 @@ contains
 
        write(OPT,"(a20,e16.8,e16.8)") 'Pd0 (nonvertex) = ', T1%Pd0(T1%avg), T1%Pd0(T1%err)
        write(OPT,FMT_DBLINE)
-    endif
+
+       write(OPT,"(a20,e16.8,e16.8)") 'Gammad = ', T1%Gammad(T1%avg), T1%Gammad(T1%err)
+       write(OPT,FMT_DBLINE) 
+
+       write(OPT,"(a20,e16.8,e16.8)") 'Gd*Pd0 = ', T1%Gd_Pd0(T1%avg), T1%Gd_Pd0(T1%err)
+       write(OPT,FMT_DBLINE)
+   endif
 
     ! print out chi_q0_iw0 and chi_q0(tau):
     if (T1%flagsFT(ISPXX)==1 .and. T1%flagsFT(ISPZZ)==1) then

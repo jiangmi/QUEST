@@ -180,14 +180,14 @@ module DQMC_GEOM_WRAP
     S%nClass = gwrap%Lattice%nclass
 
     ! 12/27/2015:
-    ! get relative vector between sites for nClass
-    ! used for phase for computing S_AF in plane 
+    ! get site/orbital indices and its vector of nClass for various usage
+    ! 1. can be used for phase for computing S_AF in plane 
     ! for bilayer cases, only include z=0 component
-    ! Also useful for general FT:
+    ! 2. for general FT:
     ! For unit cell including more than 1 atom, e.g. with staggered pot,
     ! QUEST code only compute FT between cells while still real space for intracell
     ! here use relative vector between sites for general FT
-    allocate(S%vecClass(S%nClass,3))  
+    allocate(S%vecClass(S%nClass,5))  
 
     allocate(S%D(n,n))
     allocate(S%F(S%nClass))
@@ -202,17 +202,19 @@ module DQMC_GEOM_WRAP
       write(S%clabel(ic),'(2(i4),i5,3(f12.7))') (int(clab(ic,j)),j=4,5),S%F(ic),(clab(ic,j),j=1,3)    
 
       ! 12/27/2015:
-      ! Get relative vector between sites for nClass
+      ! Get site/orbital indices and relative vector between them for nClass
       label = S%clabel(ic)
-      read(label(14:25),*) S%vecClass(ic,1)
-      read(label(26:37),*) S%vecClass(ic,2)
-      read(label(38:49),*) S%vecClass(ic,3)
+      read(label(1:4),*) S%vecClass(ic,1)
+      read(label(5:8),*) S%vecClass(ic,2)
+      read(label(14:25),*) S%vecClass(ic,3)
+      read(label(26:37),*) S%vecClass(ic,4)
+      read(label(38:49),*) S%vecClass(ic,5)
       !write(*,*) 'label=', label(14:25), label(26:37), label(38:49)
 
       ! decide (-1)^x+y for computing S_AF and S_CDW in plane
       ! for bilayer cases, only include z=0 component
-      if (abs(S%vecClass(ic,3))<0.0001) then                                ! z=0, within the same plane
-        if ( mod(int(abs(S%vecClass(ic,1)))+int(abs(S%vecClass(ic,2))),2) == 0) then  ! (-1)**(x+y)=1
+      if (abs(S%vecClass(ic,5))<0.0001) then                                ! z=0, within the same plane
+        if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
           S%AFphase(ic) = 1
         else
           S%AFphase(ic) = -1

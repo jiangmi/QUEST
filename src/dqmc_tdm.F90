@@ -66,6 +66,7 @@ module DQMC_TDM
 
      real(wp),    pointer :: tlink(:,:)
 
+     real(wp),    pointer :: vecClass(:,:)
      character(label_len), pointer :: clabel(:)
 
   end type tdmarray
@@ -359,6 +360,7 @@ contains
           T1%properties(iprop)%ftw    => T1%ftwfer
           T1%properties(iprop)%phase  => S%gf_phase
           T1%properties(iprop)%clabel  => S%clabel
+          T1%properties(iprop)%vecClass  => S%vecClass
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
        case(ISPXX, ISPZZ, IDENS, IPAIRs, IPAIRd)
@@ -375,6 +377,7 @@ contains
           T1%properties(iprop)%ftw    => T1%ftwbos
           T1%properties(iprop)%phase  => S%chi_phase
           T1%properties(iprop)%clabel  => S%clabel
+          T1%properties(iprop)%vecClass  => S%vecClass
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
@@ -392,6 +395,7 @@ contains
           T1%properties(iprop)%np     =  np
           T1%properties(iprop)%phase  => S%chi_phase
           T1%properties(iprop)%clabel  => S%clabel
+          T1%properties(iprop)%vecClass  => S%vecClass
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
         ! used in meas for average, for conductivity, renormalized by lattice size
@@ -795,7 +799,7 @@ contains
     real*8   :: a,b,c,d,x,y
     real(wp), pointer :: value1(:), value2(:)
     real(wp) :: factor
-    real     :: band(T1%properties(ISPXX)%nclass,4)
+    real(wp), dimension(1:5) :: vec
     real(wp) :: val1, val2
 
     ! ... Executable ...
@@ -894,15 +898,9 @@ contains
 
              ! compute chi_q=0
              if (T1%flagsFT(ISPXX) == 1) then
-               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-               read(label(1:4),*) band(k,1)
-               read(label(5:8),*) band(k,2)
-               read(label(14:25),*) band(k,3)
-               read(label(26:37),*) band(k,4)
-               b1 = int(band(k,1))
-               b2 = int(band(k,2))
-               x  = real(band(k,3))
-               y  = real(band(k,4))
+               vec = T1%properties(ISPXX)%vecClass(k,:)
+               b1 = int(vec(1))
+               b2 = int(vec(2))
                !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
 
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
@@ -933,15 +931,9 @@ contains
 
              ! compute chi_q=0
              if (T1%flagsFT(ISPZZ) == 1) then
-               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-               read(label(1:4),*) band(k,1)
-               read(label(5:8),*) band(k,2)
-               read(label(14:25),*) band(k,3)
-               read(label(26:37),*) band(k,4)
-               b1 = int(band(k,1))
-               b2 = int(band(k,2))
-               x  = real(band(k,3))
-               y  = real(band(k,4))
+               vec = T1%properties(ISPXX)%vecClass(k,:)
+               b1 = int(vec(1))
+               b2 = int(vec(2))
                !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
 
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
@@ -1243,15 +1235,9 @@ contains
              value1(k)  = value1(k) - val1
 
              if (T1%flagsFT(ISPXX) == 1) then
-               write(label,*) trim(adjustl(T1%properties(ISPXX)%clabel(k)))
-               read(label(1:4),*) band(k,1)
-               read(label(5:8),*) band(k,2)
-               read(label(14:25),*) band(k,3)
-               read(label(26:37),*) band(k,4)
-               b1 = int(band(k,1))
-               b2 = int(band(k,2))
-               x  = real(band(k,3))
-               y  = real(band(k,4))
+               vec = T1%properties(ISPXX)%vecClass(k,:)
+               b1 = int(vec(1))
+               b2 = int(vec(2))
 
                ! compute chi_q=0
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
@@ -1279,15 +1265,9 @@ contains
                ! For test comparing with chi_xx calculated in
                ! DQMC_TDM_Chi_q_orbital
                ! below accumulate chi_xx(q=0)
-               write(label,*) trim(adjustl(T1%properties(ISPZZ)%clabel(k)))
-               read(label(1:4),*) band(k,1)
-               read(label(5:8),*) band(k,2)
-               read(label(14:25),*) band(k,3)
-               read(label(26:37),*) band(k,4)
-               b1 = int(band(k,1))
-               b2 = int(band(k,2))
-               x  = real(band(k,3))
-               y  = real(band(k,4))
+               vec = T1%properties(ISPXX)%vecClass(k,:)
+               b1 = int(vec(1))
+               b2 = int(vec(2))
 
                ! compute chi_q=0
                ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
@@ -2407,15 +2387,11 @@ contains
       write(OPT1,"(a)") "   b   b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
 
       do i = 1, T1%properties(ISPXX)%nclass
-        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
-        read(lab(1:4),*) band(i,1)
-        read(lab(5:8),*) band(i,2)
-        read(lab(14:25),*) band(i,3)
-        read(lab(26:37),*) band(i,4)
-        b1 = int(band(i,1))
-        b2 = int(band(i,2))
-        x  = real(band(i,3))
-        y  = real(band(i,4))
+        vec = T1%properties(ISPXX)%vecClass(i,:)
+        b1 = int(vec(1))
+        b2 = int(vec(2))
+        x  = vec(3)
+        y  = vec(4)
 
         if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           write(OPT1,'(2(i4),4(e16.8))') b1,b2, &
@@ -2427,15 +2403,11 @@ contains
       write(OPT1,"(a)") "==================================================================================="
       write(OPT1,"(a)") "   b   b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
       do i = 1, T1%properties(ISPXX)%nclass
-        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
-        read(lab(1:4),*) band(i,1)
-        read(lab(5:8),*) band(i,2)
-        read(lab(14:25),*) band(i,3)
-        read(lab(26:37),*) band(i,4)
-        b1 = int(band(i,1))
-        b2 = int(band(i,2))
-        x  = real(band(i,3))
-        y  = real(band(i,4))
+        vec = T1%properties(ISPXX)%vecClass(i,:)
+        b1 = int(vec(1))
+        b2 = int(vec(2))
+        x  = vec(3)
+        y  = vec(4)
 
         if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           do t = 0, T1%L-1
@@ -2602,15 +2574,11 @@ contains
       write(OPT5,"(a)") "   b   b     chi_xx(r=0,iw=0)       err    chi_zz(r=0,iw=0)       err"
 
       do i = 1, T1%properties(ISPXX)%nclass
-        write(lab,*) trim(adjustl(T1%properties(ISPXX)%clabel(i)))
-        read(lab(1:4),*) band(i,1)
-        read(lab(5:8),*) band(i,2)
-        read(lab(14:25),*) band(i,3)
-        read(lab(26:37),*) band(i,4)
-        b1 = int(band(i,1))
-        b2 = int(band(i,2))
-        x  = real(band(i,3))
-        y  = real(band(i,4))
+        vec = T1%properties(ISPXX)%vecClass(i,:)
+        b1 = int(vec(1))
+        b2 = int(vec(2))
+        x  = vec(3)
+        y  = vec(4)
 
         if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           write(OPT5,'(2(i4),4(e16.8))') b1,b2, &

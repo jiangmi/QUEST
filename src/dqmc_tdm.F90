@@ -2327,7 +2327,7 @@ contains
     character(len=slen) :: title
     character(len=80)   :: ofile
     character(label_len) :: lab
-    real :: band(T1%properties(ISPXX)%nclass,4)
+    real(wp), dimension(1:5) :: vec
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2445,7 +2445,7 @@ contains
     character(len=slen) :: title
     character(len=80)   :: ofile
     character(len=label_len)  :: lab
-    real :: band(T1%properties(ISPXX)%nclass,4)
+    real(wp), dimension(1:5) :: vec
 
     ! ... Executable ...
     if (.not.T1%compute .or. T1%flags(IGFUN) == 0) return

@@ -169,9 +169,13 @@ module DQMC_TDM
      real(wp), pointer :: Ds(:,:,:)        ! (3,bin,3) 
 
      ! 08/15/2015
-     ! used for conductivity, d-wave paring sus etc.
+     ! used for conductivity, d-wave pairing sus etc.
      integer, ALLOCATABLE     :: rt(:), lf(:), up(:), dn(:)
      complex*16, ALLOCATABLE  :: hopup(:,:), hopdn(:,:)
+
+     ! 07/17/2019
+     ! obtain the cartesian coordinates of sites, used for in-plane d-wave pairing sus
+     real(wp), pointer :: cartpos(:,:)
 
      ! 11/19/2015
      ! used for self-energy, (natom, natom, L, nk, 3)
@@ -234,6 +238,9 @@ contains
     ! # of k points for FT, only for square lattice !!!
     T1%norb = Gwrap%lattice%natom     
     T1%NkFT = int(sqrt(real(S%nSite/T1%norb)))/2 
+
+    allocate(T1%cartpos(3, 0:S%nSite-1))
+    T1%cartpos = Gwrap%lattice%cartpos
 
     call  DQMC_TDM_InitFTw(T1)
     ntdm = sum(T1%flags)         ! how many quantities to compute
@@ -796,7 +803,7 @@ contains
 
     character(label_len) :: label
     integer  :: i, j, k, dt, dt1, dt2, b1, b2
-    real*8   :: a,b,c,d,x,y
+    real*8   :: a,b,c,d,x,y,z
     real(wp), pointer :: value1(:), value2(:)
     real(wp) :: factor
     real(wp), dimension(1:5) :: vec
@@ -990,6 +997,11 @@ contains
              ! So rules for value1 --> value2:
              ! upt0 <--> -up0t, dnt0 <--> -dn0t
              k = T1%properties(IPAIRd)%D(i,j)
+             vec = T1%properties(IPAIRd)%vecClass(k,:)
+
+             ! get the cartesian coordinates of site i
+             ! Note i-1 accounts for the different convention of labelling sites  
+             z = T1%cartpos(3,i-1)            
 
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
@@ -1018,8 +1030,12 @@ contains
              b = b*0.5_wp*0.25
              value1(k)  = value1(k) + upt0(i,j)*a
              value2(k)  = value2(k) + up0t(i,j)*b
-             T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
-             T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
+
+             ! only compute in-plane d-wave pairing susceptibility
+             if (abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
+               T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
+               T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
+             endif
           end do
        end do
      endif
@@ -1312,21 +1328,32 @@ contains
           do j = 1,  T1%properties(IPAIRd)%n
              k = T1%properties(IPAIRd)%D(i,j)
 
-             ! 4 neighbors of each site so that totally 16 terms
-             ! with different phase factors for d-wave pairing
-             ! record all 16 possible Gdn(i+d,j+d') as a below
-             a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &
-                +dnt0(T1%rt(i), T1%lf(j)) - dnt0(T1%rt(i), T1%dn(j))  &
-                -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &
-                -dnt0(T1%up(i), T1%lf(j)) + dnt0(T1%up(i), T1%dn(j))  &
-                +dnt0(T1%lf(i), T1%rt(j)) - dnt0(T1%lf(i), T1%up(j))  &
-                +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
-                -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  &
-                -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))  
+             ! get the cartesian coordinates of site i
+             ! Note i-1 accounts for the different convention of labelling sites  
+             z = T1%cartpos(3,i-1)
+             vec = T1%properties(IPAIRd)%vecClass(k,:)
 
-             a = a*0.25
-             value1(k)  = value1(k) + upt0(i,j)*a
-             T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
+             ! 4 neighbors of each site so that totally 16 terms                                      
+             ! with different phase factors for d-wave pairing
+             ! record all 16 possible Gdn(i+d,j+d') as a below                                        
+             a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &                               
+                +dnt0(T1%rt(i), T1%lf(j)) - dnt0(T1%rt(i), T1%dn(j))  &                               
+                -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &                               
+                -dnt0(T1%up(i), T1%lf(j)) + dnt0(T1%up(i), T1%dn(j))  &                               
+                +dnt0(T1%lf(i), T1%rt(j)) - dnt0(T1%lf(i), T1%up(j))  &                               
+                +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &                               
+                -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  & 
+                -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))    
+               
+             ! *0.25 or /4 accounts for the convention for definition                                 
+             ! See 1989 PRB paper: Numerical study of 2D Hubbard model                                
+             a = a*0.25                                                                        
+             value1(k)  = value1(k) + upt0(i,j)*a                                                     
+                                                                                                      
+             ! only compute in-plane d-wave pairing susceptibility                                    
+             if (abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
+               T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a                            
+             endif
           end do
        end do
      endif

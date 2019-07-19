@@ -1461,13 +1461,14 @@ contains
     integer  :: nl, idx, i, j, k, it
     real(wp) :: factor, a
     real(wp), allocatable :: value1(:), value2(:)
-    allocate(value1(1:T1%properties(IGFUN)%nClass))
-    allocate(value2(1:T1%properties(IGFUN)%nClass))
 
     ! ... Executable ...
     if (.not.T1%compute) return
     idx    = T1%idx
     factor = ONE/T1%cnt
+
+    allocate(value1(1:T1%properties(IGFUN)%nClass))
+    allocate(value2(1:T1%properties(IGFUN)%nClass))
 
     ! Compute average on Green's function
     do i = 1, NTDMARRAY

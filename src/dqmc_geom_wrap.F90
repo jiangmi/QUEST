@@ -176,7 +176,7 @@ module DQMC_GEOM_WRAP
     enddo
     call DQMC_CCS_Compress(n,-1, tmp, S%ckb)
 
-    !Symmetry Classes
+    !Symmetry Classes, see construct_lattice_classes in dqmc_symm.F90
     S%nClass = gwrap%Lattice%nclass
 
     ! 12/27/2015:

@@ -15,7 +15,7 @@ c        positive U.
         program exact9dp
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
         integer warms,sweeps,msr,nwrap
@@ -704,7 +704,7 @@ c*******************************************
         subroutine sweep2(gmatup,gmatdn,accept,reject,wraps,numtry)
 	implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer warms,sweeps,msr,nwrap
         integer iran
@@ -786,7 +786,7 @@ c*******************************************
         subroutine sweep(gmatup,gmatdn,accept,reject,wraps)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer warms,sweeps,msr,nwrap
         integer iran
@@ -916,7 +916,7 @@ c*******************************************
      1                   reject,ti)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer warms,sweeps,msr,nwrap
         integer iran
@@ -1019,7 +1019,7 @@ c********* phaseset() - set and load phase vectors **********
         subroutine phaseset()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         real*8 hub(0:volume-1)
         real*8 vup(0:volume-1),vdn(0:volume-1)
@@ -1049,7 +1049,7 @@ c        this subroutine sets and loads the index vectors
         subroutine indexset()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
 c        index vectors for indirect addressing and phase vector
         integer xplus(0:toff-1),xminus(0:toff-1)
@@ -1074,7 +1074,7 @@ c*******************************************
         subroutine readin()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
         integer warms,sweeps,msr,nwrap
@@ -1159,7 +1159,7 @@ c        Hubbard-Stratanovich variables.
         subroutine ranlat()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer warms,sweeps,msr,nwrap
         integer iran
@@ -1193,7 +1193,7 @@ c        this function finds the index of a site given its three coordinates
         integer function siteindx(x,y,ti)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer x,y,ti
  
@@ -1209,7 +1209,7 @@ c        this function finds the index of a neighboring site
         integer function neighbor(site,delx,dely,delt)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer site,delx,dely,delt
         integer x,y,ti,siteindx
@@ -1286,7 +1286,7 @@ c        vup and vdn.
         subroutine addaf()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
          real*8 t,u,mu,dtau,expmu,gam,lambda,tdtau,dens
          common/couple/t,u,mu,dtau,expmu,gam,lambda,tdtau,dens
@@ -1322,7 +1322,7 @@ c        This subroutine sets vup and vdn given hubs.
         subroutine setvup()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer warms,sweeps,msr,nwrap
         integer iran
@@ -1361,7 +1361,7 @@ c        This is the real*8 version.
         subroutine multt(mat,lr)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
          real*8 t,u,mu,dtau,expmu,gam,lambda,tdtau,dens
@@ -1451,7 +1451,7 @@ c        This is the real*8 version.
         subroutine multti(mat,lr)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
          real*8 t,u,mu,dtau,expmu,gam,lambda,tdtau,dens
@@ -1540,7 +1540,7 @@ c        This is the real*8 version.
         subroutine multb(mat,vvv,ti,lr)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         real*8 vvv(0:volume-1)
         real*8 mat(0:n*n,0:n*n)
@@ -1569,7 +1569,7 @@ c        This is the real*8 version.
         subroutine multbi(mat,vvv,ti,lr)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         real*8 vvv(0:volume-1)
         real*8 mat(0:n*n,0:n*n)
@@ -1595,7 +1595,7 @@ c        This subroutine puts the unit matrix in aux, which is real*8.
         subroutine unit(mat)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         real*8 mat(0:n*n,0:n*n)
         integer i,j
@@ -1611,7 +1611,7 @@ c        This subroutine zeroes mat.
         subroutine zeromat(mat)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         real*8 mat(0:n*n,0:n*n)
         integer i,j
@@ -1626,7 +1626,7 @@ c        This subroutine multiplies mat by the even-x matrix
         subroutine transp(mat,aux)
         implicit none
         integer n,l
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
  
         integer i,j
         real*8 mat(0:n*n,0:n*n),aux(0:n*n,0:n*n)
@@ -1645,7 +1645,7 @@ c**********************************
        subroutine matmult(mat1,mat2,mat3)
        implicit none
        integer n,l
-       parameter(n=4,l=16)
+       parameter(n=4,l=48)
        integer i,j,k
        real*8 mat1(0:n*n,0:n*n),mat2(0:n*n,0:n*n)
        real*8 mat3(0:n*n,0:n*n)
@@ -1663,7 +1663,7 @@ c**********************************
        subroutine matdif(mat1,mat2,diff)
        implicit none
        integer n,l
-       parameter(n=4,l=16)
+       parameter(n=4,l=48)
        integer i,j
        real*8 mat1(0:n*n,0:n*n),mat2(0:n*n,0:n*n),diff
 c
@@ -1678,7 +1678,7 @@ c********************************
        subroutine matcop(mat1,mat2)
        implicit none
        integer n,l
-       parameter(n=4,l=16)
+       parameter(n=4,l=48)
        integer i,j
        real*8 mat1(0:n*n,0:n*n),mat2(0:n*n,0:n*n)
 c
@@ -1691,7 +1691,7 @@ c**************************************
        subroutine donorm(vec,vnorm)
        implicit none
        integer n,l
-       parameter(n=4,l=16)
+       parameter(n=4,l=48)
        integer i
        real*8 vec(0:n*n),vnorm,temp
 c
@@ -1713,7 +1713,7 @@ c        This subroutine does the measurements.
         subroutine meas0(gmatup,gmatdn)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
         integer warms,sweeps,msr,nwrap
@@ -1908,7 +1908,7 @@ c        This subroutine does the measurements.
         subroutine measpair(gmatup,gmatdn)
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
         integer warms,sweeps,msr,nwrap
@@ -2021,7 +2021,7 @@ c        This subroutine does the measurements.
         subroutine meastau
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
         integer warms,sweeps,msr,nwrap
@@ -2206,7 +2206,7 @@ c***************************************
         subroutine zeroas()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
  
         real*8 sgnup,sgndn,sgn,nup,ndn,nud,ke
@@ -2270,7 +2270,7 @@ c**************************************************
         subroutine autoset()
         implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
         integer warms,sweeps,msr,nwrap
         integer iran
@@ -2339,7 +2339,7 @@ c Note that dti should range from 0 to l-1.
        subroutine makegt(ti,dti,gtup,gsup,gtdn,gsdn,inacc)
        implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
        integer orthlen,doauto,torth
        real*8 eorth,difflim,errpam
@@ -2406,7 +2406,7 @@ c This getudr includes pivoting.
        subroutine getudr(vvv,ti1,ti2,dodepth,orthlen,omat,bvec,rmat)
        implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
        integer i,mx,orthlen,my,kk,ti1,ti2,dodepth
        real*8 vvv(0:volume-1)
@@ -2454,7 +2454,7 @@ c
        subroutine getudri(vvv,ti1,ti2,dodepth,orthlen,omat,bvec,rmat)
        implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
        integer i,mx,orthlen,my,kk,ti1,ti2,dodepth
        real*8 vvv(0:volume-1)
@@ -2686,7 +2686,7 @@ c getgp -- routine to include pivoting in the orthogonalization. 1/30/89
        subroutine getgp(vvv,ti,gmat,sgndet,deta)
        implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
        integer orthlen,doauto,torth
        real*8 eorth,difflim,errpam
@@ -2776,7 +2776,7 @@ c getgp -- routine to include pivoting in the orthogonalization. 1/30/89
        subroutine debug(vvv,ti,gmat,   det)
        implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
        integer orthlen,doauto,torth
        real*8 eorth,difflim,errpam
@@ -2871,7 +2871,7 @@ c****** NEW VERSION ******* (with pivoting)
        subroutine orthogp(mat,rmat,depth)
        implicit none
        integer n,l
-       parameter(n=4,l=16)
+       parameter(n=4,l=48)
  
        integer i,j,k,depth, done(0:n*n-1),ib
        real*8 mat(0:n*n,0:n*n),rmat(0:n*n,0:n*n),maxsize,colsize
@@ -2918,7 +2918,7 @@ c********************************
        subroutine orthfacp(mat,dvec,rmat,depth)
        implicit none
        integer n,l
-       parameter(n=4,l=16)
+       parameter(n=4,l=48)
        integer i,j,depth
        real*8 mat(0:n*n,0:n*n),rmat(0:n*n,0:n*n),dvec(0:n*n-1)
        real*8 temp
@@ -2942,7 +2942,7 @@ c with Steve's factorizing out diagonal matrices trick.
        subroutine getgtau(vvv,ti,dti,gmat,gmat2)
        implicit none
         integer n,l,volume,toff
-        parameter(n=4,l=16)
+        parameter(n=4,l=48)
         parameter(volume=n*n*l,toff=n*n)
        integer orthlen,doauto,torth
        real*8 eorth,difflim,errpam

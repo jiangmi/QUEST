@@ -2402,10 +2402,14 @@ contains
        write(OPT,"(a20,e16.8,e16.8)") 'Pd0 (nonvertex) = ', T1%Pd0(T1%avg), T1%Pd0(T1%err)
        write(OPT,FMT_DBLINE)
 
-       write(OPT,"(a20,e16.8,e16.8)") 'Gammad = ', T1%Gammad(T1%avg), T1%Gammad(T1%err)
+       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gammad = ', T1%Gammad(T1%avg), T1%Gammad(T1%err)
+       x = 1.0/T1%Pd(T1%avg) - 1.0/T1%Pd0(T1%avg)
+       write(OPT,"(a20,e16.8)") 'calculated Gammad = ', x
        write(OPT,FMT_DBLINE) 
 
-       write(OPT,"(a20,e16.8,e16.8)") 'Gd*Pd0 = ', T1%Gd_Pd0(T1%avg), T1%Gd_Pd0(T1%err)
+       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gd*Pd0 = ', T1%Gd_Pd0(T1%avg), T1%Gd_Pd0(T1%err)
+       y = x*T1%Pd0(T1%avg)
+       write(OPT,"(a20,e16.8)") 'calculated Gd*Pd0 = ', y
        write(OPT,FMT_DBLINE)
    endif
 

@@ -269,20 +269,32 @@ contains
              hamilt%Uv(js,is)    = hamilt%Uv(js,is)    + U
           endif
 
-          ! 08/15/2015
-          ! 4 neighbors of each site (0:nsites-1), for square lattice especially
-          ! might also work for other lattices, e.g. triangular
-          ! tneig should be the set of them
-          ! (1,0,0) hopping, right and left neighbors
-          if ((abs(hop3d(1)-1) .lt. 1.d-6) .and. (abs(hop3d(2)) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-             hamilt%rt(is) = js
-             hamilt%lf(js) = is
-          endif
-          ! (0,1,0) hopping, up and down neighbors
-          if ((abs(hop3d(1)) .lt. 1.d-6) .and. (abs(hop3d(2)-1) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-             hamilt%up(is) = js
-             hamilt%dn(js) = is
-          endif
+          ! 08/31/2019
+          ! 4 neighbors of each site (0:nsites-1), different lattice cases
+          ! square lattice: (1,0,0) hopping, right and left neighbors
+          ! d-p model: (0.5, 0, 0) hopping and some sites no rt,lf,up,dn
+          select case (natom)
+            case (1)
+              if ((abs(hop3d(1)-1) .lt. 1.d-6) .and. (abs(hop3d(2)) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
+                hamilt%rt(is) = js
+                hamilt%lf(js) = is
+              endif
+              ! (0,1,0) hopping, up and down neighbors
+              if ((abs(hop3d(1)) .lt. 1.d-6) .and. (abs(hop3d(2)-1) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
+                hamilt%up(is) = js
+                hamilt%dn(js) = is
+              endif
+            case (3)
+              if ((abs(hop3d(1)-0.5) .lt. 1.d-6) .and. (abs(hop3d(2)) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
+                hamilt%rt(is) = js
+                hamilt%lf(js) = is
+              endif
+              ! (0,1,0) hopping, up and down neighbors
+              if ((abs(hop3d(1)) .lt. 1.d-6) .and. (abs(hop3d(2)-0.5) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
+                hamilt%up(is) = js
+                hamilt%dn(js) = is
+              endif
+          end select
        enddo
 
     enddo

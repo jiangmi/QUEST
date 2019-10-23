@@ -138,6 +138,7 @@ contains
     integer :: natom, nsites, ntcfg, nline, nhop
     real*8  :: ktwist(rdim), kpoint(rdim), hop3d(rdim)
     real*8  :: tijup, tijdn, U, twisthop
+    real*8, DIMENSION(4,3) :: hop_neig
     logical :: ldum, doeshop
     character(len=50) :: string
 
@@ -167,13 +168,34 @@ contains
     allocate(hamilt%phase(0:nsites-1))
 
     ! 08/15/2015
-    ! 4 neighbors of each site (0:nsites-1), for square lattice especially
-    ! might also work for other lattices, e.g. triangular
-    ! tneig should be the set of them
+    ! 4 neighbors of each site (0:nsites-1)
+    ! if not existent, set it to be -1
+    ! tneig should be the subset of them
     allocate(hamilt%rt(0:nsites-1))
     allocate(hamilt%lf(0:nsites-1))
     allocate(hamilt%up(0:nsites-1))
     allocate(hamilt%dn(0:nsites-1))
+
+    ! 08/31/2019
+    ! hop directions for 4 neighbors in different lattice cases
+    ! square lattice: (1,   0, 0) hopping, right and left neighbors
+    ! d-p model:      (0.5, 0, 0) hopping and some sites no rt,lf,up,dn
+    select case (natom)
+      case (1)
+        hop_neig = transpose(reshape((/ 0.0, 1.0, 0.0, &
+                                        0.0,-1.0, 0.0, &
+                                       -1.0, 0.0, 0.0, &
+                                        1.0, 0.0, 0.0 /), (/ 3, 4 /)))
+      case (3)
+        hop_neig = transpose(reshape((/ 0.0, 0.5, 0.0, &
+                                        0.0,-0.5, 0.0, &
+                                       -0.5, 0.0, 0.0, &
+                                        0.5, 0.0, 0.0 /), (/ 3, 4 /)))
+    end select
+    !write(*,*) '1',hop_neig(1,:)
+    !write(*,*) '2',hop_neig(2,:)
+    !write(*,*) '3',hop_neig(3,:)
+    !write(*,*) '4',hop_neig(4,:)
 
     !Read chemical potential
     do iat = 1, 2
@@ -261,7 +283,7 @@ contains
           hamilt%hopdn(is,js) = hamilt%hopdn(is,js) + tijdn * exp( im*twisthop)
           hamilt%Uv(is,js)    = hamilt%Uv(is,js)    + U
 
-          ! Note below for symmetric hoppings so that geom file does not set
+          ! Note below for symmetric hoppings so that geom file does not need set
           ! bidirectional hoppings
           if (is .ne. js) then
              hamilt%hopup(js,is) = hamilt%hopup(js,is) + tijup * exp(-im*twisthop)
@@ -270,40 +292,44 @@ contains
           endif
 
           ! 08/31/2019
-          ! 4 neighbors of each site (0:nsites-1), different lattice cases
-          ! square lattice: (1,0,0) hopping, right and left neighbors
-          ! d-p model: (0.5, 0, 0) hopping and some sites no rt,lf,up,dn
+          ! find 4 neighbors of each site (0:nsites-1) in different lattice cases
+          ! if not existent, set it to be -1
+          ! square lattice: (1,   0, 0) hopping, right and left neighbors
+          ! d-p model:      (0.5, 0, 0) hopping and some sites no rt,lf,up,dn
           select case (natom)
             case (1)
-              if ((abs(hop3d(1)-1) .lt. 1.d-6) .and. (abs(hop3d(2)) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-                hamilt%rt(is) = js
-                hamilt%lf(js) = is
-              endif
-              ! (0,1,0) hopping, up and down neighbors
-              if ((abs(hop3d(1)) .lt. 1.d-6) .and. (abs(hop3d(2)-1) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-                hamilt%up(is) = js
-                hamilt%dn(js) = is
-              endif
+              hamilt%up(is) = hoptowho(is, hop_neig(1,:), 0, lattice)
+              hamilt%dn(is) = hoptowho(is, hop_neig(2,:), 0, lattice)
+              hamilt%lf(is) = hoptowho(is, hop_neig(3,:), 0, lattice)
+              hamilt%rt(is) = hoptowho(is, hop_neig(4,:), 0, lattice)
+
             case (3)
-              if ((abs(hop3d(1)-0.5) .lt. 1.d-6) .and. (abs(hop3d(2)) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-                hamilt%rt(is) = js
-                hamilt%lf(js) = is
-              endif
-              ! (0,1,0) hopping, up and down neighbors
-              if ((abs(hop3d(1)) .lt. 1.d-6) .and. (abs(hop3d(2)-0.5) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-                hamilt%up(is) = js
-                hamilt%dn(js) = is
+              if (mod(is,3)==0) then
+                hamilt%up(is) = hoptowho(is, hop_neig(1,:), 2, lattice)  
+                hamilt%dn(is) = hoptowho(is, hop_neig(2,:), 2, lattice)
+                hamilt%lf(is) = hoptowho(is, hop_neig(3,:), 1, lattice)
+                hamilt%rt(is) = hoptowho(is, hop_neig(4,:), 1, lattice)
+              elseif (mod(is,3)==1) then
+                hamilt%up(is) = -1
+                hamilt%dn(is) = -1
+                hamilt%lf(is) = hoptowho(is, hop_neig(3,:), 0, lattice)
+                hamilt%rt(is) = hoptowho(is, hop_neig(4,:), 0, lattice)
+              elseif (mod(is,3)==2) then
+                hamilt%up(is) = hoptowho(is, hop_neig(1,:), 0, lattice)
+                hamilt%dn(is) = hoptowho(is, hop_neig(2,:), 0, lattice)
+                hamilt%lf(is) = -1
+                hamilt%rt(is) = -1
               endif
           end select
-       enddo
 
+       enddo
     enddo
 
     ! for debug hamilt%rt, lf, up, dn, print them out
     if (qmc_sim%rank == qmc_sim%aggr_root) then
-       write(*,*) "print out rt, lf, up, dn neighbors:"
+       write(*,*) "print out up, dn, lf, rt neighbors:"
        do is = 0, nsites-1
-         write(*,*) is, "neighbors:", hamilt%rt(is), hamilt%lf(is), hamilt%up(is), hamilt%dn(is)
+         write(*,*) is, "neighbors:", hamilt%up(is), hamilt%dn(is), hamilt%lf(is), hamilt%rt(is)
        enddo
     endif
 

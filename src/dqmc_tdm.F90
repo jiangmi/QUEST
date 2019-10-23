@@ -802,7 +802,7 @@ contains
     ! ... Local scalar ...
 
     character(label_len) :: label
-    integer  :: i, j, k, dt, dt1, dt2, b1, b2
+    integer  :: i, j, k, dt, dt1, dt2, b1, b2, natom
     real*8   :: a,b,c,d,x,y,z
     real(wp), pointer :: value1(:), value2(:)
     real(wp) :: factor
@@ -811,6 +811,8 @@ contains
 
     ! ... Executable ...
     if (.not.T1%compute) return
+    
+    natom = T1%properties(IPAIRd)%np
 
     ! Below dt1 and dt2's length switch for two cases
     ! 2*factor=0.5 for double counting of site loops
@@ -1032,10 +1034,20 @@ contains
              value2(k)  = value2(k) + up0t(i,j)*b
 
              ! only compute in-plane d-wave pairing susceptibility
-             if (abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
-               T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
-               T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
-             endif
+             select case (natom)
+               ! square lattice
+               case (1)
+                 if (abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
+                   T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
+                 endif
+               case (3)
+                 if (mod(i,3)==1 .and. mod(j,3)==1 .and. &
+                     abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
+                   T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
+                 endif
+             end select
           end do
        end do
      endif

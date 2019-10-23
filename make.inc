@@ -29,7 +29,7 @@ NOOPT_FLAGS = -O0 -warn all
 
 # Intel C++ compiler
 # ------------------
-CXX = mpiicpc # mpiicpc
+CXX = icpc # mpiicpc
 CXX_FLAGS = -m64 -O3 -Wall -unroll# $(CUDAINC) $(MAGMAINC)
 
 # C++ libraries

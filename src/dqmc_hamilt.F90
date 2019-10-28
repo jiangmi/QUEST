@@ -547,6 +547,10 @@ contains
           localtmp(jclass) = iclass
           !Save value of mu and U for this class
           Utmp(jclass) = hamilt%Uv(isite,isite)
+
+          ! 10/29/2019:
+          ! To realize unphysical case of orbital-dependent mu:
+          ! Below only for PAM model
           if (mod(isite,2)==0) then
             muup(jclass) = -dble(hamilt%hopup(isite,isite))+hamilt%mu_up
             mudn(jclass) = -dble(hamilt%hopdn(isite,isite))+hamilt%mu_dn

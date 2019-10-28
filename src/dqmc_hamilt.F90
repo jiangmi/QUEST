@@ -175,6 +175,11 @@ contains
     allocate(hamilt%up(0:nsites-1))
     allocate(hamilt%dn(0:nsites-1))
 
+    hamilt%rt = 0
+    hamilt%lf = 0
+    hamilt%up = 0
+    hamilt%dn = 0
+
     !Read chemical potential
     do iat = 1, 2
        call CFG_Get(cfg, mu(iat), ntcfg, tcfg)

@@ -220,6 +220,7 @@ contains
     call CFG_Get(cfg, "tausk",   ntausk)
 
     ! Array parameters
+    ! Note that mu_up and other variables redefined in DQMC_Geom_Init
     call CFG_Get(cfg, "t_up",    n_t,  t_up)
     call CFG_Get(cfg, "t_dn",    n_t,  t_dn)
     call CFG_Get(cfg, "U",       n_U,  U)

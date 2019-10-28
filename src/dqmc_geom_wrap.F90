@@ -52,13 +52,13 @@ module DQMC_GEOM_WRAP
      call DQMC_Error("cannot open geom def file "//gfile, 0)
     endif
 
-    !Scan file to see which fields are specified
+    !Scan geometry file to see which fields are specified, see dqmc_geom_param.F90
     call analyze_input
  
-    !Initialize basic info about real space cluster
+    !Initialize basic info about real space cluster, see dqmc_latt.F90
     call init_lattice(gwrap%Lattice)
 
-    !Construct full lattice 
+    !Construct full lattice in dqmc_latt.F90
     call construct_lattice(gwrap%Lattice)
  
     !Initialize basic info about reciprocal lattice
@@ -71,7 +71,7 @@ module DQMC_GEOM_WRAP
     !construct reciprocal lattice that includes Gamma
     call construct_recip_lattice(gwrap%GammaLattice)
 
-    !Construct Hamiltonian
+    !Construct Hamiltonian in dqmc_hamilt.F90
     call construct_hamilt(gwrap%Hamilt,gwrap%Lattice,gwrap%RecipLattice,cfg)
     
     !Read point-symmetry (optional)
@@ -84,7 +84,7 @@ module DQMC_GEOM_WRAP
     call map_symm_recip_lattice(gwrap%SymmOp,gwrap%RecipLattice,.true.)
     call map_symm_recip_lattice(gwrap%SymmOp,gwrap%GammaLattice,.false.)
 
-    !Group pairs of lattice points into classes
+    !Group pairs of lattice points into classes in dqmc_symm.F90
     call construct_lattice_classes(gwrap%SymmOp,gwrap%Lattice)
 
     !Group k-points into classes
@@ -95,10 +95,10 @@ module DQMC_GEOM_WRAP
     call DQMC_Fill_FourierC(Gwrap%RecipLattice, Gwrap%Lattice)
     call DQMC_Fill_FourierC(Gwrap%GammaLattice, Gwrap%Lattice)
 
-    !Group hopping part of Hamiltonian in classes
+    !Group hopping part of Hamiltonian in classes in dqmc_hamilt.F90
     call count_hop_class(gwrap%Lattice,gwrap%Hamilt)
 
-    !Group separately local classes for U and mu
+    !Group separately local classes for U and mu in dqmc_hamilt.F90
     call count_local_classes(gwrap%Lattice,gwrap%Hamilt)
 
     !Assign phase for Green's function
@@ -285,6 +285,7 @@ module DQMC_GEOM_WRAP
     !Setting variables
 
     !Set variables that are otherwise read from main input
+    !Note that mu_up becomes array for all orbitals, similar for others
     call CFG_Set(cfg,"n",n)
     call CFG_Set(cfg,"t_up",S%n_t,tupvalue)
     call CFG_Set(cfg,"t_dn",S%n_t,tdnvalue)

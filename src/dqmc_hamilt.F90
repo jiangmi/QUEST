@@ -559,6 +559,7 @@ contains
     hamilt%nlocclass = nlocclass
     
     !Store the value of U and on-site energy (shifted by mu) for each class
+    !They will be used in DQMC_Geom_Init
     allocate(hamilt%Uvalue(nlocclass))
     allocate(hamilt%muupvalue(nlocclass))
     allocate(hamilt%mudnvalue(nlocclass))

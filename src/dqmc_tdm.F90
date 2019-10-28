@@ -1641,15 +1641,15 @@ contains
          !write(*,*) T1%Pd0tau(it)
        enddo
        call convert_to_iw0_real(T1%Pd0tau(0:T1%L-1, idx), T1%Pd0(idx), T1%L, T1%dtau)
+
+       ! calculate the d-wave pairing vertex Gammad
+       T1%Gammad(T1%idx) = 1.0/T1%Pd(T1%idx) - 1.0/T1%Pd0(idx)
+
+       ! product of d-wave pairing vertex Gammad and Pd0
+       ! superconducting instability is signified by Gd_Pd0 -> -1
+       ! See PRB 86, 184506 (2012)
+       T1%Gd_Pd0(T1%idx) = T1%Gammad(T1%idx)*T1%Pd0(idx)
     endif
-
-    ! calculate the d-wave pairing vertex Gammad
-    T1%Gammad(T1%idx) = 1.0/T1%Pd(T1%idx) - 1.0/T1%Pd0(idx)
-
-    ! product of d-wave pairing vertex Gammad and Pd0
-    ! superconducting instability is signified by Gd_Pd0 -> -1
-    ! See PRB 86, 184506 (2012)
-    T1%Gd_Pd0(T1%idx) = T1%Gammad(T1%idx)*T1%Pd0(idx)
 
     T1%sgn(idx) = T1%sgn(idx)*factor
     T1%cnt = 0

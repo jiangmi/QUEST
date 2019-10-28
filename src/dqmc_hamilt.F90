@@ -175,6 +175,11 @@ contains
     allocate(hamilt%up(0:nsites-1))
     allocate(hamilt%dn(0:nsites-1))
 
+    hamilt%rt = 0
+    hamilt%lf = 0
+    hamilt%up = 0
+    hamilt%dn = 0
+
     !Read chemical potential
     do iat = 1, 2
        call CFG_Get(cfg, mu(iat), ntcfg, tcfg)
@@ -547,8 +552,17 @@ contains
           localtmp(jclass) = iclass
           !Save value of mu and U for this class
           Utmp(jclass) = hamilt%Uv(isite,isite)
-          muup(jclass) = -dble(hamilt%hopup(isite,isite))+hamilt%mu_up
-          mudn(jclass) = -dble(hamilt%hopdn(isite,isite))+hamilt%mu_dn
+
+          ! 10/29/2019:
+          ! To realize unphysical case of orbital-dependent mu:
+          ! Below only for PAM model
+          if (mod(isite,2)==0) then
+            muup(jclass) = -dble(hamilt%hopup(isite,isite))+hamilt%mu_up
+            mudn(jclass) = -dble(hamilt%hopdn(isite,isite))+hamilt%mu_dn
+          else
+            muup(jclass) = -dble(hamilt%hopup(isite,isite))
+            mudn(jclass) = -dble(hamilt%hopdn(isite,isite))
+          endif
        endif
     
        !assign site to a class

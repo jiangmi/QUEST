@@ -556,13 +556,13 @@ contains
           ! 10/29/2019:
           ! To realize unphysical case of orbital-dependent mu:
           ! Below only for PAM model
-          if (mod(isite,2)==0) then
+          !if (mod(isite,2)==0) then
             muup(jclass) = -dble(hamilt%hopup(isite,isite))+hamilt%mu_up
             mudn(jclass) = -dble(hamilt%hopdn(isite,isite))+hamilt%mu_dn
-          else
-            muup(jclass) = -dble(hamilt%hopup(isite,isite))
-            mudn(jclass) = -dble(hamilt%hopdn(isite,isite))
-          endif
+          !else
+          !  muup(jclass) = -dble(hamilt%hopup(isite,isite))
+          !  mudn(jclass) = -dble(hamilt%hopdn(isite,isite))
+          !endif
        endif
     
        !assign site to a class

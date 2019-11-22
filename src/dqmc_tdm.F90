@@ -123,15 +123,27 @@ module DQMC_TDM
      integer  :: NkFT
      integer  :: norb      ! number of orbitals in unit cell
 
-     ! chi_q0(nclass,tau,bin) and chi_q0_iwm0(nclass,bin)
-     real(wp), pointer :: chixx_q0_orb(:,:,:)    
-     real(wp), pointer :: chizz_q0_orb(:,:,:)
-     real(wp), pointer :: chixx_q0_orb_iw0(:,:)  
-     real(wp), pointer :: chizz_q0_orb_iw0(:,:)
+     ! Instead of using FT transformation, 
+     ! manually compute chi_q(tau,2,bin) and chi_q_iw0(2,bin)
+     ! for 2 special K=(0,0) and (pi,pi)
+     real(wp), pointer :: chiqxx(:,:,:)    
+     real(wp), pointer :: chiqzz(:,:,:)
+     real(wp), pointer :: chiqxx_iw0(:,:)  
+     real(wp), pointer :: chiqzz_iw0(:,:)
+     ! In case of two sublattices, can also
+     ! compute the chi_q=0 for two sublattices individually
+     real(wp), pointer :: chiqxx_sub1(:,:)
+     real(wp), pointer :: chiqzz_sub1(:,:)
+     real(wp), pointer :: chiqxx_iw0_sub1(:)
+     real(wp), pointer :: chiqzz_iw0_sub1(:)
+     real(wp), pointer :: chiqxx_sub2(:,:)
+     real(wp), pointer :: chiqzz_sub2(:,:)
+     real(wp), pointer :: chiqxx_iw0_sub2(:)
+     real(wp), pointer :: chiqzz_iw0_sub2(:)
 
      ! composite Simpson's iw=0 summation for spinxx and spinzz
-     real(wp), pointer :: chixx_r0_orb_iw0(:,:)  
-     real(wp), pointer :: chizz_r0_orb_iw0(:,:)
+     real(wp), pointer :: chixx_r_orb_iw0(:,:)  
+     real(wp), pointer :: chizz_r_orb_iw0(:,:)
 
      real(wp) :: dtau
      real(wp), pointer :: sgn(:)
@@ -175,6 +187,7 @@ module DQMC_TDM
 
      ! 07/17/2019
      ! obtain the cartesian coordinates of sites, used for in-plane d-wave pairing sus
+     ! and chiq(pi,pi) manually
      real(wp), pointer :: cartpos(:,:)
 
      ! 11/19/2015
@@ -270,22 +283,34 @@ contains
 
     if (T1%flags(ISPXX) == 1) then
       allocate(T1%spinxxAvg(0:T1%L-1,T1%err))
-      allocate(T1%chixx_r0_orb_iw0(nClass, T1%err))
+      allocate(T1%chixx_r_orb_iw0(nClass, T1%err))
       T1%spinxxAvg = 0.0_wp
     endif
     if (T1%flagsFT(ISPXX) == 1) then
-      allocate(T1%chixx_q0_orb(nClass, 0:T1%L-1, T1%err))
-      allocate(T1%chixx_q0_orb_iw0(nClass, T1%err))
+      allocate(T1%chiqxx(0:T1%L-1, 2, T1%err))
+      allocate(T1%chiqxx_iw0(2, T1%err))
+
+      ! for two sublattices individually
+      allocate(T1%chiqxx_sub1(0:T1%L-1, T1%err))
+      allocate(T1%chiqxx_iw0_sub1(T1%err))
+      allocate(T1%chiqxx_sub2(0:T1%L-1, T1%err))
+      allocate(T1%chiqxx_iw0_sub2(T1%err))
     endif
 
     if (T1%flags(ISPZZ) == 1) then
       allocate(T1%spinzzAvg(0:T1%L-1,T1%err))
-      allocate(T1%chizz_r0_orb_iw0(nClass, T1%err))
+      allocate(T1%chizz_r_orb_iw0(nClass, T1%err))
       T1%spinzzAvg = 0.0_wp
     endif
     if (T1%flagsFT(ISPZZ) == 1) then
-      allocate(T1%chizz_q0_orb(nClass, 0:T1%L-1, T1%err))
-      allocate(T1%chizz_q0_orb_iw0(nClass, T1%err))
+      allocate(T1%chiqzz(0:T1%L-1, 2, T1%err))
+      allocate(T1%chiqzz_iw0(2, T1%err))
+
+      ! for two sublattices individually
+      allocate(T1%chiqzz_sub1(0:T1%L-1, T1%err))
+      allocate(T1%chiqzz_iw0_sub1(T1%err))
+      allocate(T1%chiqzz_sub2(0:T1%L-1, T1%err))
+      allocate(T1%chiqzz_iw0_sub2(T1%err))
     endif
 
     if (T1%flags(IPAIRs) == 1) then
@@ -578,19 +603,29 @@ contains
     endif
     if (T1%flags(ISPXX) == 1) then
       deallocate(T1%spinxxAvg)
-      deallocate(T1%chixx_r0_orb_iw0)
+      deallocate(T1%chixx_r_orb_iw0)
     endif
     if (T1%flagsFT(ISPXX) == 1) then
-      deallocate(T1%chixx_q0_orb)
-      deallocate(T1%chixx_q0_orb_iw0)
+      deallocate(T1%chiqxx)
+      deallocate(T1%chiqxx_iw0)
+      ! for two sublattices individually
+      deallocate(T1%chiqxx_sub1)
+      deallocate(T1%chiqxx_iw0_sub1)
+      deallocate(T1%chiqxx_sub2)
+      deallocate(T1%chiqxx_iw0_sub2)
     endif
     if (T1%flags(ISPZZ) == 1) then
       deallocate(T1%spinzzAvg)
-      deallocate(T1%chizz_r0_orb_iw0)
+      deallocate(T1%chizz_r_orb_iw0)
     endif
     if (T1%flagsFT(ISPZZ) == 1) then
-      deallocate(T1%chizz_q0_orb)
-      deallocate(T1%chizz_q0_orb_iw0)
+      deallocate(T1%chiqzz)
+      deallocate(T1%chiqzz_iw0)
+      ! for two sublattices individually
+      deallocate(T1%chiqzz_sub1)
+      deallocate(T1%chiqzz_iw0_sub1)
+      deallocate(T1%chiqzz_sub2)
+      deallocate(T1%chiqzz_iw0_sub2)
     endif
     if (T1%flags(IPAIRs) == 1) then
       deallocate(T1%swaveAvg)
@@ -717,50 +752,76 @@ contains
             if (iprop==ISPXX) then
               chiv = 0.0
               call convert_to_iw0_real(values(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
-              T1%chixx_r0_orb_iw0(i,T1%idx) = T1%chixx_r0_orb_iw0(i,T1%idx) + factor*chiv  
+              T1%chixx_r_orb_iw0(i,T1%idx) = T1%chixx_r_orb_iw0(i,T1%idx) + factor*chiv  
             endif
 
             !compute chizz_r0_iw0 with composite Simpson's rule:
             if (iprop==ISPZZ) then
               chiv = 0.0
               call convert_to_iw0_real(values(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
-              T1%chizz_r0_orb_iw0(i,T1%idx) = T1%chizz_r0_orb_iw0(i,T1%idx) + factor*chiv  
+              T1%chizz_r_orb_iw0(i,T1%idx) = T1%chizz_r_orb_iw0(i,T1%idx) + factor*chiv  
             endif
           end do
           values(:,:,T1%tmp) = ZERO
        endif
     enddo
 
-    ! compute chixx_q0
+    ! compute chixx_q of f-electron at q=(0,0) and (pi,pi)
     if (T1%flagsFT(ISPXX) == 1) then
-      do i = 1, T1%properties(ISPXX)%nClass
-        factor = sgn/(T1%properties(ISPXX)%F(i)*cnt)
-        T1%chixx_q0_orb(i,0:L-1,T1%idx) = T1%chixx_q0_orb(i,0:L-1,T1%idx) + factor*T1%chixx_q0_orb(i,0:L-1,T1%tmp)
+      factor = sgn/cnt
+      T1%chiqxx(0:L-1,1:2,T1%idx) = T1%chiqxx(0:L-1,1:2,T1%idx) + factor*T1%chiqxx(0:L-1,1:2,T1%tmp)
+      T1%chiqxx_sub1(0:L-1,T1%idx) = T1%chiqxx_sub1(0:L-1,T1%idx) + factor*T1%chiqxx_sub1(0:L-1,T1%tmp)
+      T1%chiqxx_sub2(0:L-1,T1%idx) = T1%chiqxx_sub2(0:L-1,T1%idx) + factor*T1%chiqxx_sub2(0:L-1,T1%tmp)
 
-        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
+      ! compute chi(iw=0) static chi using Composite Simpson's rule
+      do i = 1,2
         chiv = 0.0
-        call convert_to_iw0_real(T1%chixx_q0_orb(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
-        T1%chixx_q0_orb_iw0(i,T1%idx) = T1%chixx_q0_orb_iw0(i,T1%idx) + factor*chiv
+        call convert_to_iw0_real(T1%chiqxx(0:L-1,i,T1%tmp), chiv, L, T1%dtau)
+        T1%chiqxx_iw0(i,T1%idx) = T1%chiqxx_iw0(i,T1%idx) + factor*chiv
       enddo
 
-      T1%chixx_q0_orb(:,:,T1%tmp) = ZERO
-      T1%chixx_q0_orb_iw0(:,T1%tmp) = ZERO
+      chiv = 0.0
+      call convert_to_iw0_real(T1%chiqxx_sub1(0:L-1,T1%tmp), chiv, L, T1%dtau)
+      T1%chiqxx_iw0_sub1(T1%idx) = T1%chiqxx_iw0_sub1(T1%idx) + factor*chiv
+      chiv = 0.0
+      call convert_to_iw0_real(T1%chiqxx_sub2(0:L-1,T1%tmp), chiv, L, T1%dtau)
+      T1%chiqxx_iw0_sub2(T1%idx) = T1%chiqxx_iw0_sub2(T1%idx) + factor*chiv
+
+      T1%chiqxx(:,:,T1%tmp) = ZERO
+      T1%chiqxx_sub1(:,T1%tmp) = ZERO
+      T1%chiqxx_sub2(:,T1%tmp) = ZERO
+      T1%chiqxx_iw0(:,T1%tmp) = ZERO
+      T1%chiqxx_iw0_sub1(T1%tmp) = ZERO
+      T1%chiqxx_iw0_sub2(T1%tmp) = ZERO
     endif
 
-    ! compute chizz_q0
+    ! compute chizz_q of f-electron at q=(0,0) and (pi,pi)
     if (T1%flagsFT(ISPZZ) == 1) then
-      do i = 1, T1%properties(ISPZZ)%nClass
-        factor = sgn/(T1%properties(ISPZZ)%F(i)*cnt)
-        T1%chizz_q0_orb(i,0:L-1,T1%idx) = T1%chizz_q0_orb(i,0:L-1,T1%idx) + factor*T1%chizz_q0_orb(i,0:L-1,T1%tmp)
+      factor = sgn/cnt
+      T1%chiqzz(0:L-1,1:2,T1%idx) = T1%chiqzz(0:L-1,1:2,T1%idx) + factor*T1%chiqzz(0:L-1,1:2,T1%tmp)
+      T1%chiqzz_sub1(0:L-1,T1%idx) = T1%chiqzz_sub1(0:L-1,T1%idx) + factor*T1%chiqzz_sub1(0:L-1,T1%tmp)
+      T1%chiqzz_sub2(0:L-1,T1%idx) = T1%chiqzz_sub2(0:L-1,T1%idx) + factor*T1%chiqzz_sub2(0:L-1,T1%tmp)
 
-        ! compute chixx_r0(iw=0) static chi using Composite Simpson's rule
+      ! compute chi(iw=0) static chi using Composite Simpson's rule
+      do i = 1,2
         chiv = 0.0
-        call convert_to_iw0_real(T1%chizz_q0_orb(i,0:L-1,T1%tmp), chiv, L, T1%dtau)
-        T1%chizz_q0_orb_iw0(i,T1%idx) = T1%chizz_q0_orb_iw0(i,T1%idx) + factor*chiv
+        call convert_to_iw0_real(T1%chiqzz(0:L-1,i,T1%tmp), chiv, L, T1%dtau)
+        T1%chiqzz_iw0(i,T1%idx) = T1%chiqzz_iw0(i,T1%idx) + factor*chiv
       enddo
 
-      T1%chizz_q0_orb(:,:,T1%tmp) = ZERO
-      T1%chizz_q0_orb_iw0(:,T1%tmp) = ZERO
+      chiv = 0.0
+      call convert_to_iw0_real(T1%chiqzz_sub1(0:L-1,T1%tmp), chiv, L, T1%dtau)
+      T1%chiqzz_iw0_sub1(T1%idx) = T1%chiqzz_iw0_sub1(T1%idx) + factor*chiv
+      chiv = 0.0
+      call convert_to_iw0_real(T1%chiqzz_sub2(0:L-1,T1%tmp), chiv, L, T1%dtau)
+      T1%chiqzz_iw0_sub2(T1%idx) = T1%chiqzz_iw0_sub2(T1%idx) + factor*chiv
+
+      T1%chiqzz(:,:,T1%tmp) = ZERO
+      T1%chiqzz_sub1(:,T1%tmp) = ZERO
+      T1%chiqzz_sub2(:,T1%tmp) = ZERO
+      T1%chiqzz_iw0(:,T1%tmp) = ZERO
+      T1%chiqzz_iw0_sub1(T1%tmp) = ZERO
+      T1%chiqzz_iw0_sub2(T1%tmp) = ZERO
     endif
 
     if (T1%flags(IPAIRd) == 1) then
@@ -804,6 +865,7 @@ contains
     character(label_len) :: label
     integer  :: i, j, k, dt, dt1, dt2, b1, b2
     real*8   :: a,b,c,d,x,y,z
+    real*8   :: x1,y1,z1,x2,y2,z2
     real(wp), pointer :: value1(:), value2(:)
     real(wp) :: factor
     real(wp), dimension(1:5) :: vec
@@ -903,20 +965,47 @@ contains
            !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
            !       + up0t(j,i)*dnt0(i,j))/2
 
-             ! compute chi_q=0
+             ! compute chi_q of f-electron at q=(0,0) and (pi,pi)
              if (T1%flagsFT(ISPXX) == 1) then
-               vec = T1%properties(ISPXX)%vecClass(k,:)
-               b1 = int(vec(1))
-               b2 = int(vec(2))
-               !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling sites  
+               x1 = T1%cartpos(1,i-1)
+               y1 = T1%cartpos(2,i-1)
+               z1 = T1%cartpos(3,i-1)
+               x2 = T1%cartpos(1,j-1)
+               y2 = T1%cartpos(2,j-1)
+               z2 = T1%cartpos(3,j-1)
 
-               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-               if (b1==b2) then
-                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - val1
-                 T1%chixx_q0_orb(k,dt2,T1%tmp) = T1%chixx_q0_orb(k,dt2,T1%tmp) - val2
-               else
-                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - 0.5*val1
-                 T1%chixx_q0_orb(k,dt2,T1%tmp) = T1%chixx_q0_orb(k,dt2,T1%tmp) - 0.5*val2
+               ! chi_ff calculation
+               if (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+                 ! 1) sum both inter- and intra-site even for multi-site unit cell
+                 ! q=(0,0)
+                 T1%chiqxx(dt1,1,T1%tmp) = T1%chiqxx(dt1,1,T1%tmp) - val1
+                 T1%chiqxx(dt2,1,T1%tmp) = T1%chiqxx(dt2,1,T1%tmp) - val2
+
+                 ! q=(pi,pi), note the sign accouting for exp(separation*pi)
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   T1%chiqxx(dt1,2,T1%tmp) = T1%chiqxx(dt1,2,T1%tmp) - val1
+                   T1%chiqxx(dt2,2,T1%tmp) = T1%chiqxx(dt2,2,T1%tmp) - val2
+                 else
+                   T1%chiqxx(dt1,2,T1%tmp) = T1%chiqxx(dt1,2,T1%tmp) + val1
+                   T1%chiqxx(dt2,2,T1%tmp) = T1%chiqxx(dt2,2,T1%tmp) + val2
+                 endif
+
+                 ! 2) bipartite lattice can compute q=0 individually for each sublat
+                 ! separation limitation:
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   ! one sublattice
+                   if (mod(int(x1+y1),2)==0) then
+                     T1%chiqxx_sub1(dt1,T1%tmp) = T1%chiqxx_sub1(dt1,T1%tmp) - val1
+                     T1%chiqxx_sub1(dt2,T1%tmp) = T1%chiqxx_sub1(dt2,T1%tmp) - val2
+
+                   ! the other sublattice
+                   else
+                     T1%chiqxx_sub2(dt1,T1%tmp) = T1%chiqxx_sub2(dt1,T1%tmp) - val1
+                     T1%chiqxx_sub2(dt2,T1%tmp) = T1%chiqxx_sub2(dt2,T1%tmp) - val2
+                   endif
+                 endif
                endif
              endif
           end do
@@ -936,20 +1025,49 @@ contains
              value1(k)  = value1(k) - val1
              value2(k)  = value2(k) - val2
 
-             ! compute chi_q=0
+             ! compute chi_q of f-electron at q=(0,0) and (pi,pi)
              if (T1%flagsFT(ISPZZ) == 1) then
-               vec = T1%properties(ISPXX)%vecClass(k,:)
-               b1 = int(vec(1))
-               b2 = int(vec(2))
-               !write(*,'(2(a5,I3),2(a5,F10.7))') "b1=", b1, "b2=", b2, "x=",x,"y=", y
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling sites  
+               x1 = T1%cartpos(1,i-1)
+               y1 = T1%cartpos(2,i-1)
+               z1 = T1%cartpos(3,i-1)
+               x2 = T1%cartpos(1,j-1)
+               y2 = T1%cartpos(2,j-1)
+               z2 = T1%cartpos(3,j-1)
 
-               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-               if (b1==b2) then
-                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - val1
-                 T1%chizz_q0_orb(k,dt2,T1%tmp) = T1%chizz_q0_orb(k,dt2,T1%tmp) - val2
-               else
-                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - 0.5*val1
-                 T1%chizz_q0_orb(k,dt2,T1%tmp) = T1%chizz_q0_orb(k,dt2,T1%tmp) - 0.5*val2
+               ! chi_ff calculation
+               if (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+                 ! 1) sum both inter- and intra-site even for multi-site unit
+                 ! cell
+                 ! q=(0,0)
+                 T1%chiqzz(dt1,1,T1%tmp) = T1%chiqzz(dt1,1,T1%tmp) - val1
+                 T1%chiqzz(dt2,1,T1%tmp) = T1%chiqzz(dt2,1,T1%tmp) - val2
+
+                 ! q=(pi,pi), note the sign accouting for exp(separation*pi)
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   T1%chiqzz(dt1,2,T1%tmp) = T1%chiqzz(dt1,2,T1%tmp) - val1
+                   T1%chiqzz(dt2,2,T1%tmp) = T1%chiqzz(dt2,2,T1%tmp) - val2
+                 else
+                   T1%chiqzz(dt1,2,T1%tmp) = T1%chiqzz(dt1,2,T1%tmp) + val1
+                   T1%chiqzz(dt2,2,T1%tmp) = T1%chiqzz(dt2,2,T1%tmp) + val2
+                 endif
+
+                 ! 2) bipartite lattice can compute q=0 individually for each
+                 ! sublat
+                 ! separation limitation:
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   ! one sublattice
+                   if (mod(int(x1+y1),2)==0) then
+                     T1%chiqzz_sub1(dt1,T1%tmp) = T1%chiqzz_sub1(dt1,T1%tmp) - val1
+                     T1%chiqzz_sub1(dt2,T1%tmp) = T1%chiqzz_sub1(dt2,T1%tmp) - val2
+
+                   ! the other sublattice
+                   else
+                     T1%chiqzz_sub2(dt1,T1%tmp) = T1%chiqzz_sub2(dt1,T1%tmp) - val1
+                     T1%chiqzz_sub2(dt2,T1%tmp) = T1%chiqzz_sub2(dt2,T1%tmp) - val2
+                   endif
+                 endif
                endif
              endif
           end do
@@ -1250,17 +1368,43 @@ contains
              val1 = (up0t(j,i)*dnt0(i,j) + up0t(i,j)*dnt0(j,i))
              value1(k)  = value1(k) - val1
 
+             ! compute chi_q of f-electron at q=(0,0) and (pi,pi)
              if (T1%flagsFT(ISPXX) == 1) then
-               vec = T1%properties(ISPXX)%vecClass(k,:)
-               b1 = int(vec(1))
-               b2 = int(vec(2))
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling
+               ! sites  
+               x1 = T1%cartpos(1,i-1)
+               y1 = T1%cartpos(2,i-1)
+               z1 = T1%cartpos(3,i-1)
+               x2 = T1%cartpos(1,j-1)
+               y2 = T1%cartpos(2,j-1)
+               z2 = T1%cartpos(3,j-1)
 
-               ! compute chi_q=0
-               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-               if (b1==b2) then
-                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - val1
-               else
-                 T1%chixx_q0_orb(k,dt1,T1%tmp) = T1%chixx_q0_orb(k,dt1,T1%tmp) - 0.5*val1
+               ! chi_ff calculation
+               if (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+                 ! 1) sum both inter- and intra-site even for multi-site unit cell
+                 ! q=(0,0)
+                 T1%chiqxx(dt1,1,T1%tmp) = T1%chiqxx(dt1,1,T1%tmp) - val1
+
+                 ! q=(pi,pi), note the sign accouting for exp(separation*pi)
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   T1%chiqxx(dt1,2,T1%tmp) = T1%chiqxx(dt1,2,T1%tmp) - val1
+                 else
+                   T1%chiqxx(dt1,2,T1%tmp) = T1%chiqxx(dt1,2,T1%tmp) + val1
+                 endif
+
+                 ! 2) bipartite lattice can compute q=0 individually for each
+                 ! sublat
+                 ! separation limitation:
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   ! one sublattice
+                   if (mod(int(x1+y1),2)==0) then
+                     T1%chiqxx_sub1(dt1,T1%tmp) = T1%chiqxx_sub1(dt1,T1%tmp) - val1
+                   ! the other sublattice
+                   else
+                     T1%chiqxx_sub2(dt1,T1%tmp) = T1%chiqxx_sub2(dt1,T1%tmp) - val1
+                   endif
+                 endif
                endif
              endif
           end do
@@ -1277,22 +1421,46 @@ contains
              val1 = (up0t(j,i)*upt0(i,j) + dn0t(j,i)*dnt0(i,j) - (uptt(i,i)-dntt(i,i))*(up00(j,j)-dn00(j,j)) )
              value1(k)  = value1(k) - val1
 
+             ! compute chi_q of f-electron at q=(0,0) and (pi,pi)
              if (T1%flagsFT(ISPZZ) == 1) then
-               ! For test comparing with chi_xx calculated in
-               ! DQMC_TDM_Chi_q_orbital
-               ! below accumulate chi_xx(q=0)
-               vec = T1%properties(ISPXX)%vecClass(k,:)
-               b1 = int(vec(1))
-               b2 = int(vec(2))
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling
+               ! sites  
+               x1 = T1%cartpos(1,i-1)
+               y1 = T1%cartpos(2,i-1)
+               z1 = T1%cartpos(3,i-1)
+               x2 = T1%cartpos(1,j-1)
+               y2 = T1%cartpos(2,j-1)
+               z2 = T1%cartpos(3,j-1)
 
-               ! compute chi_q=0
-               ! the code treats site pairs (0,1) and (1,0) the same so always b1 <= b2
-               if (b1==b2) then
-                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - val1
-               else
-                 T1%chizz_q0_orb(k,dt1,T1%tmp) = T1%chizz_q0_orb(k,dt1,T1%tmp) - 0.5*val1
+               ! chi_ff calculation
+               if (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+                 ! 1) sum both inter- and intra-site even for multi-site unit
+                 ! cell
+                 ! q=(0,0)
+                 T1%chiqzz(dt1,1,T1%tmp) = T1%chiqzz(dt1,1,T1%tmp) - val1
+
+                 ! q=(pi,pi), note the sign accouting for exp(separation*pi)
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   T1%chiqzz(dt1,2,T1%tmp) = T1%chiqzz(dt1,2,T1%tmp) - val1
+                 else
+                   T1%chiqzz(dt1,2,T1%tmp) = T1%chiqzz(dt1,2,T1%tmp) + val1
+                 endif
+
+                 ! 2) bipartite lattice can compute q=0 individually for each
+                 ! sublat
+                 ! separation limitation:
+                 if (mod(int(x1-x2+y1-y2),2)==0) then
+                   ! one sublattice
+                   if (mod(int(x1+y1),2)==0) then
+                     T1%chiqzz_sub1(dt1,T1%tmp) = T1%chiqzz_sub1(dt1,T1%tmp) - val1
+                   ! the other sublattice
+                   else
+                     T1%chiqzz_sub2(dt1,T1%tmp) = T1%chiqzz_sub2(dt1,T1%tmp) - val1
+                   endif
+                 endif
                endif
-             endif
+            endif
           end do
        end do
      endif
@@ -1459,13 +1627,17 @@ contains
 
     ! ... local scalar ...
     integer  :: nl, idx, i, j, k, it
-    real(wp) :: factor, a
+    real(wp) :: factor, fac, a
     real(wp), allocatable :: value1(:), value2(:)
 
     ! ... Executable ...
     if (.not.T1%compute) return
     idx    = T1%idx
     factor = ONE/T1%cnt
+    
+    ! /2.0 accounts for two orbitals per site
+    ! Note that this is only for PAM
+    fac = factor/(T1%properties(ISPXX)%n/2.d0)  
 
     allocate(value1(1:T1%properties(IGFUN)%nClass))
     allocate(value2(1:T1%properties(IGFUN)%nClass))
@@ -1482,28 +1654,32 @@ contains
 
     if (T1%flags(ISPXX) == 1) then
       do i = 1, T1%properties(ISPXX)%nClass 
-        T1%chixx_r0_orb_iw0(i,idx) = T1%chixx_r0_orb_iw0(i,idx) * factor
-      enddo
-    endif
-
-    if (T1%flagsFT(ISPXX) == 1) then
-      do i = 1, T1%properties(ISPXX)%nClass
-        T1%chixx_q0_orb(i,0:T1%L-1,idx) = T1%chixx_q0_orb(i,0:T1%L-1,idx) * factor
-        T1%chixx_q0_orb_iw0(i,idx) = T1%chixx_q0_orb_iw0(i,idx) * factor 
+        T1%chixx_r_orb_iw0(i,idx) = T1%chixx_r_orb_iw0(i,idx) * fac
       enddo
     endif
 
     if (T1%flags(ISPZZ) == 1) then
       do i = 1, T1%properties(ISPZZ)%nClass 
-        T1%chizz_r0_orb_iw0(i,idx) = T1%chizz_r0_orb_iw0(i,idx) * factor
+        T1%chizz_r_orb_iw0(i,idx) = T1%chizz_r_orb_iw0(i,idx) * fac
       enddo
     endif
 
+    if (T1%flagsFT(ISPXX) == 1) then
+      T1%chiqxx(0:T1%L-1,1:2,idx) = T1%chiqxx(0:T1%L-1,1:2,idx) * fac
+      T1%chiqxx_sub1(0:T1%L-1,idx) = T1%chiqxx_sub1(0:T1%L-1,idx) * fac
+      T1%chiqxx_sub2(0:T1%L-1,idx) = T1%chiqxx_sub2(0:T1%L-1,idx) * fac
+      T1%chiqxx_iw0(1:2,idx) = T1%chiqxx_iw0(1:2,idx) * fac
+      T1%chiqxx_iw0_sub1(idx) = T1%chiqxx_iw0_sub1(idx) * fac
+      T1%chiqxx_iw0_sub2(idx) = T1%chiqxx_iw0_sub2(idx) * fac 
+    endif
+
     if (T1%flagsFT(ISPZZ) == 1) then
-      do i = 1, T1%properties(ISPZZ)%nClass
-        T1%chizz_q0_orb(i,0:T1%L-1,idx) = T1%chizz_q0_orb(i,0:T1%L-1,idx) * factor
-        T1%chizz_q0_orb_iw0(i,idx) = T1%chizz_q0_orb_iw0(i,idx) * factor 
-      enddo
+      T1%chiqzz(0:T1%L-1,1:2,idx) = T1%chiqzz(0:T1%L-1,1:2,idx) * fac
+      T1%chiqzz_sub1(0:T1%L-1,idx) = T1%chiqzz_sub1(0:T1%L-1,idx) * fac
+      T1%chiqzz_sub2(0:T1%L-1,idx) = T1%chiqzz_sub2(0:T1%L-1,idx) * fac
+      T1%chiqzz_iw0(1:2,idx) = T1%chiqzz_iw0(1:2,idx) * fac
+      T1%chiqzz_iw0_sub1(idx) = T1%chiqzz_iw0_sub1(idx) * fac
+      T1%chiqzz_iw0_sub2(idx) = T1%chiqzz_iw0_sub2(idx) * fac
     endif
 
     ! record the average of all local sum_r G(r, tau) for average N(w)
@@ -1710,56 +1886,100 @@ contains
 
        if (T1%flags(ISPXX) == 1) then
          do i = 1, T1%properties(ISPXX)%nClass
-           data =  T1%chixx_r0_orb_iw0(i,1:n)
+           data =  T1%chixx_r_orb_iw0(i,1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%chixx_r0_orb_iw0(i,avg) = average
-           T1%chixx_r0_orb_iw0(i,err) = error
+           T1%chixx_r_orb_iw0(i,avg) = average
+           T1%chixx_r_orb_iw0(i,err) = error
          enddo
        endif
 
        if (T1%flagsFT(ISPXX) == 1) then
-         do i = 1, T1%properties(ISPXX)%nClass
+         do i = 1, 2
            do k = 0, T1%L-1
-             data =  T1%chixx_q0_orb(i,k,1:n)
+             data =  T1%chiqxx(k,i,1:n)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chixx_q0_orb(i,k,avg) = average
-             T1%chixx_q0_orb(i,k,err) = error
+             T1%chiqxx(k,i,avg) = average
+             T1%chiqxx(k,i,err) = error
            enddo
+
+           data =  T1%chiqxx_iw0(i,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chiqxx_iw0(i,avg) = average
+           T1%chiqxx_iw0(i,err) = error
          enddo
 
-         do i = 1, T1%properties(ISPXX)%nClass
-           data =  T1%chixx_q0_orb_iw0(i,1:n)
+         ! for two sublattices
+         do k = 0, T1%L-1
+           data =  T1%chiqxx_sub1(k,1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%chixx_q0_orb_iw0(i,avg) = average
-           T1%chixx_q0_orb_iw0(i,err) = error
+           T1%chiqxx_sub1(k,avg) = average
+           T1%chiqxx_sub1(k,err) = error
          enddo
+         do k = 0, T1%L-1
+           data =  T1%chiqxx_sub2(k,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chiqxx_sub2(k,avg) = average
+           T1%chiqxx_sub2(k,err) = error
+         enddo
+
+         data =  T1%chiqxx_iw0_sub1(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%chiqxx_iw0_sub1(avg) = average
+         T1%chiqxx_iw0_sub1(err) = error
+
+         data =  T1%chiqxx_iw0_sub2(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%chiqxx_iw0_sub2(avg) = average
+         T1%chiqxx_iw0_sub2(err) = error
        endif
 
        if (T1%flags(ISPZZ) == 1) then
          do i = 1, T1%properties(ISPZZ)%nClass
-           data =  T1%chizz_r0_orb_iw0(i,1:n)
+           data =  T1%chizz_r_orb_iw0(i,1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%chizz_r0_orb_iw0(i,avg) = average
-           T1%chizz_r0_orb_iw0(i,err) = error
+           T1%chizz_r_orb_iw0(i,avg) = average
+           T1%chizz_r_orb_iw0(i,err) = error
          enddo
        endif
 
        if (T1%flagsFT(ISPZZ) == 1) then
-         do i = 1, T1%properties(ISPZZ)%nClass
+         do i = 1, 2
            do k = 0, T1%L-1
-             data =  T1%chizz_q0_orb(i,k,1:n)
+             data =  T1%chiqzz(k,i,1:n)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-             T1%chizz_q0_orb(i,k,avg) = average
-             T1%chizz_q0_orb(i,k,err) = error
+             T1%chiqzz(k,i,avg) = average
+             T1%chiqzz(k,i,err) = error
            enddo
+
+           data =  T1%chiqzz_iw0(i,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chiqzz_iw0(i,avg) = average
+           T1%chiqzz_iw0(i,err) = error
          enddo
 
-         do i = 1, T1%properties(ISPZZ)%nClass
-           data =  T1%chizz_q0_orb_iw0(i,1:n)
+         ! for two sublattices
+         do k = 0, T1%L-1
+           data =  T1%chiqzz_sub1(k,1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%chizz_q0_orb_iw0(i,avg) = average
-           T1%chizz_q0_orb_iw0(i,err) = error
+           T1%chiqzz_sub1(k,avg) = average
+           T1%chiqzz_sub1(k,err) = error
          enddo
+         do k = 0, T1%L-1
+           data =  T1%chiqzz_sub2(k,1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%chiqzz_sub2(k,avg) = average
+           T1%chiqzz_sub2(k,err) = error
+         enddo
+
+         data =  T1%chiqzz_iw0_sub1(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%chiqzz_iw0_sub1(avg) = average
+         T1%chiqzz_iw0_sub1(err) = error
+
+         data =  T1%chiqzz_iw0_sub2(1:n)
+         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+         T1%chiqzz_iw0_sub2(avg) = average
+         T1%chiqzz_iw0_sub2(err) = error
        endif
 
        if (T1%flags(IGFUN) == 1) then
@@ -1887,47 +2107,79 @@ contains
 
           if (T1%flags(ISPXX) == 1) then
             n = T1%properties(ISPXX)%nClass
-            bins => T1%chixx_r0_orb_iw0(:,1)
-            aves => T1%chixx_r0_orb_iw0(:,avg)
+            bins => T1%chixx_r_orb_iw0(:,1)
+            aves => T1%chixx_r_orb_iw0(:,avg)
             call mpi_allreduce(bins, aves, n, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
-            n = T1%properties(ISPXX)%nClass
-            do k = 0, T1%L-1
-              bins => T1%chixx_q0_orb(:,k,1)
-              aves => T1%chixx_q0_orb(:,k,avg)             
+            n = T1%L
+            do k = 1,2
+              bins => T1%chiqxx(:,k,1)
+              aves => T1%chiqxx(:,k,avg)             
               call mpi_allreduce(bins, aves, n, mpi_double, &
                  mpi_sum, mpi_comm_world, mpi_err)
             enddo
 
-            bins => T1%chixx_q0_orb_iw0(:,1)
-            aves => T1%chixx_q0_orb_iw0(:,avg)
+            ! for two sublattices
+            bins => T1%chiqxx_sub1(:,1)
+            aves => T1%chiqxx_sub1(:,avg)
             call mpi_allreduce(bins, aves, n, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
+            bins => T1%chiqxx_sub2(:,1)
+            aves => T1%chiqxx_sub2(:,avg)
+            call mpi_allreduce(bins, aves, n, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
+            bins => T1%chiqxx_iw0(1:2,1)
+            aves => T1%chiqxx_iw0(1:2,avg)
+            call mpi_allreduce(bins, aves, 2, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
+            call mpi_allreduce(T1%chiqxx_iw0_sub1(1), T1%chiqxx_iw0_sub1(avg), 1, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+            call mpi_allreduce(T1%chiqxx_iw0_sub2(1), T1%chiqxx_iw0_sub2(avg), 1, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
           if (T1%flags(ISPZZ) == 1) then
             n = T1%properties(ISPZZ)%nClass
-            bins => T1%chizz_r0_orb_iw0(:,1)
-            aves => T1%chizz_r0_orb_iw0(:,avg)
+            bins => T1%chizz_r_orb_iw0(:,1)
+            aves => T1%chizz_r_orb_iw0(:,avg)
             call mpi_allreduce(bins, aves, n, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            n = T1%properties(ISPZZ)%nClass
-            do k = 0, T1%L-1
-              bins => T1%chizz_q0_orb(:,k,1)
-              aves => T1%chizz_q0_orb(:,k,avg)             
+            n = T1%L
+            do k = 1,2
+              bins => T1%chiqzz(:,k,1)
+              aves => T1%chiqzz(:,k,avg)
               call mpi_allreduce(bins, aves, n, mpi_double, &
                  mpi_sum, mpi_comm_world, mpi_err)
             enddo
 
-            bins => T1%chizz_q0_orb_iw0(:,1)
-            aves => T1%chizz_q0_orb_iw0(:,avg)
+            ! for two sublattices
+            bins => T1%chiqzz_sub1(:,1)
+            aves => T1%chiqzz_sub1(:,avg)
             call mpi_allreduce(bins, aves, n, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
+            bins => T1%chiqzz_sub2(:,1)
+            aves => T1%chiqzz_sub2(:,avg)
+            call mpi_allreduce(bins, aves, n, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
+            bins => T1%chiqzz_iw0(1:2,1)
+            aves => T1%chiqzz_iw0(1:2,avg)
+            call mpi_allreduce(bins, aves, 2, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
+            call mpi_allreduce(T1%chiqzz_iw0_sub1(1), T1%chiqzz_iw0_sub1(avg), 1, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+            call mpi_allreduce(T1%chiqzz_iw0_sub2(1), T1%chiqzz_iw0_sub2(avg), 1, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
           endif
 
@@ -2003,45 +2255,71 @@ contains
           enddo
 
           if (T1%flags(ISPXX) == 1) then
-            bins => T1%chixx_r0_orb_iw0(:,1)
-            aves => T1%chixx_r0_orb_iw0(:,avg)
+            bins => T1%chixx_r_orb_iw0(:,1)
+            aves => T1%chixx_r_orb_iw0(:,avg)
             bins = (aves - bins) / dble(nproc - 1)
             bins =  bins / T1%sgn(1)
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
-            do k = 0, T1%L-1
-              binptr => T1%chixx_q0_orb(:,:,1)
-              aveptr => T1%chixx_q0_orb(:,:,avg) 
-              binptr = (aveptr - binptr) / dble(nproc - 1)
-              binptr =  binptr / T1%sgn(1)
-            enddo
+            binptr => T1%chiqxx(:,:,1)
+            aveptr => T1%chiqxx(:,:,avg) 
+            binptr = (aveptr - binptr) / dble(nproc - 1)
+            binptr =  binptr / T1%sgn(1)
 
-            bins => T1%chixx_q0_orb_iw0(:,1)
-            aves => T1%chixx_q0_orb_iw0(:,avg)
+            bins => T1%chiqxx_iw0(:,1)
+            aves => T1%chiqxx_iw0(:,avg)
             bins = (aves - bins) / dble(nproc - 1)
             bins =  bins / T1%sgn(1)
+
+            bins => T1%chiqxx_sub1(:,1)
+            aves => T1%chiqxx_sub1(:,avg)
+            bins = (aves - bins) / dble(nproc - 1)                                                    
+            bins =  bins / T1%sgn(1)
+
+            bins => T1%chiqxx_sub2(:,1)
+            aves => T1%chiqxx_sub2(:,avg)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
+
+            T1%chiqxx_iw0_sub1(1) =  (T1%chiqxx_iw0_sub1(avg) &
+                   - T1%chiqxx_iw0_sub1(1))/dble(nproc - 1)/T1%sgn(1)
+            T1%chiqxx_iw0_sub2(1) =  (T1%chiqxx_iw0_sub2(avg) &
+                   - T1%chiqxx_iw0_sub2(1))/dble(nproc - 1)/T1%sgn(1)
           endif
 
           if (T1%flags(ISPZZ) == 1) then
-            bins => T1%chizz_r0_orb_iw0(:,1)
-            aves => T1%chizz_r0_orb_iw0(:,avg)
+            bins => T1%chizz_r_orb_iw0(:,1)
+            aves => T1%chizz_r_orb_iw0(:,avg)
             bins = (aves - bins) / dble(nproc - 1)
             bins =  bins / T1%sgn(1)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            do k = 0, T1%L-1
-              binptr => T1%chizz_q0_orb(:,:,1)
-              aveptr => T1%chizz_q0_orb(:,:,avg) 
-              binptr = (aveptr - binptr) / dble(nproc - 1)
-              binptr =  binptr / T1%sgn(1)
-            enddo
+            binptr => T1%chiqzz(:,:,1)
+            aveptr => T1%chiqzz(:,:,avg)
+            binptr = (aveptr - binptr) / dble(nproc - 1)
+            binptr =  binptr / T1%sgn(1)
 
-            bins => T1%chizz_q0_orb_iw0(:,1)
-            aves => T1%chizz_q0_orb_iw0(:,avg)
+            bins => T1%chiqzz_iw0(:,1)
+            aves => T1%chiqzz_iw0(:,avg)
             bins = (aves - bins) / dble(nproc - 1)
             bins =  bins / T1%sgn(1)
+
+            bins => T1%chiqzz_sub1(:,1)
+            aves => T1%chiqzz_sub1(:,avg)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
+
+            bins => T1%chiqzz_sub2(:,1)
+            aves => T1%chiqzz_sub2(:,avg)
+            bins = (aves - bins) / dble(nproc - 1)
+            bins =  bins / T1%sgn(1)
+
+            T1%chiqzz_iw0_sub1(1) =  (T1%chiqzz_iw0_sub1(avg) &
+                   - T1%chiqzz_iw0_sub1(1))/dble(nproc - 1)/T1%sgn(1)
+            T1%chiqzz_iw0_sub2(1) =  (T1%chiqzz_iw0_sub2(avg) &
+                   - T1%chiqzz_iw0_sub2(1))/dble(nproc - 1)/T1%sgn(1)
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -2112,29 +2390,45 @@ contains
           enddo
 
           if (T1%flags(ISPXX) == 1) then
-            aves => T1%chixx_r0_orb_iw0(:,avg)
+            aves => T1%chixx_r_orb_iw0(:,avg)
             aves =  aves / T1%sgn(avg)
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
-            aveptr => T1%chixx_q0_orb(:,:,avg)
+            aveptr => T1%chiqxx(:,:,avg)
             aveptr =  aveptr / T1%sgn(avg)
 
-            aves => T1%chixx_q0_orb_iw0(:,avg)
+            aves => T1%chiqxx_iw0(:,avg)
             aves =  aves / T1%sgn(avg)
+
+            aves => T1%chiqxx_sub1(:,avg)
+            aves =  aves / T1%sgn(avg)
+            aves => T1%chiqxx_sub2(:,avg)
+            aves =  aves / T1%sgn(avg)
+
+            T1%chiqxx_iw0_sub1(avg) = T1%chiqxx_iw0_sub1(avg) / T1%sgn(avg)
+            T1%chiqxx_iw0_sub2(avg) = T1%chiqxx_iw0_sub2(avg) / T1%sgn(avg)
           endif
 
           if (T1%flags(ISPZZ) == 1) then
-            aves => T1%chizz_r0_orb_iw0(:,avg)
+            aves => T1%chizz_r_orb_iw0(:,avg)
             aves =  aves / T1%sgn(avg)
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            aveptr => T1%chizz_q0_orb(:,:,avg)
+            aveptr => T1%chiqzz(:,:,avg)
             aveptr =  aveptr / T1%sgn(avg)
 
-            aves => T1%chizz_q0_orb_iw0(:,avg)
+            aves => T1%chiqzz_iw0(:,avg)
             aves =  aves / T1%sgn(avg)
+
+            aves => T1%chiqzz_sub1(:,avg)
+            aves =  aves / T1%sgn(avg)
+            aves => T1%chiqzz_sub2(:,avg)
+            aves =  aves / T1%sgn(avg)
+
+            T1%chiqzz_iw0_sub1(avg) = T1%chiqzz_iw0_sub1(avg) / T1%sgn(avg)
+            T1%chiqzz_iw0_sub2(avg) = T1%chiqzz_iw0_sub2(avg) / T1%sgn(avg)
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -2192,58 +2486,104 @@ contains
 
           if (T1%flags(ISPXX) == 1) then
             n = T1%properties(ISPXX)%nClass
-            bins => T1%chixx_r0_orb_iw0(:,1)
-            aves => T1%chixx_r0_orb_iw0(:,avg)
-            errs => T1%chixx_r0_orb_iw0(:,err)
+            bins => T1%chixx_r_orb_iw0(:,1)
+            aves => T1%chixx_r_orb_iw0(:,avg)
+            errs => T1%chixx_r_orb_iw0(:,err)
             call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
-            n = T1%properties(ISPXX)%nClass * T1%L
-            binptr => T1%chixx_q0_orb(:,:,1)
-            aveptr => T1%chixx_q0_orb(:,:,avg)
-            errptr => T1%chixx_q0_orb(:,:,err)
+            n = 2*T1%L
+            binptr => T1%chiqxx(:,:,1)
+            aveptr => T1%chiqxx(:,:,avg)
+            errptr => T1%chiqxx(:,:,err)
             call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
 
-            n = T1%properties(ISPXX)%nClass
-            bins => T1%chixx_q0_orb_iw0(:,1)
-            aves => T1%chixx_q0_orb_iw0(:,avg)
-            errs => T1%chixx_q0_orb_iw0(:,err)
-            call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
+            bins => T1%chiqxx_iw0(:,1)
+            aves => T1%chiqxx_iw0(:,avg)
+            errs => T1%chiqxx_iw0(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, 2, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+            bins => T1%chiqxx_sub1(:,1)
+            aves => T1%chiqxx_sub1(:,avg)
+            errs => T1%chiqxx_sub1(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+            bins => T1%chiqxx_sub2(:,1)
+            aves => T1%chiqxx_sub2(:,avg)
+            errs => T1%chiqxx_sub2(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+            call mpi_allreduce((T1%chiqxx_iw0_sub1(1)-T1%chiqxx_iw0_sub1(avg))**2, &
+              T1%chiqxx_iw0_sub1(err), 1, mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+            T1%chiqxx_iw0_sub1(err) = sqrt(T1%chiqxx_iw0_sub1(err) &
+                                      * dble(nproc-1)/dble(nproc))
+
+            call mpi_allreduce((T1%chiqxx_iw0_sub2(1)-T1%chiqxx_iw0_sub2(avg))**2, &
+              T1%chiqxx_iw0_sub2(err), 1, mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+            T1%chiqxx_iw0_sub2(err) = sqrt(T1%chiqxx_iw0_sub2(err) &
+                                      * dble(nproc-1)/dble(nproc))
           endif
 
           if (T1%flags(ISPZZ) == 1) then
             n = T1%properties(ISPZZ)%nClass
-            bins => T1%chizz_r0_orb_iw0(:,1)
-            aves => T1%chizz_r0_orb_iw0(:,avg)
-            errs => T1%chizz_r0_orb_iw0(:,err)
+            bins => T1%chizz_r_orb_iw0(:,1)
+            aves => T1%chizz_r_orb_iw0(:,avg)
+            errs => T1%chizz_r_orb_iw0(:,err)
             call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            n = T1%properties(ISPZZ)%nClass * T1%L
-            binptr => T1%chizz_q0_orb(:,:,1)
-            aveptr => T1%chizz_q0_orb(:,:,avg)
-            errptr => T1%chizz_q0_orb(:,:,err)
+            n = 2*T1%L
+            binptr => T1%chiqzz(:,:,1)
+            aveptr => T1%chiqzz(:,:,avg)
+            errptr => T1%chiqzz(:,:,err)
             call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
 
-            n = T1%properties(ISPZZ)%nClass
-            bins => T1%chizz_q0_orb_iw0(:,1)
-            aves => T1%chizz_q0_orb_iw0(:,avg)
-            errs => T1%chizz_q0_orb_iw0(:,err)
-            call mpi_allreduce((bins-aves)**2, errs, n, mpi_double, &
+            bins => T1%chiqzz_iw0(:,1)
+            aves => T1%chiqzz_iw0(:,avg)
+            errs => T1%chiqzz_iw0(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, 2, mpi_double, &
                 mpi_sum, mpi_comm_world, mpi_err)
             errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+            bins => T1%chiqzz_sub1(:,1)
+            aves => T1%chiqzz_sub1(:,avg)
+            errs => T1%chiqzz_sub1(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+            bins => T1%chiqzz_sub2(:,1)
+            aves => T1%chiqzz_sub2(:,avg)
+            errs => T1%chiqzz_sub2(:,err)
+            call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+                mpi_sum, mpi_comm_world, mpi_err)
+            errs = sqrt(errs * dble(nproc-1)/dble(nproc))
+
+            call mpi_allreduce((T1%chiqzz_iw0_sub1(1)-T1%chiqzz_iw0_sub1(avg))**2, &
+              T1%chiqzz_iw0_sub1(err), 1, mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+            T1%chiqzz_iw0_sub1(err) = sqrt(T1%chiqzz_iw0_sub1(err) &
+                                      * dble(nproc-1)/dble(nproc))
+
+            call mpi_allreduce((T1%chiqzz_iw0_sub2(1)-T1%chiqzz_iw0_sub2(avg))**2, &
+              T1%chiqzz_iw0_sub2(err), 1, mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+            T1%chiqzz_iw0_sub2(err) = sqrt(T1%chiqzz_iw0_sub2(err) &
+                                      * dble(nproc-1)/dble(nproc))
           endif
 
           if (T1%flags(IGFUN) == 1) then
@@ -2335,7 +2675,7 @@ contains
   !--------------------------------------------------------------------!
   ! print all tdm quantities
 
-  subroutine DQMC_TDM_Print(T1, ofile, OPT, OPT1)
+  subroutine DQMC_TDM_Print(T1, ofile, OPT, OPT1, OPT2)
     use dqmc_mpi
     !
     ! Purpose
@@ -2348,7 +2688,7 @@ contains
     type(TDM), intent(in)   :: T1                 ! T1
     integer, intent(in)     :: OPT
 
-    integer             :: i, j, t, iprop, OPT1, b1, b2
+    integer             :: i, j, t, iprop, OPT1, OPT2, b1, b2
     real(wp)            :: tmp(T1%L, 2)
     real(wp)            :: x, y
     character(len=10)   :: label(T1%L)
@@ -2413,41 +2753,39 @@ contains
        write(OPT,FMT_DBLINE)
    endif
 
-    ! print out chi_q0_iw0 and chi_q0(tau):
+    ! print out chi_q_iw0 and chi_q(tau):
     if (T1%flagsFT(ISPXX)==1 .and. T1%flagsFT(ISPZZ)==1) then
-      call DQMC_open_file('chi_q0_iw0_orb_'//adjustl(trim(ofile)),'replace', OPT1)
-      write(OPT1,"(a)") "   b   b    chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err"
+      call DQMC_open_file('chi_q_iw0_'//adjustl(trim(ofile)),'replace', OPT1)
+      call DQMC_open_file('chi_q_tau_'//adjustl(trim(ofile)),'replace', OPT2)
 
-      do i = 1, T1%properties(ISPXX)%nclass
-        vec = T1%properties(ISPXX)%vecClass(i,:)
-        b1 = int(vec(1))
-        b2 = int(vec(2))
-        x  = vec(3)
-        y  = vec(4)
+      write(OPT1,"(a)") &
+             "chi_xx(q=0,iw=0)       err    chi_zz(q=0,iw=0)       err  &
+              chi_xx(q=pi,iw=0)      err    chi_zz(q=pi,iw=0)      err  &
+              chi_xx_sub1(q=0,iw=0)  err    chi_zz_sub1(q=0,iw=0)  err  &
+              chi_xx_sub2(q=0,iw=0)  err    chi_zz_sub2(q=0,iw=0)  err  "
 
-        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-          write(OPT1,'(2(i4),4(e16.8))') b1,b2, &
-                 T1%chixx_q0_orb_iw0(i,T1%avg), T1%chixx_q0_orb_iw0(i,T1%err), &
-                 T1%chizz_q0_orb_iw0(i,T1%avg), T1%chizz_q0_orb_iw0(i,T1%err)
-        endif
-      enddo
+      write(OPT1,'(16(e16.8))') &
+             T1%chiqxx_iw0(1,T1%avg), T1%chiqxx_iw0(1,T1%err), &
+             T1%chiqzz_iw0(1,T1%avg), T1%chiqzz_iw0(1,T1%err), &
+             T1%chiqxx_iw0(2,T1%avg), T1%chiqxx_iw0(2,T1%err), &
+             T1%chiqzz_iw0(2,T1%avg), T1%chiqzz_iw0(2,T1%err), &
+             T1%chiqxx_iw0_sub1(T1%avg), T1%chiqxx_iw0_sub1(T1%err), &
+             T1%chiqzz_iw0_sub1(T1%avg), T1%chiqzz_iw0_sub1(T1%err), &
+             T1%chiqxx_iw0_sub2(T1%avg), T1%chiqxx_iw0_sub2(T1%err), &
+             T1%chiqzz_iw0_sub2(T1%avg), T1%chiqzz_iw0_sub2(T1%err)
 
-      write(OPT1,"(a)") "==================================================================================="
-      write(OPT1,"(a)") "   b   b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
-      do i = 1, T1%properties(ISPXX)%nclass
-        vec = T1%properties(ISPXX)%vecClass(i,:)
-        b1 = int(vec(1))
-        b2 = int(vec(2))
-        x  = vec(3)
-        y  = vec(4)
-
-        if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
-          do t = 0, T1%L-1
-            write(OPT1,'(2(i4),f10.5,4(f16.8))') b1, b2, t*T1%dtau, &
-                 T1%chixx_q0_orb(i,t,T1%avg), T1%chixx_q0_orb(i,t,T1%err), &
-                 T1%chizz_q0_orb(i,t,T1%avg), T1%chizz_q0_orb(i,t,T1%err)
-          enddo
-        endif
+      !write(OPT1,"(a)") "==================================================================================="
+      !write(OPT1,"(a)") "   b   b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
+      do t = 0, T1%L-1
+        write(OPT2,'(f10.5,8(f16.8))') t*T1%dtau, &
+             T1%chiqxx(t,1,T1%avg), T1%chiqxx(t,1,T1%err), &
+             T1%chiqzz(t,1,T1%avg), T1%chiqzz(t,1,T1%err), &
+             T1%chiqxx(t,2,T1%avg), T1%chiqxx(t,2,T1%err), &
+             T1%chiqzz(t,2,T1%avg), T1%chiqzz(t,2,T1%err), &
+             T1%chiqxx_sub1(t,T1%avg), T1%chiqxx_sub1(t,T1%err), &
+             T1%chiqzz_sub1(t,T1%avg), T1%chiqzz_sub1(t,T1%err), &
+             T1%chiqxx_sub2(t,T1%avg), T1%chiqxx_sub2(t,T1%err), &
+             T1%chiqzz_sub2(t,T1%avg), T1%chiqzz_sub2(t,T1%err)
       enddo
     endif
 
@@ -2614,8 +2952,8 @@ contains
 
         if (abs(x)<1.e-5 .and. abs(y)<1.e-5) then
           write(OPT5,'(2(i4),4(e16.8))') b1,b2, &
-                 T1%chixx_r0_orb_iw0(i,T1%avg), T1%chixx_r0_orb_iw0(i,T1%err), &
-                 T1%chizz_r0_orb_iw0(i,T1%avg), T1%chizz_r0_orb_iw0(i,T1%err)
+                 T1%chixx_r_orb_iw0(i,T1%avg), T1%chixx_r_orb_iw0(i,T1%err), &
+                 T1%chizz_r_orb_iw0(i,T1%avg), T1%chizz_r_orb_iw0(i,T1%err)
         endif
       enddo
     endif

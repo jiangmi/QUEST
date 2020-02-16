@@ -31,7 +31,9 @@ module DQMC_Phy
   !    17.  Density-density correlation fn: (up-up)
   !    18.  Density-density correlation fn: (up-dn)
   !    19.  XX Spin correlation function
-  !    20.  ZZ Spin correlation function
+  !    20.  Root mean squre XX Spin correlation function
+  !    21.  ZZ Spin correlation function
+  !    22.  Root mean squre ZZ Spin correlation function
   !
   ! Measurement 1-15 are scalars. 16-20 are lists of length
   ! nClass, which are the number of distinct autocorrelation terms.
@@ -113,10 +115,10 @@ module DQMC_Phy
 
   integer, parameter :: P0_SFERRO    = 17
   integer, parameter :: P0_SFER2     = 18
-  integer, parameter :: P0_SAF       = 19
-  integer, parameter :: P0_SAFSQ     = 20
-  integer, parameter :: P0_SAF2      = 21
-  integer, parameter :: P0_SAF2SQ    = 22
+  integer, parameter :: P0_SAFx      = 19
+  integer, parameter :: P0_SAFx2     = 20
+  integer, parameter :: P0_SAFz      = 21
+  integer, parameter :: P0_SAFz2     = 22
   integer, parameter :: P0_CDW       = 23
   integer, parameter :: P0_NNPROD    = 24
   integer, parameter :: P0_NNSUM     = 25
@@ -726,13 +728,13 @@ contains
     ! Scale by inverse T
     P0%meas(P0_CV, tmp) = P0%beta * P0%beta * P0%meas(P0_CV, tmp)
 
-    !=====================!
-    ! Autocorelation term.!
-    !=====================!
+    !===========================!
+    ! spin and pair corelations !
+    !===========================!
 !    if (P0%compSAF) then
-       P0%meas(P0_SAF, tmp)  = TWO*n-P0%meas(P0_NUP, tmp)-&
+       P0%meas(P0_SAFx, tmp)  = TWO*n-P0%meas(P0_NUP, tmp)-&
             P0%meas(P0_NDN, tmp)
-       P0%meas(P0_SAF2,tmp)  = P0%meas(P0_SAF, tmp)
+       P0%meas(P0_SAFz, tmp)  = P0%meas(P0_SAFx, tmp)
 !    end if
 
     do i = 1,n
@@ -757,8 +759,8 @@ contains
           
 !          if (P0%compSAF) then
 !             var1 = S%P(i)*S%P(j)
-             P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + S%AFphase(k) * var2
-             P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + S%AFphase(k) * var3
+             P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + S%AFphase(k) * var2
+             P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + S%AFphase(k) * var3
 
              ! CDW related quantities also in plane
              ! <n_i*n_j>
@@ -776,8 +778,8 @@ contains
        P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
        P0%Pair  (k, tmp) = P0%Pair  (k, tmp) - var1 + 1.d0
 
-     !  P0%meas(P0_SAF, tmp) = P0%meas(P0_SAF, tmp) + var1
-     !  P0%meas(P0_SAF2,tmp) = P0%meas(P0_SAF2,tmp) + var1
+     !  P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + var1
+     !  P0%meas(P0_SAFz,tmp) = P0%meas(P0_SAFz,tmp) + var1
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do
     
@@ -804,8 +806,8 @@ contains
     end do
 
 !    if (P0%compSAF) then
-       P0%meas(P0_SAFSQ, tmp) = P0%meas(P0_SAF, tmp) * P0%meas(P0_SAF, tmp)
-       P0%meas(P0_SAF2SQ,tmp) = P0%meas(P0_SAF2,tmp) * P0%meas(P0_SAF2,tmp)
+       P0%meas(P0_SAFx2, tmp) = P0%meas(P0_SAFx, tmp) * P0%meas(P0_SAFx, tmp)
+       P0%meas(P0_SAFz2,tmp) = P0%meas(P0_SAFz,tmp) * P0%meas(P0_SAFz,tmp)
 !    end if
 
     ! Accumulate result to P0(:, idx)
@@ -870,8 +872,8 @@ contains
 
 !    if (P0%compSAF) then
        ! The sqaure terms
-       P0%meas(P0_SAFSQ, idx) = sqrt(abs(P0%meas(P0_SAFSQ, idx)))
-       P0%meas(P0_SAF2SQ, idx) = sqrt(abs(P0%meas(P0_SAF2SQ, idx)))
+       P0%meas(P0_SAFx2, idx) = sqrt(abs(P0%meas(P0_SAFx2, idx)))
+       P0%meas(P0_SAFz2, idx) = sqrt(abs(P0%meas(P0_SAFz2, idx)))
 !    end if
 
     ! This list terms

@@ -591,9 +591,9 @@ contains
        P0%meas(P0_Kx, tmp)    = P0%meas(P0_Kx, tmp)    + var3
     enddo
 
-    !=========================================!
-    ! Chi_thermal 
-    !=========================================!
+    !====================================================!
+    ! Chi_thermal for entropy (Simone's email 2010-7-17)
+    !====================================================!
 
     ! Fill h_up, h_dn with hopping matrix elements
     h_up = ZERO
@@ -731,12 +731,6 @@ contains
     !===========================!
     ! spin and pair corelations !
     !===========================!
-!    if (P0%compSAF) then
-       P0%meas(P0_SAFx, tmp)  = TWO*n-P0%meas(P0_NUP, tmp)-&
-            P0%meas(P0_NDN, tmp)
-       P0%meas(P0_SAFz, tmp)  = P0%meas(P0_SAFx, tmp)
-!    end if
-
     do i = 1,n
        do j = 1,n
           var1 = G_up(i,j) * G_up(j,i) + G_dn(i,j) * G_dn(j,i)
@@ -770,7 +764,7 @@ contains
            !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
 !          end if
        end do
-       ! special case for (i,i) due to different Wick contraction possibilities 
+       ! special case for (i,i) due to additional Wick contraction terms
        k = S%D(i,i)
        var1 =  G_up(i,i) + G_dn(i,i)
        P0%Den0(k, tmp)   = P0%Den0(k, tmp)   + var1
@@ -778,8 +772,8 @@ contains
        P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
        P0%Pair  (k, tmp) = P0%Pair  (k, tmp) - var1 + 1.d0
 
-     !  P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + var1
-     !  P0%meas(P0_SAFz,tmp) = P0%meas(P0_SAFz,tmp) + var1
+       P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + var1
+       P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + var1
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do
     

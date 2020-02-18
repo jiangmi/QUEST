@@ -772,8 +772,8 @@ contains
        P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
        P0%Pair  (k, tmp) = P0%Pair  (k, tmp) - var1 + 1.d0
 
-       P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + var1
-       P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + var1
+       P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + S%AFphase(k) *var1
+       P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + S%AFphase(k) *var1
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do
     

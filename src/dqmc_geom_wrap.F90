@@ -212,16 +212,18 @@ module DQMC_GEOM_WRAP
       !write(*,*) 'label=', label(14:25), label(26:37), label(38:49)
 
       ! decide (-1)^x+y for computing S_AF and S_CDW in plane
-      ! for bilayer cases, only include z=0 component
-      if (abs(S%vecClass(ic,5))<0.0001) then                                ! z=0, within the same plane
+      ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
+      ! for PAM model, which only need S_AF for f-electrons
+      if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then                 
         if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
-          S%AFphase(ic) = 1
+          S%AFphase(ic) = 1.0
         else
-          S%AFphase(ic) = -1
+          S%AFphase(ic) = -1.0
         endif
-       ! write(*,*) xyz(1),xyz(2),xyz(3),S%AFphase(ic)
+        write(*,*) 'AFphase = '
+        write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2),' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
       else
-        S%AFphase(ic) = 0
+        S%AFphase(ic) = 0.0
       endif
     enddo
 

@@ -119,13 +119,20 @@ module DQMC_Phy
   integer, parameter :: P0_SAFx2     = 20
   integer, parameter :: P0_SAFz      = 21
   integer, parameter :: P0_SAFz2     = 22
-  integer, parameter :: P0_CDW       = 23
-  integer, parameter :: P0_NNPROD    = 24
-  integer, parameter :: P0_NNSUM     = 25
-  integer, parameter :: P0_PAIR      = 26
+
+  ! FM structure factor for two sublattice
+  integer, parameter :: P0_SFMx_sub1 = 23
+  integer, parameter :: P0_SFMx_sub2 = 24
+  integer, parameter :: P0_SFMz_sub1 = 25
+  integer, parameter :: P0_SFMz_sub2 = 26
+
+  integer, parameter :: P0_CDW       = 27
+  integer, parameter :: P0_NNPROD    = 28
+  integer, parameter :: P0_NNSUM     = 29
+  integer, parameter :: P0_PAIR      = 30
 
   integer, parameter :: P0_N_NO_SAF  = 12
-  integer, parameter :: P0_N         = 26
+  integer, parameter :: P0_N         = 30
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -156,6 +163,10 @@ module DQMC_Phy
        "  Root Mean Square of XX AF : ", &
        "     ZZ AF structure factor : ", &
        "  Root Mean Square of ZZ AF : ", &
+       "XX FM structure factor sub1 : ", &
+       "XX FM structure factor sub2 : ", &
+       "ZZ FM structure factor sub1 : ", &
+       "ZZ FM structure factor sub2 : ", &
        "    CDW AF structure factor : ", &
        "Den*Den AF structure factor : ", &
        "Den+Den AF structure factor : ", &
@@ -221,6 +232,10 @@ module DQMC_Phy
      integer, ALLOCATABLE :: rt(:), lf(:), top(:), bot(:)
      complex*16, ALLOCATABLE  :: hopup(:,:), hopdn(:,:)
 
+     ! 02/19/2020
+     ! obtain the cartesian coordinates of sites, used for
+     ! FM structure factor for two sublattice in plane
+     real(wp), pointer :: cartpos(:,:)
   end type Phy
 
 contains
@@ -375,6 +390,9 @@ contains
        enddo
     enddo
 
+    allocate(P0%cartpos(3, 0:S%nSite-1))
+    P0%cartpos = Gwrap%lattice%cartpos
+
    end subroutine DQMC_Phy_Init
 
   !--------------------------------------------------------------------!
@@ -445,6 +463,7 @@ contains
     integer  :: tmp, idx, m                      ! Helper variables
     real(wp) :: sgn                        
     real(wp) :: var1, var2, var3, var4      
+    real(wp) :: x1,y1,z1,x2,y2,z2
     integer, pointer  :: start(:) 
     integer, pointer  :: r(:) 
     integer, pointer  :: A(:) 
@@ -732,6 +751,13 @@ contains
     ! spin and pair corelations !
     !===========================!
     do i = 1,n
+       ! For computing FM structure factor for two sublattice in plane
+       ! first get the cartesian coordinates of site i
+       ! Note i-1 accounts for the different convention of labelling site
+       x1 = P0%cartpos(1,i-1)
+       y1 = P0%cartpos(2,i-1)
+       z1 = P0%cartpos(3,i-1)
+
        do j = 1,n
           var1 = G_up(i,j) * G_up(j,i) + G_dn(i,j) * G_dn(j,i)
           var2 = -TWO * G_up(i,j) * G_dn(j,i)
@@ -763,7 +789,30 @@ contains
              ! <n_i+n_j>, seems not necessary for staggered potential and/or other projects
            !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
 !          end if
+
+           ! Start computing FM structure factor for two sublattice in plane
+           x2 = P0%cartpos(1,j-1)
+           y2 = P0%cartpos(2,j-1)
+           z2 = P0%cartpos(3,j-1)
+
+           ! FM structure factor calculation
+           if (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+             ! separation limitation:
+             if (mod(int(x1-x2+y1-y2),2)==0) then
+               ! one sublattice
+               if (mod(int(x1+y1),2)==0) then
+                 P0%meas(P0_SFMx_sub1, tmp) = P0%meas(P0_SFMx_sub1, tmp) + var2
+                 P0%meas(P0_SFMz_sub1, tmp) = P0%meas(P0_SFMz_sub1, tmp) + var3
+
+               ! the other sublattice
+               else
+                 P0%meas(P0_SFMx_sub2, tmp) = P0%meas(P0_SFMx_sub2, tmp) + var2
+                 P0%meas(P0_SFMz_sub2, tmp) = P0%meas(P0_SFMz_sub2, tmp) + var3
+               endif
+             endif
+           endif
        end do
+
        ! special case for (i,i) due to additional Wick contraction terms
        k = S%D(i,i)
        var1 =  G_up(i,i) + G_dn(i,i)
@@ -774,6 +823,21 @@ contains
 
        P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + S%AFphase(k) *var1
        P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + S%AFphase(k) *var1
+
+       ! Additional term for FM structure factor calculation
+       if (abs(z1-1.)<1.e-4) then
+          ! one sublattice
+          if (mod(int(x1+y1),2)==0) then
+             P0%meas(P0_SFMx_sub1, tmp) = P0%meas(P0_SFMx_sub1, tmp) + var1
+             P0%meas(P0_SFMz_sub1, tmp) = P0%meas(P0_SFMz_sub1, tmp) + var1
+
+          ! the other sublattice
+          else
+             P0%meas(P0_SFMx_sub2, tmp) = P0%meas(P0_SFMx_sub2, tmp) + var1
+             P0%meas(P0_SFMz_sub2, tmp) = P0%meas(P0_SFMz_sub2, tmp) + var1
+          endif
+       endif
+
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do
     

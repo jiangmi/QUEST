@@ -221,7 +221,8 @@ module DQMC_GEOM_WRAP
           S%AFphase(ic) = -1.0
         endif
         write(*,*) 'AFphase = '
-        write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2),' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
+        write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
+              ' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
       else
         S%AFphase(ic) = 0.0
       endif

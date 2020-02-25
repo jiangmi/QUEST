@@ -95,6 +95,10 @@ module DQMC_STRUCT
      ! Defined in dqmc_geom_wrap.F90
      real(wp), pointer  :: AFphase(:)
 
+     ! decide (-1)^x for computing S_(pi,0) in plane
+     ! Defined in dqmc_geom_wrap.F90
+     real(wp), pointer  :: pi0phase(:)
+
      integer           :: n_b           ! number of neighbors types
      type(CCS)         :: B             ! Neighborhood matrix
      integer           :: nClass_b

@@ -131,8 +131,12 @@ module DQMC_Phy
   integer, parameter :: P0_NNSUM     = 29
   integer, parameter :: P0_PAIR      = 30
 
+  ! structure factor for (pi,0) similar to AF
+  integer, parameter :: P0_S0pix     = 31
+  integer, parameter :: P0_S0piz     = 32
+
   integer, parameter :: P0_N_NO_SAF  = 12
-  integer, parameter :: P0_N         = 30
+  integer, parameter :: P0_N         = 32
 
   integer, parameter :: P0_SGN       = 1
   integer, parameter :: P0_SGNUP     = 2
@@ -170,7 +174,9 @@ module DQMC_Phy
        "    CDW AF structure factor : ", &
        "Den*Den AF structure factor : ", &
        "Den+Den AF structure factor : ", &
-       " s-wave FM structure factor : "/)
+       " s-wave FM structure factor : ", &
+       " XX (pi,0) structure factor : ", &
+       " ZZ (pi,0) structure factor : "/)
   character(len=*), parameter :: P0_SIGN_STR(3) = (/&
        "                   Avg sign : ", &
        "                Avg up sign : ", &
@@ -790,6 +796,10 @@ contains
            !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
 !          end if
 
+           ! (pi,0) structure factor calculation
+           P0%meas(P0_S0pix, tmp) = P0%meas(P0_S0pix, tmp) + S%pi0phase(k) * var2
+           P0%meas(P0_S0piz, tmp) = P0%meas(P0_S0piz, tmp) + S%pi0phase(k) * var3
+
            ! Start computing FM structure factor for two sublattice in plane
            x2 = P0%cartpos(1,j-1)
            y2 = P0%cartpos(2,j-1)
@@ -811,6 +821,7 @@ contains
                endif
              endif
            endif
+
        end do
 
        ! special case for (i,i) due to additional Wick contraction terms
@@ -823,6 +834,10 @@ contains
 
        P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + S%AFphase(k) *var1
        P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + S%AFphase(k) *var1
+
+       ! (pi,0) structure factor calculation
+       P0%meas(P0_S0pix, tmp) = P0%meas(P0_S0pix, tmp) + var1
+       P0%meas(P0_S0piz, tmp) = P0%meas(P0_S0piz, tmp) + var1
 
        ! Additional term for FM structure factor calculation
        if (abs(z1-1.)<1.e-4) then

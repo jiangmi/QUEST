@@ -193,6 +193,7 @@ module DQMC_GEOM_WRAP
     allocate(S%F(S%nClass))
     allocate(S%clabel(S%nClass))
     allocate(S%AFphase(S%nClass))
+    allocate(S%pi0phase(S%nClass))
 
     !dqmc_latt.F90
     S%D(1:n,1:n) =  gwrap%Lattice%myclass(0: n - 1, 0: n - 1)
@@ -211,7 +212,7 @@ module DQMC_GEOM_WRAP
       read(label(38:49),*) S%vecClass(ic,5)
       !write(*,*) 'label=', label(14:25), label(26:37), label(38:49)
 
-      ! decide (-1)^x+y for computing S_AF and S_CDW in plane
+      ! decide (-1)^(dx+dy) for computing S_AF and S_CDW in plane
       ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
       ! for PAM model, which only need S_AF for f-electrons
       if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then                 
@@ -226,6 +227,20 @@ module DQMC_GEOM_WRAP
       else
         S%AFphase(ic) = 0.0
       endif
+
+      ! decide (-1)^x for computing S(pi,0) in plane
+      ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
+      ! for PAM model, which only need S_AF for f-electrons
+      if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then
+        if ( mod(int(abs(S%vecClass(ic,3))),2) == 0) then  ! (-1)**dx=1
+          S%pi0phase(ic) = 1.0
+        else
+          S%pi0phase(ic) = -1.0
+        endif
+      else
+        S%pi0phase(ic) = 0.0
+      endif
+
     enddo
 
     !store GF phase

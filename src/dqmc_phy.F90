@@ -226,6 +226,10 @@ module DQMC_Phy
      real(wp), pointer :: Ndou(:, :)     ! local double occupancy
      real(wp), pointer :: Eloc(:, :)     ! local entangelment entropy
 
+     !structure factor of all possible spin correlations between orbitals
+     real(wp), allocatable :: Cspinxx(:,:,:)
+     real(wp), allocatable :: Cspinzz(:,:,:)
+
      ! working space
      real(wp), pointer :: up(:) 
      real(wp), pointer :: dn(:) 
@@ -333,6 +337,11 @@ contains
     !allocate(P0%Pair   (nClass, nBin+2))
     !allocate(P0%Mloc (nClass, nBin+2))
 
+    !dimension depends on model; for inhomogeneous PAM below
+    !in order of c1,c2,f1,f2
+    allocate(P0%Cspinxx(4, 4, nBin+2))
+    allocate(P0%Cspinzz(4, 4, nBin+2))
+
     ! Initialize 
     P0%meas    = ZERO
     P0%sign    = ZERO
@@ -348,6 +357,9 @@ contains
     P0%Mloc    = ZERO
     P0%Ndou    = ZERO    
     P0%Eloc    = ZERO
+
+    P0%Cspinxx = ZERO
+    P0%Cspinzz = ZERO
 
     P0%up => WS%R5
     P0%dn => WS%R6
@@ -431,6 +443,8 @@ contains
        endif
     end if
 
+    deallocate(P0%Cspinxx)
+    deallocate(P0%Cspinzz)
     deallocate(P0%rt)
     deallocate(P0%lf)
     deallocate(P0%top)
@@ -466,13 +480,14 @@ contains
     ! ... local scalar ...
 
     integer  :: i, j, k, ph                      ! Loop iterator
-    integer  :: tmp, idx, m                      ! Helper variables
+    integer  :: tmp, idx, m, o1, o2              ! Helper variables
     real(wp) :: sgn                        
     real(wp) :: var1, var2, var3, var4      
     real(wp) :: x1,y1,z1,x2,y2,z2
     integer, pointer  :: start(:) 
     integer, pointer  :: r(:) 
     integer, pointer  :: A(:) 
+    integer, dimension(8) :: cf
 
     ! Auxiliary variable for chi_thermal and C_v
     real(wp) :: Cbar, Nbar, Tbar, un
@@ -499,6 +514,9 @@ contains
     P0%Mloc(:,tmp)   = ZERO
     P0%Ndou(:,tmp)   = ZERO
     P0%Eloc(:,tmp)   = ZERO
+
+    P0%Cspinxx(:,:,tmp) = ZERO
+    P0%Cspinzz(:,:,tmp) = ZERO
 
     ! Compute the site density for spin up and spin down
     do i = 1, n
@@ -756,6 +774,9 @@ contains
     !===========================!
     ! spin and pair corelations !
     !===========================!
+    ! map site index in the unit cell to orbital c1,c2,f1,f2 of inhomo PAM
+    cf = (/ 1,3,2,4,2,4,1,3 /)
+
     do i = 1,n
        ! For computing FM structure factor for two sublattice in plane
        ! first get the cartesian coordinates of site i
@@ -822,6 +843,25 @@ contains
              endif
            endif
 
+           !===================================================!
+           ! Compute structure factor of all spin correlations !
+           ! Ref: PRB 97, 085123 (2018) Eq.11
+           !===================================================!
+           ! +1 because the code uses site index from 0
+           o1 = int(S%vecClass(k,1))+1
+           o2 = int(S%vecClass(k,2))+1
+
+           ! The code assumes all correlations (i,j)=(j,i) so always o2>=o1
+           ! Hence in case of o2/=o1, need divided by 2 for (i,j) (same as (j,i))
+           if (cf(o1)==cf(o2)) then
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + var3
+           else
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5*var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5*var3
+             P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5*var2
+             P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5*var3
+           endif
        end do
 
        ! special case for (i,i) due to additional Wick contraction terms
@@ -853,6 +893,11 @@ contains
           endif
        endif
 
+       ! Additional term for all structure factor calculation
+       o1 = int(S%vecClass(k,1))+1
+       P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + var1
+       P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + var1
+
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do
     
@@ -864,6 +909,8 @@ contains
     
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n
+    P0%Cspinxx(:,:,tmp) = P0%Cspinxx(:,:,tmp) / n
+    P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / n
     do i = 1, P0%nClass
        P0%G_fun (i, tmp) = P0%G_fun (i, tmp) / S%F(i) * HALF
        P0%Gf_up (i, tmp) = P0%Gf_up (i, tmp) / S%F(i)
@@ -886,6 +933,10 @@ contains
     ! Accumulate result to P0(:, idx)
     sgn = sgnup * sgndn
     P0%meas(:, idx) =  P0%meas(:, idx) + P0%meas(:, tmp) * sgn
+    P0%Cspinxx(:,:,idx) = P0%Cspinxx(:,:,idx)  &
+                        + P0%Cspinxx(:,:,tmp) * sgn
+    P0%Cspinzz(:,:,idx) = P0%Cspinzz(:,:,idx)  &
+                        + P0%Cspinzz(:,:,tmp) * sgn
 
     m = P0%nClass
     call blas_daxpy(m, sgn, P0%G_fun (1:m,tmp), 1, P0%G_fun (1:m,idx), 1)
@@ -943,6 +994,9 @@ contains
     P0%meas(:, idx) = P0%meas(:, idx) * factor
     P0%sign(:, idx) = P0%sign(:, idx) * factor
 
+    P0%Cspinxx(:,:,idx) = P0%Cspinxx(:,:,idx) * factor
+    P0%Cspinzz(:,:,idx) = P0%Cspinzz(:,:,idx) * factor
+
 !    if (P0%compSAF) then
        ! The sqaure terms
        P0%meas(P0_SAFx2, idx) = sqrt(abs(P0%meas(P0_SAFx2, idx)))
@@ -999,7 +1053,7 @@ contains
     type(Phy), intent(inout) :: P0
 
     ! ... Local Scalar ...
-    integer  :: i, n
+    integer  :: i, j, n
     integer  :: avg, err, mpi_err
     integer  :: nproc
 
@@ -1114,11 +1168,34 @@ contains
                data, y, sgn, sum_sgn)
        end do
 
+       ! spin structure factor between orbitals
+       do i = 1,4
+         do j = 1,4
+           data = P0%Cspinxx(i,j,1:n)
+           call DQMC_SignJackKnife(n, P0%Cspinxx(i,j,avg), P0%Cspinxx(i,j,err), &
+               data, y, sgn, sum_sgn)
+           data = P0%Cspinzz(i,j,1:n)
+           call DQMC_SignJackKnife(n, P0%Cspinzz(i,j,avg), P0%Cspinzz(i,j,err), &
+               data, y, sgn, sum_sgn)
+         end do
+       end do
+
        ! Store Jackknife in bins
        do i = 1, n
           P0%sign(:,i) = (n*P0%sign(:,avg) - P0%sign(:,i)) / dble(n-1)
           P0%AllProp(:,i) = (sum_sgn*P0%AllProp(:,avg) - P0%AllProp(:,i)) / dble(n-1)
+          P0%Cspinxx(:,:,i) = (sum_sgn*P0%Cspinxx(:,:,avg) - P0%Cspinxx(:,:,i)) / dble(n-1)
+          P0%Cspinzz(:,:,i) = (sum_sgn*P0%Cspinzz(:,:,avg) - P0%Cspinzz(:,:,i)) / dble(n-1)
           P0%AllProp(:,i) = P0%AllProp(:,i) / P0%sign(P0_SGN,i)
+          P0%Cspinxx(:,:,i) = P0%Cspinxx(:,:,i) / P0%sign(P0_SGN,i)
+          P0%Cspinzz(:,:,i) = P0%Cspinzz(:,:,i) / P0%sign(P0_SGN,i)
+       enddo
+
+       do i = 1,n
+         do j = 1,n
+           P0%AllProp(:,i) = (sum_sgn*P0%AllProp(:,avg) - P0%AllProp(:,i)) / dble(n-1)
+           P0%AllProp(:,i) = P0%AllProp(:,i) / P0%sign(P0_SGN,i)
+         enddo
        enddo
 
        ! Deal with error and expectation values of cv and chi_thermal properly
@@ -1161,13 +1238,26 @@ contains
           call mpi_allreduce(P0%AllProp(:,1), P0%AllProp(:,avg), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
+          do i=1,4
+            call mpi_allreduce(P0%Cspinxx(:,i,1), P0%Cspinxx(:,i,avg), 4, mpi_double, &
+                 mpi_sum, mpi_comm_world, mpi_err)
+            call mpi_allreduce(P0%Cspinzz(:,i,1), P0%Cspinzz(:,i,avg), 4, mpi_double, &
+                 mpi_sum, mpi_comm_world, mpi_err)
+          enddo
+
           P0%AllProp(:,1) = (P0%AllProp(:,avg) - P0%AllProp(:,1)) / dble(nproc - 1)
+          P0%Cspinxx(:,:,1) = (P0%Cspinxx(:,:,avg) - P0%Cspinxx(:,:,1)) / dble(nproc - 1)
+          P0%Cspinzz(:,:,1) = (P0%Cspinzz(:,:,avg) - P0%Cspinzz(:,:,1)) / dble(nproc - 1)
           P0%sign(:,1)    = (P0%sign(:,avg) - P0%sign(:,1)) / dble(nproc - 1)
           P0%AllProp(:,1) = P0%AllProp(:,1) / P0%sign(P0_SGN,1)
+          P0%Cspinxx(:,:,1) = P0%Cspinxx(:,:,1) / P0%sign(P0_SGN,1)
+          P0%Cspinzz(:,:,1) = P0%Cspinzz(:,:,1) / P0%sign(P0_SGN,1)
 
           ! similar to avg = sum_x/sum_sgn step in DQMC_SignJackKnife_Real
           ! both divided by dble(nproc), below two lines cannot switch 
           P0%AllProp(:,avg) = P0%AllProp(:,avg) / P0%sign(P0_SGN,avg) 
+          P0%Cspinxx(:,:,avg) = P0%Cspinxx(:,:,avg) / P0%sign(P0_SGN,avg)
+          P0%Cspinzz(:,:,avg) = P0%Cspinzz(:,:,avg) / P0%sign(P0_SGN,avg)
           P0%sign(:,avg)    = P0%sign(:,avg) / dble(nproc)
 
           !i Compute proper chi_thermal and C_v
@@ -1179,6 +1269,15 @@ contains
           call mpi_allreduce((P0%AllProp(:,1)-P0%AllProp(:,avg))**2, P0%AllProp(:,err), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
           P0%AllProp(:,err) = sqrt(P0%AllProp(:,err) * dble(nproc-1)/dble(nproc))
+
+          do i=1,4
+            call mpi_allreduce((P0%Cspinxx(:,i,1)-P0%Cspinxx(:,i,avg))**2, P0%Cspinxx(:,i,err), 4, &
+               mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+            call mpi_allreduce((P0%Cspinzz(:,i,1)-P0%Cspinzz(:,i,avg))**2, P0%Cspinzz(:,i,err), 4, &
+               mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+          enddo
+          P0%Cspinxx(:,:,err) = sqrt(P0%Cspinxx(:,:,err) * dble(nproc-1)/dble(nproc))
+          P0%Cspinzz(:,:,err) = sqrt(P0%Cspinzz(:,:,err) * dble(nproc-1)/dble(nproc))
 
           call mpi_allreduce((P0%sign(:,1)-P0%sign(:,avg))**2, P0%sign(:,err), 3, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
@@ -1277,7 +1376,7 @@ contains
     type(Phy), intent(in)    :: P0   ! Phy
     type(Struct), intent(in) :: S    ! Underline lattice structure
     integer                  :: OPT  ! Output file handle
-    integer                  :: i, b1, b2
+    integer                  :: i, j, b1, b2
     character(len=80)        :: ofile
     character(len=label_len) :: lab
     real    :: band(S%nClass,4)
@@ -1342,6 +1441,16 @@ contains
       if (b1==b2 .and. abs(x)<1.e-5 .and. abs(y)<1.e-5) then
         write(OPT,'((i4),4(e16.8))') b1, P0%Eloc(i,avg), P0%Eloc(i,err)
       endif
+    enddo
+
+    write(OPT,'(a40)') 'Spin structure factors between orbitals:'
+    write(OPT,'(a)') 'orb1   orb2   Sxx   err   Szz   err'
+    do i = 1,4
+      do j = 1,4
+        write(OPT,'(2(i4),4(e16.8))') i,j, &
+              P0%Cspinxx(i,j,avg), P0%Cspinxx(i,j,err), &
+              P0%Cspinzz(i,j,avg), P0%Cspinzz(i,j,err)
+      enddo
     enddo
 
   end subroutine DQMC_Phy_Print_local

@@ -84,7 +84,7 @@ module DQMC_STRUCT
 
      integer           :: nClass        ! number of unique distance
      integer, pointer  :: D(:,:)        ! Distance 
-     real(wp), pointer :: vecClass(:,:) ! (nClass,3), defined in dqmc_geom_wrap.F90 
+     real(wp), pointer :: vecClass(:,:) ! (nClass,5), defined in dqmc_geom_wrap.F90 
      integer, pointer  :: F(:)          ! Frequency 
      integer           :: nGroup
      integer, pointer  :: map(:)        ! site classification

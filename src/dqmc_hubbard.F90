@@ -1259,6 +1259,9 @@ contains
     ! Step 4: Adjust parameters !
     !===========================!
     ! DQMC_CHECK_ITER=10000 defined at beginning
+    ! 3/11/2020 MJ:
+    ! comment the reset steps of naccept and nreject to avoid
+    ! small numbers of them in .out file
     if(Hub%naccept+Hub%nreject > DQMC_CHECK_ITER) then
        accrat = dble(Hub%naccept)/dble(Hub%naccept+Hub%nreject)
        ! if out of (0.48,0.52):
@@ -1266,8 +1269,8 @@ contains
           Hub%gamma = Hub%gamma + (accrat - HALF)
           Hub%gamma = dmax1(ZERO,Hub%gamma)
           Hub%gamma = dmin1(ONE, Hub%gamma)
-          Hub%naccept = int(DQMC_ADJUST*accrat)
-          Hub%nreject = int(DQMC_ADJUST*(ONE-accrat))
+        !  Hub%naccept = int(DQMC_ADJUST*accrat)
+        !  Hub%nreject = int(DQMC_ADJUST*(ONE-accrat))
        endif
     endif
 

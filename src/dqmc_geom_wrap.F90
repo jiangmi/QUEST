@@ -215,7 +215,20 @@ module DQMC_GEOM_WRAP
       ! decide (-1)^(dx+dy) for computing S_AF and S_CDW in plane
       ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
       ! for PAM model, which only need S_AF for f-electrons
-      if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then                 
+!      if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then                 
+!        if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
+!          S%AFphase(ic) = 1.0
+!        else
+!          S%AFphase(ic) = -1.0
+!        endif
+!        write(*,*) 'AFphase = '
+!        write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
+!              ' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
+!      else
+!        S%AFphase(ic) = 0.0
+!      endif
+
+      ! for Hubbard model
         if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
           S%AFphase(ic) = 1.0
         else
@@ -224,9 +237,6 @@ module DQMC_GEOM_WRAP
         write(*,*) 'AFphase = '
         write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
               ' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
-      else
-        S%AFphase(ic) = 0.0
-      endif
 
       ! decide (-1)^x for computing S(pi,0) in plane
       ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if

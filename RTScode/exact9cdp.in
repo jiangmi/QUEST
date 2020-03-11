@@ -1,0 +1,20 @@
+n8l96U80mu03
+ 2000 40000
+1.0  8.0 0.0
+0.125000  12   0.01   0.001
+1   12   .0000001   1   1
+4
+-17818364
+0.03  
+4
+
+outputfilename   eg   n10l48u8mu50
+warms,sweeps
+t u dens (ignore)
+dtau nwrap difflim errrat
+doauto orthlen eorth dopair numpair
+torth
+iran
+mu
+numtry
+

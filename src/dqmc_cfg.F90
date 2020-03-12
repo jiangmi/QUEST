@@ -33,7 +33,7 @@ module DQMC_Cfg
   integer, parameter :: TYPE_STRING  = 3 
 
   ! default parameters
-  integer, parameter :: N_Param = 47
+  integer, parameter :: N_Param = 48
 
   ! name of parameters
   ! HSF parameter in dqmc_hubbard.F90
@@ -93,6 +93,7 @@ module DQMC_Cfg
        &  "FTphy  ", &    ! if to compute FT for phy  
        &  "SelfE  ", &    ! if to compute self-energy
        &  "Dsqy   ", &    ! if to compute curr-curr(qx=0,qy;iwn=0)
+       &  "model  ", &    ! model simulated (Hubbard/PAM/...=0/1/...)
        &  "optsym "/)     ! if print .geometry file including symm operations
 
   ! default values
@@ -143,6 +144,7 @@ module DQMC_Cfg
        &  "0       ", &    ! FTphy
        &  "0       ", &    ! SelfE
        &  "0       ", &    ! Dsqy
+       &  "0       ", &    ! model
        &  "0       "/)     ! optsym
  
   ! parameter type
@@ -193,6 +195,7 @@ module DQMC_Cfg
        &  TYPE_INTEGER, &    ! FTphy
        &  TYPE_INTEGER, &    ! SelfE
        &  TYPE_INTEGER, &    ! Dsqy
+       &  TYPE_INTEGER, &    ! model
        &  TYPE_INTEGER/)     ! optsym
 
   ! is array parameter
@@ -243,6 +246,7 @@ module DQMC_Cfg
        &  .false.,&           ! FTphy
        &  .false.,&           ! SelfE
        &  .false.,&           ! Dsqy
+       &  .false.,&           ! model
        &  .false./)           ! optsym
 
   !

@@ -136,13 +136,14 @@ contains
  
     integer :: iat, jat, ios, ihop, jhop, il, it, is, js
     integer :: natom, nsites, ntcfg, nline, nhop
+    integer :: x, y, z, xmax, ymax, zmax, tmp
     real*8  :: ktwist(rdim), kpoint(rdim), hop3d(rdim)
     real*8  :: tijup, tijdn, U, twisthop
     logical :: ldum, doeshop
     character(len=50) :: string
 
+    integer, allocatable :: pos2site(:,:,:)
     real*8, pointer :: pos(:,:), tcfg(:)
-
 
     character(len=*), parameter :: mu(2) = (/'mu_up','mu_dn'/)
 
@@ -273,23 +274,47 @@ contains
              hamilt%hopdn(js,is) = hamilt%hopdn(js,is) + tijdn * exp(-im*twisthop)
              hamilt%Uv(js,is)    = hamilt%Uv(js,is)    + U
           endif
-
-          ! 08/15/2015
-          ! 4 neighbors of each site (0:nsites-1), for square lattice especially
-          ! might also work for other lattices, e.g. triangular
-          ! tneig should be the set of them
-          ! (1,0,0) hopping, right and left neighbors
-          if ((abs(hop3d(1)-1) .lt. 1.d-6) .and. (abs(hop3d(2)) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-             hamilt%rt(is) = js
-             hamilt%lf(js) = is
-          endif
-          ! (0,1,0) hopping, up and down neighbors
-          if ((abs(hop3d(1)) .lt. 1.d-6) .and. (abs(hop3d(2)-1) .lt. 1.d-6) .and. (abs(hop3d(3)) .lt. 1.d-6)) then
-             hamilt%up(is) = js
-             hamilt%dn(js) = is
-          endif
        enddo
+    enddo
 
+    ! 03/12/2020
+    ! obtain 4 in-plane neighbors of each site (0:nsites-1) generally
+    ! regardless of whether or not there is hopping between them; in this
+    ! way PAM's f-orbitals can also have 4 neighbors. Do not need define
+    ! it for different models
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! 1. Get an array from cartpos to site index !
+    !    namely inverse map of cartpos(3,0:n-1)  !
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    xmax = int(maxval(pos(1,:)))
+    ymax = int(maxval(pos(2,:)))
+    zmax = int(maxval(pos(3,:)))
+    allocate(pos2site(0:xmax, 0:ymax, 0:zmax))
+
+    do it = 0, nsites-1
+      x = int(pos(1,it))
+      y = int(pos(2,it))
+      z = int(pos(3,it))
+      pos2site(x,y,z) = it
+    enddo 
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! 2. Set up 4 neighbors in plane
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    do it = 0, nsites-1
+      x = int(pos(1,it))
+      y = int(pos(2,it))
+      z = int(pos(3,it))
+      pos2site(x,y,z) = it
+
+      tmp = plus(x,xmax)  
+      hamilt%rt(it) = pos2site(tmp,y,z)
+      tmp = minus(x,xmax)
+      hamilt%lf(it) = pos2site(tmp,y,z)
+      tmp = plus(y,ymax)
+      hamilt%up(it) = pos2site(x,tmp,z)
+      tmp = minus(y,ymax)
+      hamilt%dn(it) = pos2site(x,tmp,z)
     enddo
 
     ! for debug hamilt%rt, lf, up, dn, print them out
@@ -325,6 +350,26 @@ contains
     !   stop
     !endif
     call dqmc_hamilt_groupckb(hamilt)
+
+    contains
+
+       function plus(i,imax) result(ip)
+         integer, intent(in) :: i, imax ! input
+         integer             :: ip      ! output
+         ip = i+1
+         if (ip>imax) then
+           ip = 0
+         endif
+       end function plus
+
+       function minus(i,imax) result(im)
+         integer, intent(in) :: i, imax ! input
+         integer             :: im      ! output
+         im = i-1
+         if (im<0) then
+           im = imax
+         endif
+       end function minus
 
  end subroutine 
 

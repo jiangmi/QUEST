@@ -32,8 +32,7 @@ program dqmc_ggeom
   real(wp)            :: randn(1)
   integer, pointer    :: flags(:)      ! 10 possible tdm quantities
   integer, pointer    :: flagsFT(:)
-  integer             :: nflag
-  integer             :: ntry2, FTphy,  SelfE, Dsqy, optsym
+  integer             :: nflag, model, ntry2, FTphy, SelfE, Dsqy, optsym
 
   call cpu_time(t1)  
 
@@ -59,6 +58,7 @@ program dqmc_ggeom
   call CFG_Get(cfg, "SelfE" , SelfE)
   call CFG_Get(cfg, "Dsqy"  , Dsqy)
   call CFG_Get(cfg, "optsym", optsym)
+  call CFG_Get(cfg, "model" , model)
 
   !if (nhist > 0) then
   !   call DQMC_open_file(adjustl(trim(ofile))//'.HSF.stream','unknown', HSF_output_file_unit)
@@ -88,7 +88,7 @@ program dqmc_ggeom
      call CFG_Get(cfg, "flags", nflag, flags)
      call CFG_Get(cfg, "flagsFT", nflag, flagsFT)
      call DQMC_Gtau_Init(Hub, tau)
-     call DQMC_TDM_Init(Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags, flagsFT) 
+     call DQMC_TDM_Init(model, Hub%L, Hub%dtau, tm, Hub%P0%nbin, Hub%S, Gwrap, flags, flagsFT) 
   endif
 
   call cpu_time(t2)
@@ -143,7 +143,7 @@ program dqmc_ggeom
               ! Measure equal-time properties
               call DQMC_Hub_FullMeas(Hub, tau%nnb, tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
               ! Measure time-dependent properties
-              call DQMC_TDM_Meas(tm, tau)
+              call DQMC_TDM_Meas(tm, tau, model)
            else if (comp_tdm == 0) then
               call DQMC_Hub_Meas(Hub, slice)
            endif
@@ -157,7 +157,7 @@ program dqmc_ggeom
 
         ! Accumulate results for each bin
         call DQMC_Phy_Avg(Hub%P0)
-        call DQMC_tdm_Avg(tm)
+        call DQMC_tdm_Avg(tm, model)
      end do
   endif  ! for if nIter  = Hub%nPass/Hub%tausk/nBin > 0
 
@@ -178,14 +178,14 @@ program dqmc_ggeom
               call DQMC_Hub_FullMeas(Hub, tau%nb, &
                  tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
               ! Measure time-dependent properties. Reuses fullg when possible. 
-              call DQMC_TDM_Meas(tm, tau)
+              call DQMC_TDM_Meas(tm, tau, model)
            else if (comp_tdm == 0) then
               call DQMC_Hub_Meas(Hub, slice)
            endif
         enddo
 
         call DQMC_Phy_Avg(Hub%P0)
-        call DQMC_TDM_Avg(tm)
+        call DQMC_TDM_Avg(tm, model)
      enddo
   endif ! for if (Hub%nWarm + Hub%nPass == 0)
 

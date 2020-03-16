@@ -161,12 +161,16 @@ module DQMC_TDM
 
      ! correlated and uncorrelated/non-vertex d-wave susceptibility
      ! and Gamma_d = Pd^-1 - Pd0^-1
-     real(wp), pointer :: Pd0tau(:,:)
-     real(wp), pointer :: Pdtau(:,:)
-     real(wp), pointer :: Pd0(:)
-     real(wp), pointer :: Pd(:)
-     real(wp), pointer :: Gammad(:)
-     real(wp), pointer :: Gd_Pd0(:)
+     ! final index denotes orbital; for hubbard, just 1;
+     ! for PAM, Pd tensor can be abcd indices so that c,f orbitals gives 16 terms
+     ! For now, only compute P_ffff components, which is expected to dominant
+     integer :: NPd  ! No. of pairing susceptibility components
+     real(wp), pointer :: Pd0tau(:,:,:)
+     real(wp), pointer :: Pdtau(:,:,:)
+     real(wp), pointer :: Pd0(:,:)
+     real(wp), pointer :: Pd(:,:)
+     real(wp), pointer :: Gammad(:,:)
+     real(wp), pointer :: Gd_Pd0(:,:)
 
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
@@ -207,7 +211,7 @@ contains
 
  !--------------------------------------------------------------------!
   
-  subroutine DQMC_TDM_Init(L, dtau, T1, nBin, S, Gwrap, flags, flagsFT)!, splinew0)
+  subroutine DQMC_TDM_Init(model, L, dtau, T1, nBin, S, Gwrap, flags, flagsFT)!, splinew0)
     use DQMC_Geom_Wrap
     !
     ! Purpose
@@ -220,6 +224,7 @@ contains
     type(TDM), intent(inout)   :: T1      ! time dependent measurement
     integer, intent(in)         :: L       ! No of time slice
     integer, intent(in)         :: nBin    ! No of Bins
+    integer, intent(in)         :: model   ! Hubbard or PAM ...
     integer, intent(in)         :: flags(NTDMARRAY), flagsFT(NTDMARRAY)
     !character(len=2),intent(in) :: splinew0
     real(wp), intent(in)        :: dtau
@@ -319,12 +324,25 @@ contains
     endif
 
     if (T1%flags(IPAIRd) == 1) then
-      allocate(T1%Pdtau(0:T1%L-1, 1:T1%err))
-      allocate(T1%Pd0tau(0:T1%L-1, 1:T1%err))
-      allocate(T1%Pd(1:T1%err))
-      allocate(T1%Pd0(1:T1%err))
-      allocate(T1%Gammad(1:T1%err))
-      allocate(T1%Gd_Pd0(1:T1%err))
+      ! Get No. of pairing susceptibility components
+      select case (model)
+        ! hubbard square
+        case (0)
+          T1%NPd = 1
+        ! PAM square
+        ! In principle, Pd tensor can be abcd indices so that c,f orbitals gives 16 terms
+        ! For now, only compute P_ffff components, which is expected to dominant
+        case (1)
+          T1%NPd = 1
+      end select
+
+      allocate(T1%Pdtau(0:T1%L-1, 1:T1%err, T1%NPd))
+      allocate(T1%Pd0tau(0:T1%L-1, 1:T1%err, T1%NPd))
+      allocate(T1%Pd(1:T1%err, T1%NPd))
+      allocate(T1%Pd0(1:T1%err, T1%NPd))
+      allocate(T1%Gammad(1:T1%err, T1%NPd))
+      allocate(T1%Gd_Pd0(1:T1%err, T1%NPd))
+
       T1%Pdtau  = 0.0_wp
       T1%Pd0tau = 0.0_wp
       T1%Pd  = 0.0_wp
@@ -650,7 +668,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Meas(T1, tau)
+  subroutine DQMC_TDM_Meas(T1, tau, model)
     !
     ! Purpose
     ! =======
@@ -660,11 +678,12 @@ contains
     ! Arguments
     ! =========
     !
-    type(TDM), intent(inout)   :: t1
-    type(Gtau), intent(inout)  :: tau
+    type(TDM), intent(inout)    :: t1
+    type(Gtau), intent(inout)   :: tau
     
     ! ... Local var ...
     integer  :: i, k, m, L, cnt, dt, i0, it, j0, jt, dtau, iprop
+    integer, intent(in)  :: model
     real(wp) :: sgn, factor, chiv
     real(wp),pointer :: up0t(:,:), upt0(:,:), dn0t(:,:), dnt0(:,:)
     real(wp),pointer :: up00(:,:), uptt(:,:), dn00(:,:), dntt(:,:)
@@ -697,7 +716,7 @@ contains
           
           jt = tau%it_up; j0 = tau%i0_up
 
-          call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+          call DQMC_TDM_Compute(T1, model, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
           ! Decrement index tau%it. If north is even do only north/2-1 decrements.
           do dt = 1, m-1+k
              call DQMC_change_gtau_time(tau, TPLUS, TAU_UP)
@@ -708,7 +727,7 @@ contains
              endif
 
              jt = tau%it_up; j0 = tau%i0_up
-             call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+             call DQMC_TDM_Compute(T1, model, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
           enddo
 
           if (m .gt. 0) then
@@ -725,7 +744,7 @@ contains
                 call DQMC_Gtau_CopyUp(tau)
              endif
              jt = tau%it_up; j0 = tau%i0_up
-             call DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
+             call DQMC_TDM_Compute(T1, model, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
                 
           enddo
 
@@ -825,15 +844,18 @@ contains
     endif
 
     if (T1%flags(IPAIRd) == 1) then
-      chiv = 0.0
       factor = sgn/(T1%properties(IPAIRd)%n*cnt)
-      T1%Pdtau(0:T1%L-1, T1%idx) = T1%Pdtau(0:T1%L-1, T1%idx) &
-                                 + T1%Pdtau(0:T1%L-1, T1%tmp) * factor
-      call convert_to_iw0_real(T1%Pdtau(0:T1%L-1, T1%tmp), chiv, T1%L, T1%dtau)
-      T1%Pd(T1%idx) = T1%Pd(T1%idx) + factor*chiv
+      T1%Pdtau(0:T1%L-1, T1%idx, 1:T1%NPd) = T1%Pdtau(0:T1%L-1, T1%idx, 1:T1%NPd) &
+                                    + T1%Pdtau(0:T1%L-1, T1%tmp, 1:T1%NPd) * factor
 
-      T1%Pdtau(:, T1%tmp) = ZERO
-      T1%Pd(T1%tmp) = ZERO
+      do i = 1,T1%NPd
+        chiv = 0.0
+        call convert_to_iw0_real(T1%Pdtau(0:T1%L-1, T1%tmp, i), chiv, T1%L, T1%dtau)
+        T1%Pd(T1%idx, i) = T1%Pd(T1%idx, i) + factor*chiv
+      enddo
+
+      T1%Pdtau(:, T1%tmp, :) = ZERO
+      T1%Pd(T1%tmp, :) = ZERO
     endif
 
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
@@ -843,7 +865,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Compute(T1, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, it, i0)
+  subroutine DQMC_TDM_Compute(T1, model, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, it, i0)
     !
     ! Purpose
     ! =======
@@ -858,7 +880,7 @@ contains
     real(wp), intent(in)        :: dnt0(:,:), dn0t(:,:)
     real(wp), intent(in)        :: up00(:,:), uptt(:,:)
     real(wp), intent(in)        :: dn00(:,:), dntt(:,:)
-    integer, intent(in)         :: it, i0
+    integer, intent(in)         :: it, i0, model
  
     ! ... Local scalar ...
 
@@ -1108,6 +1130,8 @@ contains
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRd)%values(:, dt2, T1%tmp)
 
+       ! Following the general def of P_abcd in WeiWu's PRX (2015)
+       ! See also RTS's paper in 1989 PRB
        ! D_i*D_j = sum_{dd'} Gup(i,j)*Gdn(i+d,j+d')
        do i = 1,  T1%properties(IPAIRd)%n
           do j = 1,  T1%properties(IPAIRd)%n
@@ -1119,7 +1143,8 @@ contains
 
              ! get the cartesian coordinates of site i
              ! Note i-1 accounts for the different convention of labelling sites  
-             z = T1%cartpos(3,i-1)            
+             z1 = T1%cartpos(3,i-1)
+             z2 = T1%cartpos(3,j-1)
 
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
@@ -1149,11 +1174,20 @@ contains
              value1(k)  = value1(k) + upt0(i,j)*a
              value2(k)  = value2(k) + up0t(i,j)*b
 
-             ! only compute in-plane d-wave pairing susceptibility
-             if (abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
-               T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a
-               T1%Pdtau(dt2, T1%tmp) = T1%Pdtau(dt2, T1%tmp) + up0t(i,j)*b
-             endif
+             ! only compute in-plane d-wave pairing susceptibility (square lattice)
+             select case (model)
+               ! Hubbard
+               case (0)
+                 T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                 T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+
+               ! PAM (P_ffff only temporarily)
+               case (1)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                 endif
+             end select
           end do
        end do
      endif
@@ -1516,12 +1550,20 @@ contains
              ! *0.25 or /4 accounts for the convention for definition                                 
              ! See 1989 PRB paper: Numerical study of 2D Hubbard model                                
              a = a*0.25                                                                        
-             value1(k)  = value1(k) + upt0(i,j)*a                                                     
-                                                                                                      
-             ! only compute in-plane d-wave pairing susceptibility                                    
-             if (abs(z)<1.e-6 .and. abs(vec(5))<1.e-6) then
-               T1%Pdtau(dt1, T1%tmp) = T1%Pdtau(dt1, T1%tmp) + upt0(i,j)*a                            
-             endif
+             value1(k) = value1(k) + upt0(i,j)*a
+                                            
+             ! only compute in-plane d-wave pairing susceptibility (square lattice)
+             select case (model)
+               ! Hubbard
+               case (0)
+                 T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+
+               ! PAM (P_ffff only temporarily)
+               case (1)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                 endif
+             end select
           end do
        end do
      endif
@@ -1613,7 +1655,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_TDM_Avg(T1)
+  subroutine DQMC_TDM_Avg(T1, model)
     !
     ! Purpose
     ! =======
@@ -1626,7 +1668,8 @@ contains
     type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
-    integer  :: nl, idx, i, j, k, it
+    integer  :: nl, idx, i, j, k, it, z1, z2
+    integer, intent(in)  :: model
     real(wp) :: factor, fac, a
     real(wp), allocatable :: value1(:), value2(:)
 
@@ -1747,8 +1790,8 @@ contains
 
     ! Correlated d-wave susceptibility Pd
     if (T1%flags(IPAIRd) == 1) then
-       T1%Pdtau(0:T1%L-1, T1%idx) = T1%Pdtau(0:T1%L-1, T1%idx) * factor
-       T1%Pd(T1%idx) = T1%Pd(T1%idx) * factor
+       T1%Pdtau(0:T1%L-1, T1%idx, :) = T1%Pdtau(0:T1%L-1, T1%idx, :) * factor
+       T1%Pd(T1%idx, :) = T1%Pd(T1%idx, :) * factor
     endif
 
     ! compute uncorrelated or non-vertex d-wave susceptibility Pd^bar
@@ -1806,25 +1849,46 @@ contains
 
                k = T1%properties(IPAIRd)%D(i,j)
 
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling sites
+               z1 = T1%cartpos(3,i-1)
+               z2 = T1%cartpos(3,j-1)
+
                ! 6/18/2019:
                ! *2.0 is only aimed to agree with RTScode and Pd at U=0
                ! The reason may be that computing Pd in TDM_Compute assume
                ! G(i,j) = G(j,i) because (i,j) and (j,i) have same class k
-               T1%Pd0tau(it, idx) = T1%Pd0tau(it, idx) + &
-                       value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+
+               ! only compute in-plane d-wave pairing susceptibility (square lattice)
+               select case (model)
+                 ! Hubbard
+                 case (0)
+                   T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
+                                           value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+
+                 ! PAM (P_ffff only temporarily)
+                 case (1)
+                   if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+                   endif
+               end select
             end do
          end do
          !write(*,*) T1%Pd0tau(it)
        enddo
-       call convert_to_iw0_real(T1%Pd0tau(0:T1%L-1, idx), T1%Pd0(idx), T1%L, T1%dtau)
 
-       ! calculate the d-wave pairing vertex Gammad
-       T1%Gammad(T1%idx) = 1.0/T1%Pd(T1%idx) - 1.0/T1%Pd0(idx)
+       do i = 1,T1%NPd
+         call convert_to_iw0_real(T1%Pd0tau(0:T1%L-1, idx, i), T1%Pd0(idx, i), T1%L, T1%dtau)
 
-       ! product of d-wave pairing vertex Gammad and Pd0
-       ! superconducting instability is signified by Gd_Pd0 -> -1
-       ! See PRB 86, 184506 (2012)
-       T1%Gd_Pd0(T1%idx) = T1%Gammad(T1%idx)*T1%Pd0(idx)
+         ! calculate the d-wave pairing vertex Gammad
+         T1%Gammad(T1%idx,i) = 1.0/T1%Pd(T1%idx,i) - 1.0/T1%Pd0(idx,i)
+
+         ! product of d-wave pairing vertex Gammad and Pd0
+         ! superconducting instability is signified by Gd_Pd0 -> -1
+         ! See PRB 86, 184506 (2012)
+         T1%Gd_Pd0(T1%idx,i) = T1%Gammad(T1%idx,i)*T1%Pd0(idx,i)
+       enddo
     endif
 
     T1%sgn(idx) = T1%sgn(idx)*factor
@@ -2036,37 +2100,37 @@ contains
 
        if (T1%flags(IPAIRd) == 1) then
          do j = 0, T1%L-1
-           data =  T1%Pdtau(j, 1:n)
+           data =  T1%Pdtau(j, 1:n, 1)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%Pdtau(j, avg) = average
-           T1%Pdtau(j, err) = error
+           T1%Pdtau(j, avg, 1) = average
+           T1%Pdtau(j, err, 1) = error
          enddo
          do j = 0, T1%L-1
-           data =  T1%Pd0tau(j, 1:n)
+           data =  T1%Pd0tau(j, 1:n, 1)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%Pd0tau(j, avg) = average
-           T1%Pd0tau(j, err) = error
+           T1%Pd0tau(j, avg, 1) = average
+           T1%Pd0tau(j, err, 1) = error
          enddo
 
-         data =  T1%Pd(1:n)
+         data =  T1%Pd(1:n, 1)
          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Pd(avg) = average
-         T1%Pd(err) = error
+         T1%Pd(avg, 1) = average
+         T1%Pd(err, 1) = error
 
-         data =  T1%Pd0(1:n)
+         data =  T1%Pd0(1:n, 1)
          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Pd0(avg) = average
-         T1%Pd0(err) = error
+         T1%Pd0(avg, 1) = average
+         T1%Pd0(err, 1) = error
 
-         data =  T1%Gammad(1:n)
+         data =  T1%Gammad(1:n, 1)
          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Gammad(avg) = average
-         T1%Gammad(err) = error
+         T1%Gammad(avg, 1) = average
+         T1%Gammad(err, 1) = error
 
-         data =  T1%Gd_Pd0(1:n)
+         data =  T1%Gd_Pd0(1:n, 1)
          call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Gd_Pd0(avg) = average
-         T1%Gd_Pd0(err) = error
+         T1%Gd_Pd0(avg, 1) = average
+         T1%Gd_Pd0(err, 1) = error
        endif
 
     else
@@ -2220,13 +2284,13 @@ contains
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
           if (T1%flags(IPAIRd) == 1) then
-             bins => T1%Pdtau(:, 1)
-             aves => T1%Pdtau(:, avg)
+             bins => T1%Pdtau(:, 1, 1)
+             aves => T1%Pdtau(:, avg, 1)
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
-             bins => T1%Pd0tau(:, 1)
-             aves => T1%Pd0tau(:, avg)
+             bins => T1%Pd0tau(:, 1, 1)
+             aves => T1%Pd0tau(:, avg, 1)
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
@@ -2359,24 +2423,24 @@ contains
              bins =  bins / T1%sgn(1)
           endif
           if (T1%flags(IPAIRd) == 1) then
-             bins => T1%Pdtau(:, 1)
-             aves => T1%Pdtau(:, avg)
+             bins => T1%Pdtau(:, 1, 1)
+             aves => T1%Pdtau(:, avg, 1)
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
 
-             bins => T1%Pd0tau(:, 1)
-             aves => T1%Pd0tau(:, avg)
+             bins => T1%Pd0tau(:, 1, 1)
+             aves => T1%Pd0tau(:, avg, 1)
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
 
-             T1%Pd(1) = (T1%Pd(avg) - T1%Pd(1)) / dble(nproc - 1)
-             T1%Pd(1) =  T1%Pd(1) / T1%sgn(1)
-             T1%Pd0(1) = (T1%Pd0(avg) - T1%Pd0(1)) / dble(nproc - 1)
-             T1%Pd0(1) =  T1%Pd0(1) / T1%sgn(1)
-             T1%Gammad(1) = (T1%Gammad(avg) - T1%Gammad(1)) / dble(nproc - 1)
-             T1%Gammad(1) =  T1%Gammad(1) / T1%sgn(1)
-             T1%Gd_Pd0(1) = (T1%Gd_Pd0(avg) - T1%Gd_Pd0(1)) / dble(nproc - 1)
-             T1%Gd_Pd0(1) =  T1%Gd_Pd0(1) / T1%sgn(1)
+             T1%Pd(1, 1) = (T1%Pd(avg, 1) - T1%Pd(1, 1)) / dble(nproc - 1)
+             T1%Pd(1, 1) =  T1%Pd(1, 1) / T1%sgn(1)
+             T1%Pd0(1, 1) = (T1%Pd0(avg, 1) - T1%Pd0(1, 1)) / dble(nproc - 1)
+             T1%Pd0(1, 1) =  T1%Pd0(1, 1) / T1%sgn(1)
+             T1%Gammad(1, 1) = (T1%Gammad(avg, 1) - T1%Gammad(1, 1)) / dble(nproc - 1)
+             T1%Gammad(1, 1) =  T1%Gammad(1, 1) / T1%sgn(1)
+             T1%Gd_Pd0(1, 1) = (T1%Gd_Pd0(avg, 1) - T1%Gd_Pd0(1, 1)) / dble(nproc - 1)
+             T1%Gd_Pd0(1, 1) =  T1%Gd_Pd0(1, 1) / T1%sgn(1)
           endif
 
           ! Compute avg_y = avg_x = sum_x/sum_sgn
@@ -2456,16 +2520,16 @@ contains
              aves =  aves / T1%sgn(avg)
           endif
           if (T1%flags(IPAIRd) == 1) then
-             aves => T1%Pdtau(:, avg)
+             aves => T1%Pdtau(:, avg, 1)
              aves =  aves / T1%sgn(avg)
 
-             aves => T1%Pd0tau(:, avg)
+             aves => T1%Pd0tau(:, avg, 1)
              aves =  aves / T1%sgn(avg)
 
-             T1%Pd (avg) = T1%Pd (avg) / T1%sgn(avg)
-             T1%Pd0(avg) = T1%Pd0(avg) / T1%sgn(avg)
-             T1%Gammad(avg) = T1%Gammad(avg) / T1%sgn(avg)
-             T1%Gd_Pd0(avg) = T1%Gd_Pd0(avg) / T1%sgn(avg)
+             T1%Pd (avg, 1) = T1%Pd (avg, 1) / T1%sgn(avg)
+             T1%Pd0(avg, 1) = T1%Pd0(avg, 1) / T1%sgn(avg)
+             T1%Gammad(avg, 1) = T1%Gammad(avg, 1) / T1%sgn(avg)
+             T1%Gd_Pd0(avg, 1) = T1%Gd_Pd0(avg, 1) / T1%sgn(avg)
           endif
 
           T1%sgn(avg)  = T1%sgn(avg) / dble(nproc)
@@ -2635,35 +2699,35 @@ contains
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
           if (T1%flags(IPAIRd) == 1) then
-             bins => T1%Pdtau(:, 1)
-             aves => T1%Pdtau(:, avg)
-             errs => T1%Pdtau(:, err)
+             bins => T1%Pdtau(:, 1, 1)
+             aves => T1%Pdtau(:, avg, 1)
+             errs => T1%Pdtau(:, err, 1)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
 
-             bins => T1%Pd0tau(:, 1)
-             aves => T1%Pd0tau(:, avg)
-             errs => T1%Pd0tau(:, err)
+             bins => T1%Pd0tau(:, 1, 1)
+             aves => T1%Pd0tau(:, avg, 1)
+             errs => T1%Pd0tau(:, err, 1)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Pd(1)-T1%Pd(avg))**2, T1%Pd(err), 1, mpi_double, &
+             call mpi_allreduce((T1%Pd(1, 1)-T1%Pd(avg, 1))**2, T1%Pd(err, 1), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Pd(err) = sqrt(T1%Pd(err) * dble(nproc-1)/dble(nproc))
+             T1%Pd(err, 1) = sqrt(T1%Pd(err, 1) * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Pd0(1)-T1%Pd0(avg))**2, T1%Pd0(err), 1, mpi_double, &
+             call mpi_allreduce((T1%Pd0(1, 1)-T1%Pd0(avg, 1))**2, T1%Pd0(err, 1), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Pd0(err) = sqrt(T1%Pd0(err) * dble(nproc-1)/dble(nproc))
+             T1%Pd0(err, 1) = sqrt(T1%Pd0(err, 1) * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Gammad(1)-T1%Gammad(avg))**2, T1%Gammad(err), 1, mpi_double, &
+             call mpi_allreduce((T1%Gammad(1, 1)-T1%Gammad(avg, 1))**2, T1%Gammad(err, 1), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Gammad(err) = sqrt(T1%Gammad(err) * dble(nproc-1)/dble(nproc))
+             T1%Gammad(err, 1) = sqrt(T1%Gammad(err, 1) * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Gd_Pd0(1)-T1%Gd_Pd0(avg))**2, T1%Gd_Pd0(err), 1, mpi_double, &
+             call mpi_allreduce((T1%Gd_Pd0(1, 1)-T1%Gd_Pd0(avg, 1))**2, T1%Gd_Pd0(err, 1), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Gd_Pd0(err) = sqrt(T1%Gd_Pd0(err) * dble(nproc-1)/dble(nproc))
+             T1%Gd_Pd0(err, 1) = sqrt(T1%Gd_Pd0(err, 1) * dble(nproc-1)/dble(nproc))
           endif
 
 #      endif
@@ -2722,33 +2786,33 @@ contains
     if (T1%flags(IPAIRd) == 1) then
        ! Pd(tau) and Pd
        do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err)
+          tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err, 1)
        enddo
        title="Pd(tau)"
        call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
        write(OPT,'(1x)')
 
-       write(OPT,"(a20,e16.8,e16.8)") 'Pd = ', T1%Pd(T1%avg), T1%Pd(T1%err)
+       write(OPT,"(a20,e16.8,e16.8)") 'Pd = ', T1%Pd(T1%avg, 1), T1%Pd(T1%err, 1)
        write(OPT,FMT_DBLINE)
 
        ! Pd0(tau) and Pd0
        do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err)
+          tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, 1)
        enddo
        title="Pd0 (nonvertex) (tau)"
        call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
        write(OPT,'(1x)')
 
-       write(OPT,"(a20,e16.8,e16.8)") 'Pd0 (nonvertex) = ', T1%Pd0(T1%avg), T1%Pd0(T1%err)
+       write(OPT,"(a20,e16.8,e16.8)") 'Pd0 (nonvertex) = ', T1%Pd0(T1%avg, 1), T1%Pd0(T1%err, 1)
        write(OPT,FMT_DBLINE)
 
-       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gammad = ', T1%Gammad(T1%avg), T1%Gammad(T1%err)
-       x = 1.0/T1%Pd(T1%avg) - 1.0/T1%Pd0(T1%avg)
+       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gammad = ', T1%Gammad(T1%avg, 1), T1%Gammad(T1%err, 1)
+       x = 1.0/T1%Pd(T1%avg, 1) - 1.0/T1%Pd0(T1%avg, 1)
        write(OPT,"(a20,e16.8)") 'calculated Gammad = ', x
        write(OPT,FMT_DBLINE) 
 
-       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gd*Pd0 = ', T1%Gd_Pd0(T1%avg), T1%Gd_Pd0(T1%err)
-       y = x*T1%Pd0(T1%avg)
+       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gd*Pd0 = ', T1%Gd_Pd0(T1%avg, 1), T1%Gd_Pd0(T1%err, 1)
+       y = x*T1%Pd0(T1%avg, 1)
        write(OPT,"(a20,e16.8)") 'calculated Gd*Pd0 = ', y
        write(OPT,FMT_DBLINE)
    endif

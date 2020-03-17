@@ -1146,6 +1146,11 @@ contains
              z1 = T1%cartpos(3,i-1)
              z2 = T1%cartpos(3,j-1)
 
+             ! if PAM (P_ffff only temporarily), then skip some terms
+             if (model==1 .and. .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
+                cycle
+             endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1532,23 +1537,28 @@ contains
 
              ! get the cartesian coordinates of site i
              ! Note i-1 accounts for the different convention of labelling sites  
-             z = T1%cartpos(3,i-1)
-             vec = T1%properties(IPAIRd)%vecClass(k,:)
+             z1 = T1%cartpos(3,i-1)
+             z2 = T1%cartpos(3,j-1)
 
-             ! 4 neighbors of each site so that totally 16 terms                                      
+             ! if PAM (P_ffff only temporarily), then skip some terms
+             if (model==1 .and. .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
+                cycle
+             endif
+
+             ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
-             ! record all 16 possible Gdn(i+d,j+d') as a below                                        
-             a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &                               
-                +dnt0(T1%rt(i), T1%lf(j)) - dnt0(T1%rt(i), T1%dn(j))  &                               
-                -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &                               
-                -dnt0(T1%up(i), T1%lf(j)) + dnt0(T1%up(i), T1%dn(j))  &                               
-                +dnt0(T1%lf(i), T1%rt(j)) - dnt0(T1%lf(i), T1%up(j))  &                               
-                +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &                               
+             ! record all 16 possible Gdn(i+d,j+d') as a below
+             a = dnt0(T1%rt(i), T1%rt(j)) - dnt0(T1%rt(i), T1%up(j))  &
+                +dnt0(T1%rt(i), T1%lf(j)) - dnt0(T1%rt(i), T1%dn(j))  &
+                -dnt0(T1%up(i), T1%rt(j)) + dnt0(T1%up(i), T1%up(j))  &
+                -dnt0(T1%up(i), T1%lf(j)) + dnt0(T1%up(i), T1%dn(j))  &
+                +dnt0(T1%lf(i), T1%rt(j)) - dnt0(T1%lf(i), T1%up(j))  &
+                +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
                 -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  & 
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))    
                
-             ! *0.25 or /4 accounts for the convention for definition                                 
-             ! See 1989 PRB paper: Numerical study of 2D Hubbard model                                
+             ! *0.25 or /4 accounts for the convention for definition
+             ! See 1989 PRB paper: Numerical study of 2D Hubbard model
              a = a*0.25                                                                        
              value1(k) = value1(k) + upt0(i,j)*a
                                             
@@ -1792,55 +1802,62 @@ contains
     if (T1%flags(IPAIRd) == 1) then
        T1%Pdtau(0:T1%L-1, T1%idx, :) = T1%Pdtau(0:T1%L-1, T1%idx, :) * factor
        T1%Pd(T1%idx, :) = T1%Pd(T1%idx, :) * factor
-    endif
 
-    ! compute uncorrelated or non-vertex d-wave susceptibility Pd^bar
-    ! D_i*D_j = sum_{dd'} <Gup(i,j)>*<Gdn(i+d,j+d')>
-    ! Pd0 = int^beta_0 sum_ij D_i*D_j
-    if (T1%flags(IPAIRd) == 1) then
+       ! compute uncorrelated or non-vertex d-wave susceptibility Pd^bar
+       ! D_i*D_j = sum_{dd'} <Gup(i,j)>*<Gdn(i+d,j+d')>
+       ! Pd0 = int^beta_0 sum_ij D_i*D_j
        do it = 0, T1%L-1
          ! Note that precisely value1 (value2) should use
          ! Gup and Gdn respectively. Because sometimes the code
          ! input file does not specify computing them
          ! Here assume that G = Gup = Gdn
-         value1 = T1%properties(IGFUN)%values(:, it, idx)
-         value2 = T1%properties(IGFUN)%values(:, it, idx)
+         value1 = T1%properties(IGFUP)%values(:, it, idx)
+         value2 = T1%properties(IGFDN)%values(:, it, idx)
 
          a = 0.0_wp
          do i = 1,  T1%properties(IPAIRd)%n
             do j = 1,  T1%properties(IPAIRd)%n
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling sites
+               z1 = T1%cartpos(3,i-1)
+               z2 = T1%cartpos(3,j-1)
+
+               ! if PAM (P_ffff only temporarily), then skip some terms
+               if (model==1 .and. .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
+                  cycle
+               endif
+
                ! 4 neighbors of each site so that totally 16 terms
                ! with different phase factors for d-wave pairing
                ! record all 16 possible Gdn(i+d,j+d') as a below
                ! *0.25 or /4 is convention, see the computation of Pd
-
                k = T1%properties(IPAIRd)%D(T1%rt(i), T1%rt(j))
                a = a + value2(k)
-               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%up(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%up(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%lf(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%lf(j))
                a = a + value2(k)
-               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%dn(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%rt(i), T1%dn(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%up(i), T1%rt(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%rt(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%up(i), T1%up(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%up(j))
                a = a + value2(k)
-               k = T1%properties(IPAIRd)%D(T1%up(i), T1%lf(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%lf(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%up(i), T1%dn(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%up(i), T1%dn(j))
                a = a + value2(k)
-               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%rt(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%rt(j))
                a = a + value2(k)
-               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%up(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%up(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%lf(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%lf(j))
                a = a + value2(k)
-               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%dn(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%lf(i), T1%dn(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%rt(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%rt(j))
                a = a - value2(k)
-               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%up(j))                                        
+               k = T1%properties(IPAIRd)%D(T1%dn(i), T1%up(j))
                a = a + value2(k)
                k = T1%properties(IPAIRd)%D(T1%dn(i), T1%lf(j))
                a = a - value2(k)
@@ -1848,11 +1865,6 @@ contains
                a = a + value2(k)
 
                k = T1%properties(IPAIRd)%D(i,j)
-
-               ! get the cartesian coordinates of site i
-               ! Note i-1 accounts for the different convention of labelling sites
-               z1 = T1%cartpos(3,i-1)
-               z2 = T1%cartpos(3,j-1)
 
                ! 6/18/2019:
                ! *2.0 is only aimed to agree with RTScode and Pd at U=0

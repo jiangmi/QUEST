@@ -172,10 +172,6 @@ module DQMC_TDM
      real(wp), pointer :: Gammad(:,:)
      real(wp), pointer :: Gd_Pd0(:,:)
 
-     ! Below for Pd between inequivalent orbitals as components of total Pd
-     real(wp), allocatable :: Cspinxx(:,:,:)
-     real(wp), allocatable :: Cspinzz(:,:,:)
-
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
 

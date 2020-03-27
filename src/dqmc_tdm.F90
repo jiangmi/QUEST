@@ -1878,11 +1878,12 @@ contains
                    T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
                                            value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
 
-                 ! PAM (P_ffff only temporarily)
+                 ! PAM (P_ffff only temporarily); note also PAM should divide by
+                 ! Nsites/2 because quest treats all orbitals as sites
                  case (1)
                    if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
-                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
                    endif
                end select
             end do
@@ -2306,13 +2307,13 @@ contains
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
-             call mpi_allreduce(T1%Pd(1), T1%Pd(avg), 1, mpi_double, &
+             call mpi_allreduce(T1%Pd(1,1), T1%Pd(avg,1), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
-             call mpi_allreduce(T1%Pd0(1), T1%Pd0(avg), 1, mpi_double, &
+             call mpi_allreduce(T1%Pd0(1,1), T1%Pd0(avg,1), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
-             call mpi_allreduce(T1%Gammad(1), T1%Gammad(avg), 1, mpi_double, &
+             call mpi_allreduce(T1%Gammad(1,1), T1%Gammad(avg,1), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
-             call mpi_allreduce(T1%Gd_Pd0(1), T1%Gd_Pd0(avg), 1, mpi_double, &
+             call mpi_allreduce(T1%Gd_Pd0(1,1), T1%Gd_Pd0(avg,1), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
 

@@ -164,13 +164,17 @@ module DQMC_TDM
      ! final index denotes orbital; for hubbard, just 1;
      ! for PAM, Pd tensor can be abcd indices so that c,f orbitals gives 16 terms
      ! For now, only compute P_ffff components, which is expected to dominant
-     integer :: NPd  ! No. of pairing susceptibility components
+     integer :: NPd  ! No. of pairing sus components or 4 for staggered PAM
      real(wp), pointer :: Pd0tau(:,:,:)
      real(wp), pointer :: Pdtau(:,:,:)
      real(wp), pointer :: Pd0(:,:)
      real(wp), pointer :: Pd(:,:)
      real(wp), pointer :: Gammad(:,:)
      real(wp), pointer :: Gd_Pd0(:,:)
+
+     ! Below for Pd between inequivalent orbitals as components of total Pd
+     real(wp), allocatable :: Cspinxx(:,:,:)
+     real(wp), allocatable :: Cspinzz(:,:,:)
 
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
@@ -329,11 +333,17 @@ contains
         ! hubbard square
         case (0)
           T1%NPd = 1
+
         ! PAM square
         ! In principle, Pd tensor can be abcd indices so that c,f orbitals gives 16 terms
         ! For now, only compute P_ffff components, which is expected to dominant
         case (1)
           T1%NPd = 1
+
+        ! staggered PAM square
+        ! 4 components denote total, f1f1, f1f2, f2f2
+        case (2)
+          T1%NPd = 4
       end select
 
       allocate(T1%Pdtau(0:T1%L-1, 1:T1%err, T1%NPd))
@@ -1143,11 +1153,16 @@ contains
 
              ! get the cartesian coordinates of site i
              ! Note i-1 accounts for the different convention of labelling sites  
+             x1 = T1%cartpos(1,i-1)
+             y1 = T1%cartpos(2,i-1)
              z1 = T1%cartpos(3,i-1)
+             x2 = T1%cartpos(1,j-1)
+             y2 = T1%cartpos(2,j-1)
              z2 = T1%cartpos(3,j-1)
 
              ! if PAM (P_ffff only temporarily), then skip some terms
-             if (model==1 .and. .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
+             if ((model==1 .or. model==2) .and.                  &
+                 .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
                 cycle
              endif
 
@@ -1191,6 +1206,29 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                 endif
+
+               ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
+               case (2)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+
+                   ! compute Pd within and between two sublattice
+                   ! separation limitation:
+                   if (mod(int(x1-x2+y1-y2),2)==0) then
+                     ! one sublattice
+                     if (mod(int(x1+y1),2)==0) then
+                       T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                       T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+                     else
+                       T1%Pdtau(dt1, T1%tmp, 4) = T1%Pdtau(dt1, T1%tmp, 4) + upt0(i,j)*a
+                       T1%Pdtau(dt2, T1%tmp, 4) = T1%Pdtau(dt2, T1%tmp, 4) + up0t(i,j)*b
+                     endif
+                   else
+                     T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
+                     T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
+                   endif
                  endif
              end select
           end do
@@ -1537,11 +1575,16 @@ contains
 
              ! get the cartesian coordinates of site i
              ! Note i-1 accounts for the different convention of labelling sites  
+             x1 = T1%cartpos(1,i-1)
+             y1 = T1%cartpos(2,i-1)
              z1 = T1%cartpos(3,i-1)
+             x2 = T1%cartpos(1,j-1)
+             y2 = T1%cartpos(2,j-1)
              z2 = T1%cartpos(3,j-1)
 
              ! if PAM (P_ffff only temporarily), then skip some terms
-             if (model==1 .and. .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
+             if ((model==1 .or. model==2) .and.     &
+                  .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
                 cycle
              endif
 
@@ -1572,6 +1615,25 @@ contains
                case (1)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                 endif
+
+               ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
+               case (2)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+
+                   ! compute Pd within and between two sublattice
+                   ! separation limitation:
+                   if (mod(int(x1-x2+y1-y2),2)==0) then
+                     ! one sublattice
+                     if (mod(int(x1+y1),2)==0) then
+                       T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                     else
+                       T1%Pdtau(dt1, T1%tmp, 4) = T1%Pdtau(dt1, T1%tmp, 4) + upt0(i,j)*a
+                     endif
+                   else
+                     T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
+                   endif
                  endif
              end select
           end do
@@ -1678,7 +1740,7 @@ contains
     type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
-    integer  :: nl, idx, i, j, k, it, z1, z2
+    integer  :: nl, idx, i, j, k, it, x1,x2,y1,y2,z1,z2
     integer, intent(in)  :: model
     real(wp) :: factor, fac, a
     real(wp), allocatable :: value1(:), value2(:)
@@ -1819,11 +1881,16 @@ contains
             do j = 1,  T1%properties(IPAIRd)%n
                ! get the cartesian coordinates of site i
                ! Note i-1 accounts for the different convention of labelling sites
+               x1 = T1%cartpos(1,i-1)
+               y1 = T1%cartpos(2,i-1)
                z1 = T1%cartpos(3,i-1)
+               x2 = T1%cartpos(1,j-1)
+               y2 = T1%cartpos(2,j-1)
                z2 = T1%cartpos(3,j-1)
 
                ! if PAM (P_ffff only temporarily), then skip some terms
-               if (model==1 .and. .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
+               if ((model==1 .or. model==2) .and.    &
+                   .not. (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6)) then
                   cycle
                endif
 
@@ -1884,6 +1951,29 @@ contains
                    if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
                                              value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                   endif
+
+                 ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
+                 case (2)
+                   if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
+                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+
+                     ! compute Pd within and between two sublattice
+                     ! separation limitation:
+                     if (mod(int(x1-x2+y1-y2),2)==0) then
+                       ! one sublattice
+                       if (mod(int(x1+y1),2)==0) then
+                         T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + &
+                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                       else
+                         T1%Pd0tau(it, idx, 4) = T1%Pd0tau(it, idx, 4) + &
+                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                       endif
+                     else
+                       T1%Pd0tau(it, idx, 3) = T1%Pd0tau(it, idx, 3) + &
+                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                     endif
                    endif
                end select
             end do
@@ -2113,37 +2203,43 @@ contains
 
        if (T1%flags(IPAIRd) == 1) then
          do j = 0, T1%L-1
-           data =  T1%Pdtau(j, 1:n, 1)
-           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%Pdtau(j, avg, 1) = average
-           T1%Pdtau(j, err, 1) = error
+           do i = 1,T1%NPd
+             data =  T1%Pdtau(j, 1:n, i)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%Pdtau(j, avg, i) = average
+             T1%Pdtau(j, err, i) = error
+           enddo
          enddo
          do j = 0, T1%L-1
-           data =  T1%Pd0tau(j, 1:n, 1)
-           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-           T1%Pd0tau(j, avg, 1) = average
-           T1%Pd0tau(j, err, 1) = error
+           do i = 1,T1%NPd
+             data =  T1%Pd0tau(j, 1:n, i)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%Pd0tau(j, avg, i) = average
+             T1%Pd0tau(j, err, i) = error
+           enddo
          enddo
 
-         data =  T1%Pd(1:n, 1)
-         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Pd(avg, 1) = average
-         T1%Pd(err, 1) = error
+         do i = 1,T1%NPd
+           data =  T1%Pd(1:n, i)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Pd(avg, i) = average
+           T1%Pd(err, i) = error
 
-         data =  T1%Pd0(1:n, 1)
-         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Pd0(avg, 1) = average
-         T1%Pd0(err, 1) = error
+           data =  T1%Pd0(1:n, i)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Pd0(avg, i) = average
+           T1%Pd0(err, i) = error
 
-         data =  T1%Gammad(1:n, 1)
-         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Gammad(avg, 1) = average
-         T1%Gammad(err, 1) = error
+           data =  T1%Gammad(1:n, i)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Gammad(avg, i) = average
+           T1%Gammad(err, i) = error
 
-         data =  T1%Gd_Pd0(1:n, 1)
-         call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-         T1%Gd_Pd0(avg, 1) = average
-         T1%Gd_Pd0(err, 1) = error
+           data =  T1%Gd_Pd0(1:n, i)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Gd_Pd0(avg, i) = average
+           T1%Gd_Pd0(err, i) = error
+         enddo
        endif
 
     else
@@ -2297,24 +2393,26 @@ contains
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
           if (T1%flags(IPAIRd) == 1) then
-             bins => T1%Pdtau(:, 1, 1)
-             aves => T1%Pdtau(:, avg, 1)
+           do i = 1,T1%NPd
+             bins => T1%Pdtau(:, 1, i)
+             aves => T1%Pdtau(:, avg, i)
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
-             bins => T1%Pd0tau(:, 1, 1)
-             aves => T1%Pd0tau(:, avg, 1)
+             bins => T1%Pd0tau(:, 1, i)
+             aves => T1%Pd0tau(:, avg, i)
              call mpi_allreduce(bins, aves, T1%L, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
-             call mpi_allreduce(T1%Pd(1,1), T1%Pd(avg,1), 1, mpi_double, &
+             call mpi_allreduce(T1%Pd(1,i), T1%Pd(avg,i), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
-             call mpi_allreduce(T1%Pd0(1,1), T1%Pd0(avg,1), 1, mpi_double, &
+             call mpi_allreduce(T1%Pd0(1,i), T1%Pd0(avg,i), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
-             call mpi_allreduce(T1%Gammad(1,1), T1%Gammad(avg,1), 1, mpi_double, &
+             call mpi_allreduce(T1%Gammad(1,i), T1%Gammad(avg,i), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
-             call mpi_allreduce(T1%Gd_Pd0(1,1), T1%Gd_Pd0(avg,1), 1, mpi_double, &
+             call mpi_allreduce(T1%Gd_Pd0(1,i), T1%Gd_Pd0(avg,i), 1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
+           enddo
           endif
 
           ! Compute y_i, note original binned values will be updated
@@ -2436,24 +2534,26 @@ contains
              bins =  bins / T1%sgn(1)
           endif
           if (T1%flags(IPAIRd) == 1) then
-             bins => T1%Pdtau(:, 1, 1)
-             aves => T1%Pdtau(:, avg, 1)
+           do i = 1,T1%NPd
+             bins => T1%Pdtau(:, 1, i)
+             aves => T1%Pdtau(:, avg, i)
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
 
-             bins => T1%Pd0tau(:, 1, 1)
-             aves => T1%Pd0tau(:, avg, 1)
+             bins => T1%Pd0tau(:, 1, i)
+             aves => T1%Pd0tau(:, avg, i)
              bins = (aves - bins) / dble(nproc - 1)
              bins =  bins / T1%sgn(1)
 
-             T1%Pd(1, 1) = (T1%Pd(avg, 1) - T1%Pd(1, 1)) / dble(nproc - 1)
-             T1%Pd(1, 1) =  T1%Pd(1, 1) / T1%sgn(1)
-             T1%Pd0(1, 1) = (T1%Pd0(avg, 1) - T1%Pd0(1, 1)) / dble(nproc - 1)
-             T1%Pd0(1, 1) =  T1%Pd0(1, 1) / T1%sgn(1)
-             T1%Gammad(1, 1) = (T1%Gammad(avg, 1) - T1%Gammad(1, 1)) / dble(nproc - 1)
-             T1%Gammad(1, 1) =  T1%Gammad(1, 1) / T1%sgn(1)
-             T1%Gd_Pd0(1, 1) = (T1%Gd_Pd0(avg, 1) - T1%Gd_Pd0(1, 1)) / dble(nproc - 1)
-             T1%Gd_Pd0(1, 1) =  T1%Gd_Pd0(1, 1) / T1%sgn(1)
+             T1%Pd(1, i) = (T1%Pd(avg, i) - T1%Pd(1, i)) / dble(nproc - 1)
+             T1%Pd(1, i) =  T1%Pd(1, i) / T1%sgn(1)
+             T1%Pd0(1, i) = (T1%Pd0(avg, i) - T1%Pd0(1, i)) / dble(nproc - 1)
+             T1%Pd0(1, i) =  T1%Pd0(1, i) / T1%sgn(1)
+             T1%Gammad(1, i) = (T1%Gammad(avg, i) - T1%Gammad(1, i)) / dble(nproc - 1)
+             T1%Gammad(1, i) =  T1%Gammad(1, i) / T1%sgn(1)
+             T1%Gd_Pd0(1, i) = (T1%Gd_Pd0(avg, i) - T1%Gd_Pd0(1, i)) / dble(nproc - 1)
+             T1%Gd_Pd0(1, i) =  T1%Gd_Pd0(1, i) / T1%sgn(1)
+           enddo
           endif
 
           ! Compute avg_y = avg_x = sum_x/sum_sgn
@@ -2533,16 +2633,18 @@ contains
              aves =  aves / T1%sgn(avg)
           endif
           if (T1%flags(IPAIRd) == 1) then
-             aves => T1%Pdtau(:, avg, 1)
+           do i = 1,T1%NPd
+             aves => T1%Pdtau(:, avg, i)
              aves =  aves / T1%sgn(avg)
 
-             aves => T1%Pd0tau(:, avg, 1)
+             aves => T1%Pd0tau(:, avg, i)
              aves =  aves / T1%sgn(avg)
 
-             T1%Pd (avg, 1) = T1%Pd (avg, 1) / T1%sgn(avg)
-             T1%Pd0(avg, 1) = T1%Pd0(avg, 1) / T1%sgn(avg)
-             T1%Gammad(avg, 1) = T1%Gammad(avg, 1) / T1%sgn(avg)
-             T1%Gd_Pd0(avg, 1) = T1%Gd_Pd0(avg, 1) / T1%sgn(avg)
+             T1%Pd (avg, i) = T1%Pd (avg, i) / T1%sgn(avg)
+             T1%Pd0(avg, i) = T1%Pd0(avg, i) / T1%sgn(avg)
+             T1%Gammad(avg, i) = T1%Gammad(avg, i) / T1%sgn(avg)
+             T1%Gd_Pd0(avg, i) = T1%Gd_Pd0(avg, i) / T1%sgn(avg)
+           enddo
           endif
 
           T1%sgn(avg)  = T1%sgn(avg) / dble(nproc)
@@ -2712,35 +2814,37 @@ contains
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
           if (T1%flags(IPAIRd) == 1) then
-             bins => T1%Pdtau(:, 1, 1)
-             aves => T1%Pdtau(:, avg, 1)
-             errs => T1%Pdtau(:, err, 1)
+           do i = 1,T1%NPd
+             bins => T1%Pdtau(:, 1, i)
+             aves => T1%Pdtau(:, avg, i)
+             errs => T1%Pdtau(:, err, i)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
 
-             bins => T1%Pd0tau(:, 1, 1)
-             aves => T1%Pd0tau(:, avg, 1)
-             errs => T1%Pd0tau(:, err, 1)
+             bins => T1%Pd0tau(:, 1, i)
+             aves => T1%Pd0tau(:, avg, i)
+             errs => T1%Pd0tau(:, err, i)
              call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Pd(1, 1)-T1%Pd(avg, 1))**2, T1%Pd(err, 1), 1, mpi_double, &
+             call mpi_allreduce((T1%Pd(1, i)-T1%Pd(avg, i))**2, T1%Pd(err, i), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Pd(err, 1) = sqrt(T1%Pd(err, 1) * dble(nproc-1)/dble(nproc))
+             T1%Pd(err, i) = sqrt(T1%Pd(err, i) * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Pd0(1, 1)-T1%Pd0(avg, 1))**2, T1%Pd0(err, 1), 1, mpi_double, &
+             call mpi_allreduce((T1%Pd0(1, i)-T1%Pd0(avg, i))**2, T1%Pd0(err, i), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Pd0(err, 1) = sqrt(T1%Pd0(err, 1) * dble(nproc-1)/dble(nproc))
+             T1%Pd0(err, i) = sqrt(T1%Pd0(err, i) * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Gammad(1, 1)-T1%Gammad(avg, 1))**2, T1%Gammad(err, 1), 1, mpi_double, &
+             call mpi_allreduce((T1%Gammad(1, i)-T1%Gammad(avg, i))**2, T1%Gammad(err, i), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Gammad(err, 1) = sqrt(T1%Gammad(err, 1) * dble(nproc-1)/dble(nproc))
+             T1%Gammad(err, i) = sqrt(T1%Gammad(err, i) * dble(nproc-1)/dble(nproc))
 
-             call mpi_allreduce((T1%Gd_Pd0(1, 1)-T1%Gd_Pd0(avg, 1))**2, T1%Gd_Pd0(err, 1), 1, mpi_double, &
+             call mpi_allreduce((T1%Gd_Pd0(1, i)-T1%Gd_Pd0(avg, i))**2, T1%Gd_Pd0(err, i), 1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
-             T1%Gd_Pd0(err, 1) = sqrt(T1%Gd_Pd0(err, 1) * dble(nproc-1)/dble(nproc))
+             T1%Gd_Pd0(err, i) = sqrt(T1%Gd_Pd0(err, i) * dble(nproc-1)/dble(nproc))
+           enddo
           endif
 
 #      endif
@@ -2797,37 +2901,44 @@ contains
     enddo
 
     if (T1%flags(IPAIRd) == 1) then
-       ! Pd(tau) and Pd
-       do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err, 1)
+       ! Pd and Pd0
+       do i = 1,T1%NPd
+         write(OPT,"(a20,i3,4(e16.8))") 'Pd and Pd0 = ',          &
+                         i, T1%Pd (T1%avg, i), T1%Pd (T1%err, i), &
+                            T1%Pd0(T1%avg, i), T1%Pd0(T1%err, i)
+         write(OPT,"(a20,i3,2(e16.8))") 'accumulated Gammad = ',  &
+                         i, T1%Gammad(T1%avg, i), T1%Gammad(T1%err, i)
+
+         x = 1.0/T1%Pd(T1%avg, i) - 1.0/T1%Pd0(T1%avg, i)
+         write(OPT,"(a20,i3,e16.8)") 'calculated Gammad = ', i, x
+
+         write(OPT,"(a20,i3, 2(e16.8))") 'accumulated Gd*Pd0 = ', &
+                         i, T1%Gd_Pd0(T1%avg, i), T1%Gd_Pd0(T1%err, i)
+
+         y = x*T1%Pd0(T1%avg, 1)
+         write(OPT,"(a20,i3,e16.8)") 'calculated Gd*Pd0 = ', i, y
        enddo
-       title="Pd(tau)"
-       call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-       write(OPT,'(1x)')
-
-       write(OPT,"(a20,e16.8,e16.8)") 'Pd = ', T1%Pd(T1%avg, 1), T1%Pd(T1%err, 1)
        write(OPT,FMT_DBLINE)
 
-       ! Pd0(tau) and Pd0
-       do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, 1)
+       do i = 1,T1%NPd
+         write(OPT,"(a10,i3)") 'component', i
+         ! Pd(tau)
+         do j = 0, T1%L-1
+            tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err, i)
+         enddo
+         title="Pd(tau)"
+         call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+         write(OPT,'(1x)')
+
+         ! Pd0(tau) 
+         do j = 0, T1%L-1
+            tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, i)
+         enddo
+         title="Pd0 (nonvertex) (tau)"
+         call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+         write(OPT,'(1x)')
+         write(OPT,FMT_DBLINE)
        enddo
-       title="Pd0 (nonvertex) (tau)"
-       call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-       write(OPT,'(1x)')
-
-       write(OPT,"(a20,e16.8,e16.8)") 'Pd0 (nonvertex) = ', T1%Pd0(T1%avg, 1), T1%Pd0(T1%err, 1)
-       write(OPT,FMT_DBLINE)
-
-       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gammad = ', T1%Gammad(T1%avg, 1), T1%Gammad(T1%err, 1)
-       x = 1.0/T1%Pd(T1%avg, 1) - 1.0/T1%Pd0(T1%avg, 1)
-       write(OPT,"(a20,e16.8)") 'calculated Gammad = ', x
-       write(OPT,FMT_DBLINE) 
-
-       write(OPT,"(a20,e16.8,e16.8)") 'accumulated Gd*Pd0 = ', T1%Gd_Pd0(T1%avg, 1), T1%Gd_Pd0(T1%err, 1)
-       y = x*T1%Pd0(T1%avg, 1)
-       write(OPT,"(a20,e16.8)") 'calculated Gd*Pd0 = ', y
-       write(OPT,FMT_DBLINE)
    endif
 
     ! print out chi_q_iw0 and chi_q(tau):

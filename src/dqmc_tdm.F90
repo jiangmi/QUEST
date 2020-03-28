@@ -1946,14 +1946,14 @@ contains
                  case (1)
                    if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
-                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
                    endif
 
                  ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
                  case (2)
                    if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
-                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
 
                      ! compute Pd within and between two sublattice
                      ! separation limitation:
@@ -1961,14 +1961,14 @@ contains
                        ! one sublattice
                        if (mod(int(x1+y1),2)==0) then
                          T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + &
-                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
                        else
                          T1%Pd0tau(it, idx, 4) = T1%Pd0tau(it, idx, 4) + &
-                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
                        endif
                      else
                        T1%Pd0tau(it, idx, 3) = T1%Pd0tau(it, idx, 3) + &
-                                             value1(k)*a/(2.0*T1%properties(IPAIRd)%n)*2.0
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
                      endif
                    endif
                end select

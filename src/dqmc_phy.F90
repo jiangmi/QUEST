@@ -843,10 +843,10 @@ contains
              endif
            endif
 
-           !===================================================!
-           ! Compute structure factor of all spin correlations !
-           ! Ref: PRB 97, 085123 (2018) Eq.11
-           !===================================================!
+           !========================================================!
+           ! Compute AF structure factor of all spin correlations   !
+           ! Ref: similar to PRB 97, 085123 (2018) Eq.11 but AF here
+           !========================================================!
            ! +1 because the code uses site index from 0
            o1 = int(S%vecClass(k,1))+1
            o2 = int(S%vecClass(k,2))+1
@@ -854,13 +854,13 @@ contains
            ! The code assumes all correlations (i,j)=(j,i) so always o2>=o1
            ! Hence in case of o2/=o1, need divided by 2 for (i,j) (same as (j,i))
            if (cf(o1)==cf(o2)) then
-             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + var2
-             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + var3
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + S%AFphase(k) * var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + S%AFphase(k) * var3
            else
-             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5*var2
-             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5*var3
-             P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5*var2
-             P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5*var3
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5*S%AFphase(k) * var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5*S%AFphase(k) * var3
+             P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5*S%AFphase(k) * var2
+             P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5*S%AFphase(k) * var3
            endif
        end do
 
@@ -872,6 +872,8 @@ contains
        P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var1
        P0%Pair  (k, tmp) = P0%Pair  (k, tmp) - var1 + 1.d0
 
+       ! Need S%AFphase(k) because some layers it is zero instead of one
+       ! because e.g. only need Saf for f-electrons
        P0%meas(P0_SAFx, tmp) = P0%meas(P0_SAFx, tmp) + S%AFphase(k) *var1
        P0%meas(P0_SAFz, tmp) = P0%meas(P0_SAFz, tmp) + S%AFphase(k) *var1
 
@@ -894,9 +896,11 @@ contains
        endif
 
        ! Additional term for all structure factor calculation
+       ! Need S%AFphase(k) because some layers it is zero instead of one
+       ! because e.g. only need Saf for f-electrons
        o1 = int(S%vecClass(k,1))+1
-       P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + var1
-       P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + var1
+       P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k)*var1
+       P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k)*var1
 
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
     end do

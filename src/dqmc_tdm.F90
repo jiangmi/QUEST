@@ -340,6 +340,12 @@ contains
         ! 4 components denote total, f1f1, f1f2, f2f2
         case (2)
           T1%NPd = 4
+
+        ! stacked two PAMs square
+        ! unit cell from bottom to top: c1,f1,f2,c2 orbs
+        ! 2 components denote f1 and f2 layers
+        case (3)
+          T1%NPd = 2
       end select
 
       allocate(T1%Pdtau(0:T1%L-1, 1:T1%err, T1%NPd))
@@ -1162,6 +1168,12 @@ contains
                 cycle
              endif
 
+             if ((model==3) .and.                  &
+                 .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
+                        ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ))) then
+                cycle
+             endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1225,6 +1237,16 @@ contains
                      T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                      T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
                    endif
+                 endif
+
+               ! stacked two PAMs; 2 components denote f1 and f2 layers
+               case (3)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                 elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
                  endif
              end select
           end do
@@ -1584,6 +1606,12 @@ contains
                 cycle
              endif
 
+             if ((model==3) .and.                  &
+                 .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
+                        ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ))) then
+                cycle
+             endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1631,6 +1659,15 @@ contains
                      T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    endif
                  endif
+
+               ! stacked two PAMs; 2 components denote f1 and f2 layers
+               case (3)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                 elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                 endif
+
              end select
           end do
        end do
@@ -1890,6 +1927,12 @@ contains
                   cycle
                endif
 
+               if ((model==3) .and.                  &
+                   .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
+                          ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ))) then
+                  cycle
+               endif
+
                ! 4 neighbors of each site so that totally 16 terms
                ! with different phase factors for d-wave pairing
                ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1971,6 +2014,17 @@ contains
                                              value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
                      endif
                    endif
+
+                 ! stacked two PAMs; 2 components denote f1 and f2 layers
+                 case (3)
+                   if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+                   elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + &
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+                   endif
+
                end select
             end do
          end do

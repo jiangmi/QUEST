@@ -214,6 +214,18 @@ module DQMC_GEOM_WRAP
       !write(*,*) 'label=', label(14:25), label(26:37), label(38:49)
 
       ! decide (-1)^(dx+dy) for computing S_AF and S_CDW in plane
+      ! for Hubbard model
+      if (model==0) then
+        if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
+          S%AFphase(ic) = 1.0
+        else
+          S%AFphase(ic) = -1.0
+        endif
+        write(*,*) 'AFphase = '
+        write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
+              'r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
+      endif
+
       ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
       ! for PAM model, which only need S_AF for f-electrons
       if (model==1 .or. model==2) then
@@ -231,16 +243,21 @@ module DQMC_GEOM_WRAP
         endif
       endif
 
-      ! for Hubbard model
-      if (model==0) then
-        if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
-          S%AFphase(ic) = 1.0
+      ! for stacked two PAMs coupled with additional V12, need S_AF for two layers of f-electrons
+      if (model==3) then
+        if (abs(S%vecClass(ic,5))<0.0001 .and. ((mod(int(S%vecClass(ic,1)),4)==1 .and. mod(int(S%vecClass(ic,2)),4)==1) .or. &
+                                                (mod(int(S%vecClass(ic,1)),4)==2 .and. mod(int(S%vecClass(ic,2)),4)==2))) then
+          if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
+            S%AFphase(ic) = 1.0
+          else
+            S%AFphase(ic) = -1.0
+          endif
+          write(*,*) 'AFphase = '
+          write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
+                ' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
         else
-          S%AFphase(ic) = -1.0
+          S%AFphase(ic) = 0.0
         endif
-        write(*,*) 'AFphase = '
-        write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
-              ' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
       endif
 
       ! decide (-1)^x for computing S(pi,0) in plane

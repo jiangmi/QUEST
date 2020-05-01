@@ -990,7 +990,7 @@ contains
 
   ! --------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Sweep(Hub, nMeas0)
+  subroutine DQMC_Hub_Sweep(model, Hub, nMeas0)
     use dqmc_mpi
     !
     ! Purpose
@@ -1024,6 +1024,7 @@ contains
     !
     type(Hubbard), intent(inout),target  :: Hub ! Hubbard model
     integer, intent(in)           :: nMeas0     ! Duration of measurement
+    integer, intent(in)           :: model
 
     ! ... paremeters ...
     integer, parameter  :: DQMC_CHECK_ITER  = 10000
@@ -1126,7 +1127,7 @@ contains
              endif
 
              ! Basic measurement
-             call DQMC_Phy_Meas(Hub%n, Hub%P0, Hub%G_up%GS, Hub%G_dn%GS, Hub%U, &
+             call DQMC_Phy_Meas(model, Hub%n, Hub%P0, Hub%G_up%GS, Hub%G_dn%GS, Hub%U, &
                   Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
           endif
 
@@ -1494,7 +1495,7 @@ contains
   ! sweep for continuous HSF
   ! --------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Sweep_Cont(Hub, nMeas0)
+  subroutine DQMC_Hub_Sweep_Cont(model, Hub, nMeas0)
     !
     ! Purpose
     ! =======
@@ -1527,6 +1528,7 @@ contains
     !
     type(Hubbard), intent(inout),target  :: Hub ! Hubbard model
     integer, intent(in)           :: nMeas0     ! Duration of measurement
+    integer, intent(in)           :: model
 
     ! ... paremeters ...
     integer, parameter  :: DQMC_CHECK_ITER  = 10000
@@ -1711,7 +1713,7 @@ contains
           end if
           
           ! Basic measurement
-          call DQMC_Phy_Meas(Hub%n, Hub%P0, G_up, G_dn, &
+          call DQMC_Phy_Meas(model, Hub%n, Hub%P0, G_up, G_dn, &
                Hub%U, Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
           cnt = nMeas0
        end if
@@ -1947,7 +1949,7 @@ contains
 
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Run(Hub,Info)
+  subroutine DQMC_Hub_Run(model, Hub,Info)
     !
     ! Purpose
     ! =======
@@ -1967,6 +1969,7 @@ contains
     !   Info == 0: Silent mode
     !
     type(Hubbard), intent(inout) :: Hub    ! Hubbard model
+    integer, intent(in)          :: model
 
     ! ... local scalar ...
     integer  :: i, j, nIter, nBin, Info
@@ -1977,7 +1980,7 @@ contains
     do i = 1, Hub%nWarm
        if (Info==1 .and. mod(i,10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
        ! The second parameter means no measurement should be made.
-       call DQMC_Hub_Sweep(Hub, NO_MEAS0)
+       call DQMC_Hub_Sweep(model, Hub, NO_MEAS0)
        call DQMC_Hub_Sweep2(Hub, Hub%nTry)
     end do
  
@@ -1987,7 +1990,7 @@ contains
     nIter  = Hub%nPass/nBin
     do i = 1, nBin
        do j = 1, nIter
-          call DQMC_Hub_Sweep(Hub, Hub%nMeas)
+          call DQMC_Hub_Sweep(model, Hub, Hub%nMeas)
           call DQMC_Hub_Sweep2(Hub, Hub%nTry)
        end do
 
@@ -2003,7 +2006,7 @@ contains
   
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_FullMeas(Hub, nnb, A_up, A_dn, sgn_up, sgn_dn)
+  subroutine DQMC_Hub_FullMeas(model, Hub, nnb, A_up, A_dn, sgn_up, sgn_dn)
 
      !type(Hubbard), target, intent(inout) :: Hub
      type(Hubbard), intent(inout) :: Hub
@@ -2012,6 +2015,7 @@ contains
      real(wp), intent(in)         :: A_dn(nnb, nnb)
      real(wp), intent(in)         :: sgn_up
      real(wp), intent(in)         :: sgn_dn
+     integer, intent(in)          :: model
 
      integer :: it, i, j, nb
 
@@ -2073,7 +2077,7 @@ contains
            call DQMC_GetG_2nd_order(G_dn_local, Hub%B_dn)
         endif
 
-        call DQMC_Phy_Meas(Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
+        call DQMC_Phy_Meas(model, Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
            Hub%mu_up, Hub%mu_up, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
      enddo
 
@@ -2084,11 +2088,12 @@ contains
 
   !-------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Meas(Hub, slice)
+  subroutine DQMC_Hub_Meas(model, Hub, slice)
 
      !type(Hubbard), target, intent(inout) :: Hub
      type(Hubbard), intent(inout) :: Hub
      integer, intent(inout)       :: slice
+     integer, intent(in)          :: model
 
      type(G_fun), target :: G_up_local, G_dn_local
      real(wp), pointer   :: G_up(:,:) 
@@ -2143,7 +2148,7 @@ contains
      endif
      
      ! Basic measurement
-     call DQMC_Phy_Meas(Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
+     call DQMC_Phy_Meas(model, Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
         Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)
 
      call DQMC_Gfun_Free(G_up_local)

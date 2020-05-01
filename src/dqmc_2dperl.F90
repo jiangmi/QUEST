@@ -28,7 +28,7 @@ contains
   
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Comp_2DPerl
+  subroutine DQMC_Comp_2DPerl(model)
     !
     ! Purpose
     ! =======
@@ -41,6 +41,7 @@ contains
     ! =========
     !
     integer :: OPT     ! Input/output handle
+    integer, intent(in)           :: model
 
     ! ... Local scalar ...
     type(config)   :: cfg
@@ -73,7 +74,7 @@ contains
     do i = 1, Hub%nWarm
        if (mod(i,10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
        ! The second parameter means no measurement should be made.
-       call DQMC_Hub_Sweep(Hub, NO_MEAS0)
+       call DQMC_Hub_Sweep(model, Hub, NO_MEAS0)
        call DQMC_Hub_Sweep2(Hub, Hub%nTry)
     end do
 
@@ -85,7 +86,7 @@ contains
        do i = 1, nBin
           do j = 1, nIter
              do k = 1, Hub%tausk
-                call DQMC_Hub_Sweep(Hub, NO_MEAS0)
+                call DQMC_Hub_Sweep(model, Hub, NO_MEAS0)
                 call DQMC_Hub_Sweep2(Hub, Hub%nTry)
              enddo
 
@@ -94,7 +95,7 @@ contains
              slice = ceiling(randn(1)*Hub%L)
 
              write(*,'(a,3i6)') ' Measurement Sweep, bin, iter, slice : ', i, j, slice
-             call DQMC_Hub_Meas(Hub, slice)
+             call DQMC_Hub_Meas(model, Hub, slice)
           end do
 
           ! Accumulate results for each bin

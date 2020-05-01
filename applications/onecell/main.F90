@@ -109,7 +109,7 @@ program dqmc_ggeom
      if (qmc_sim%rank == qmc_sim%aggr_root) then
        if (mod(i, 10)==0) write(*,'(A,i6,1x,i3)')' Warmup Sweep, nwrap  : ', i, Hub%G_up%nwrap
      endif
-     call DQMC_Hub_Sweep(Hub, NO_MEAS0)   ! NO_MEAS0 = -1, parameter defined in dqmc_hubbard.F90
+     call DQMC_Hub_Sweep(model, Hub, NO_MEAS0)   ! NO_MEAS0 = -1, parameter defined in dqmc_hubbard.F90
      call DQMC_Hub_Sweep2(Hub, ntry2)     ! sweep2 is for global move update
   end do
 
@@ -128,7 +128,7 @@ program dqmc_ggeom
         do j = 1, nIter
            ! only measure once every tausk warmup steps
            do k = 1, Hub%tausk
-              call DQMC_Hub_Sweep(Hub, NO_MEAS0)
+              call DQMC_Hub_Sweep(model, Hub, NO_MEAS0)
               call DQMC_Hub_Sweep2(Hub, Hub%nTry)
            enddo
 
@@ -142,11 +142,11 @@ program dqmc_ggeom
               call DQMC_Gtau_LoadA(tau, TAU_UP, slice, Hub%G_up%sgn)
               call DQMC_Gtau_LoadA(tau, TAU_DN, slice, Hub%G_dn%sgn)
               ! Measure equal-time properties
-              call DQMC_Hub_FullMeas(Hub, tau%nnb, tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
+              call DQMC_Hub_FullMeas(model, Hub, tau%nnb, tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
               ! Measure time-dependent properties
               call DQMC_TDM_Meas(tm, tau, model)
            else if (comp_tdm == 0) then
-              call DQMC_Hub_Meas(Hub, slice)
+              call DQMC_Hub_Meas(model, Hub, slice)
            endif
 
            if (qmc_sim%rank == qmc_sim%aggr_root) then
@@ -176,12 +176,12 @@ program dqmc_ggeom
               call DQMC_Gtau_LoadA(tau, TAU_UP, slice, Hub%G_up%sgn)
               call DQMC_Gtau_LoadA(tau, TAU_DN, slice, Hub%G_dn%sgn)
               ! Measure equal-time properties. Pass gtau in case fullg was computed.
-              call DQMC_Hub_FullMeas(Hub, tau%nb, &
+              call DQMC_Hub_FullMeas(model, Hub, tau%nb, &
                  tau%A_up, tau%A_dn, tau%sgnup, tau%sgndn)
               ! Measure time-dependent properties. Reuses fullg when possible. 
               call DQMC_TDM_Meas(tm, tau, model)
            else if (comp_tdm == 0) then
-              call DQMC_Hub_Meas(Hub, slice)
+              call DQMC_Hub_Meas(model, Hub, slice)
            endif
         enddo
 

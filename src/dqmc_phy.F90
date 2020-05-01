@@ -456,7 +456,7 @@ contains
 
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy_Meas(n, P0, G_up, G_dn, U, mu_up, mu_dn, t_up, t_dn, sgnup, sgndn, S)
+  subroutine DQMC_Phy_Meas(model, n, P0, G_up, G_dn, U, mu_up, mu_dn, t_up, t_dn, sgnup, sgndn, S)
     ! Called by DQMC_Hub_FullMeas in dqmc_hubbard.F90
     !
     ! Purpose
@@ -467,6 +467,7 @@ contains
     ! Arguments
     ! =========
     !
+    integer, intent(in)          :: model
     integer, intent(in)          :: n            ! Number of sites
     type(Phy), intent(inout)     :: P0           ! Phy
     real(wp), intent(in)         :: G_up(n,n)    ! Green's function
@@ -487,7 +488,7 @@ contains
     integer, pointer  :: start(:) 
     integer, pointer  :: r(:) 
     integer, pointer  :: A(:) 
-    integer, dimension(8) :: cf
+    integer, allocatable :: cf(:)
 
     ! Auxiliary variable for chi_thermal and C_v
     real(wp) :: Cbar, Nbar, Tbar, un
@@ -774,8 +775,33 @@ contains
     !===========================!
     ! spin and pair corelations !
     !===========================!
+    ! To calculate AF structure between individual orbital-orbital contribution
     ! map site index in the unit cell to orbital c1,c2,f1,f2 of inhomo PAM
-    cf = (/ 1,3,2,4,2,4,1,3 /)
+    select case (model)
+      ! hubbard square
+      case (0)
+        allocate(cf(1))
+        cf = (/ 1 /)
+
+      ! conventional PAM square
+      case (1)
+        allocate(cf(2))
+        cf = (/ 1,2 /)
+
+      ! staggered PAM square, 8 site unit cell
+      ! 0,2,4,6 are c orbs and 1,3,5,7 are f orbs
+      ! map to orbital order: c1,c2,f1,f2
+      case (2)
+        allocate(cf(8))
+        cf = (/ 1,3,2,4,2,4,1,3 /)
+
+      ! for stacked two PAMs coupled with additional V12
+      ! unit cell from bottom to top: c1,f1,f2,c2 orbs
+      ! map to orbital order: c1,f1,f2,c2
+      case (3)
+        allocate(cf(4))
+        cf = (/ 1,2,3,4 /)
+    end select
 
     do i = 1,n
        ! For computing FM structure factor for two sublattice in plane

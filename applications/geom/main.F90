@@ -225,7 +225,7 @@ program dqmc_ggeom
   endif ! end if (qmc_sim%rank == qmc_sim%aggr_root)
 
   !Print P0 results: determine if qmc_sim%rank==0 in subroutines
-  call DQMC_Hub_OutputParam(Hub, OPT)
+  call DQMC_Hub_OutputParam(model, Hub, OPT)
   call DQMC_Phy_Print(Hub%P0, Hub%S, OPT)
   call DQMC_Phy_Print_local(Hub%P0, ofile, Hub%S, OPT1)
 

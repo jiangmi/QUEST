@@ -116,7 +116,7 @@ contains
     call DQMC_open_file(adjustl(trim(ofile))//'.out', 'unknown', OPT)
 
     ! Print computed results
-    call DQMC_Hub_Print(Hub, OPT)
+    call DQMC_Hub_Print(model, Hub, OPT)
 
     write(*,*)'Done Printing'
 

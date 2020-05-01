@@ -869,7 +869,7 @@ contains
 
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_OutputParam(Hub, OPT)
+  subroutine DQMC_Hub_OutputParam(model, Hub, OPT)
     use dqmc_mpi
     !
     ! Purpose
@@ -882,9 +882,11 @@ contains
     !
     type(Hubbard), intent(in) :: Hub     ! Hubbard model
     integer, intent(in)       :: OPT     ! output handle
+    integer, intent(in)       :: model
     
     ! ... Local ...
     character(35) :: FMT
+    character(20) :: modelname
     logical       :: lex
     integer, parameter :: slice = 0
     logical, parameter :: restore = .true.
@@ -899,6 +901,20 @@ contains
        else
           write(FMT, "('(a30,f19.6,(',I3,'(f12.6)))')") Hub%n_U-1
        end if
+
+       select case (model)
+         ! hubbard square
+         case (0)
+           modelname = "Hubbard      "
+         case (1)
+           modelname = "PAM          "
+         case (2)
+           modelname = "staggerd PAM "
+         case (3)
+           modelname = "stacked PAM  "
+       end select
+
+       write(OPT,"(a30,a20)") "                      Model : ", modelname
        write(OPT,FMT)         "                          U : ", Hub%U
        if (Hub%n_t == 1) then
           FMT = FMT_STRDBL
@@ -965,7 +981,7 @@ contains
   
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Print(Hub, OPT)
+  subroutine DQMC_Hub_Print(model, Hub, OPT)
     implicit none
     !
     ! Purpose
@@ -978,10 +994,11 @@ contains
     !
     type(Hubbard), intent(in) :: Hub     ! Hubbard model
     integer, intent(in)       :: OPT     ! output handle
-    
+    integer, intent(in)       :: model
+
     ! ... Executable ....
 
-    call DQMC_Hub_OutputParam(Hub, OPT)
+    call DQMC_Hub_OutputParam(model, Hub, OPT)
     write(OPT, FMT_DBLINE)
 
     call DQMC_Phy_Print(Hub%P0, Hub%S, OPT)

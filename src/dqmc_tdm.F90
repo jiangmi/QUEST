@@ -1779,7 +1779,7 @@ contains
     type(TDM), intent(inout) :: T1                 ! T1
 
     ! ... local scalar ...
-    integer  :: nl, idx, i, j, k, it, x1,x2,y1,y2,z1,z2
+    integer  :: nl, idx, i, j, k, it, x1,x2,y1,y2,z1,z2,correction
     integer, intent(in)  :: model
     real(wp) :: factor, fac, a
     real(wp), allocatable :: value1(:), value2(:)
@@ -1788,10 +1788,36 @@ contains
     if (.not.T1%compute) return
     idx    = T1%idx
     factor = ONE/T1%cnt
-    
-    ! /2.0 accounts for two orbitals per site
-    ! Note that this is only for PAM
-    fac = factor/(T1%properties(ISPXX)%n/2.d0)  
+
+    ! set correction factor considering No.orb per site
+    select case (model)
+      ! hubbard square
+      case (0)
+        correction = 1
+
+      ! conventional PAM square
+      case (1)
+        correction = 2
+
+      ! staggered PAM square, 8 site unit cell
+      ! 0,2,4,6 are c orbs and 1,3,5,7 are f orbs
+      ! map to orbital order: c1,c2,f1,f2
+      case (2)
+        correction = 2
+
+      ! PAM coupled with additional f-orbital
+      ! unit cell from bottom to top: c,f,f1 orbs
+      case (3)
+        correction = 3
+
+      ! for stacked two PAMs coupled with additional V12
+      ! unit cell from bottom to top: c1,f1,f2,c2 orbs
+      ! map to orbital order: c1,f1,f2,c2
+      case (4)
+        correction = 4
+    end select    
+      
+    fac = factor/(T1%properties(ISPXX)%n/correction)  
 
     allocate(value1(1:T1%properties(IGFUN)%nClass))
     allocate(value2(1:T1%properties(IGFUN)%nClass))

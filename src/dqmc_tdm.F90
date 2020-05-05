@@ -341,10 +341,16 @@ contains
         case (2)
           T1%NPd = 4
 
+        ! PAM coupled to additional f-orbital square
+        ! unit cell from bottom to top: c,f,f1 orbs
+        ! 2 components denote f1 and f2 layers
+        case (3)
+          T1%NPd = 2
+
         ! stacked two PAMs square
         ! unit cell from bottom to top: c1,f1,f2,c2 orbs
         ! 2 components denote f1 and f2 layers
-        case (3)
+        case (4)
           T1%NPd = 2
       end select
 
@@ -1168,7 +1174,7 @@ contains
                 cycle
              endif
 
-             if ((model==3) .and.                  &
+             if ((model==3 .or. model==4) .and.                  &
                  .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
                         ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ))) then
                 cycle
@@ -1606,7 +1612,7 @@ contains
                 cycle
              endif
 
-             if ((model==3) .and.                  &
+             if ((model==3 .or. model==4) .and.                  &
                  .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
                         ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ))) then
                 cycle
@@ -1927,7 +1933,7 @@ contains
                   cycle
                endif
 
-               if ((model==3) .and.                  &
+               if ((model==3 .or. model==4) .and.                  &
                    .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
                           ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ))) then
                   cycle
@@ -2015,8 +2021,18 @@ contains
                      endif
                    endif
 
-                 ! stacked two PAMs; 2 components denote f1 and f2 layers
+                 ! PAM + additional f-orbital; 2 components denote f1 and f2 layers
                  case (3)
+                   if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+                   elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + &
+                                             value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0
+                   endif
+
+                 ! stacked two PAMs; 2 components denote f1 and f2 layers
+                 case (4)
                    if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + &
                                              value1(k)*a/(4.0*T1%properties(IPAIRd)%n)*2.0

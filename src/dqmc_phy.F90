@@ -227,6 +227,7 @@ module DQMC_Phy
      real(wp), pointer :: Eloc(:, :)     ! local entangelment entropy
 
      !structure factor of all possible spin correlations between orbitals
+     integer :: Ncspin
      real(wp), allocatable :: Cspinxx(:,:,:)
      real(wp), allocatable :: Cspinzz(:,:,:)
 
@@ -253,7 +254,7 @@ contains
   ! Subroutines
   ! ==================================================================
   
-  subroutine DQMC_Phy_Init(P0, S, beta, nBin, WS, Gwrap)
+  subroutine DQMC_Phy_Init(model, P0, S, beta, nBin, WS, Gwrap)
     use DQMC_Geom_Wrap
     !
     ! Purpose
@@ -267,7 +268,8 @@ contains
     ! Arguments
     ! =========
     !
-    type(Phy), intent(inout) :: P0      ! Phy to be initialized
+    integer, intent(in)       :: model
+    type(Phy), intent(inout)  :: P0      ! Phy to be initialized
     type(Struct), intent(in)  :: S
     integer, intent(in)       :: nBin    ! No of bins
     real(wp), intent(in)      :: beta
@@ -337,10 +339,37 @@ contains
     !allocate(P0%Pair   (nClass, nBin+2))
     !allocate(P0%Mloc (nClass, nBin+2))
 
-    !dimension depends on model; for inhomogeneous PAM below
-    !in order of c1,c2,f1,f2
-    allocate(P0%Cspinxx(4, 4, nBin+2))
-    allocate(P0%Cspinzz(4, 4, nBin+2))
+    ! To calculate AF structure between individual orbital-orbital contribution
+    ! map site index in the unit cell to orbital c1,c2,f1,f2 of inhomo PAM
+    select case (model)
+      ! hubbard square
+      case (0)
+        P0%Ncspin = 1
+
+      ! conventional PAM square
+      case (1)
+        P0%Ncspin = 2
+
+      ! staggered PAM square, 8 site unit cell
+      ! 0,2,4,6 are c orbs and 1,3,5,7 are f orbs
+      ! map to orbital order: c1,c2,f1,f2
+      case (2)
+        P0%Ncspin = 4
+
+      ! PAM coupled with additional f-orbital
+      ! unit cell from bottom to top: c,f,f1 orbs
+      case (3)
+        P0%Ncspin = 3
+
+      ! for stacked two PAMs coupled with additional V12
+      ! unit cell from bottom to top: c1,f1,f2,c2 orbs
+      ! map to orbital order: c1,f1,f2,c2
+      case (4)
+        P0%Ncspin = 4
+    end select
+
+    allocate(P0%Cspinxx(P0%Ncspin, P0%Ncspin, P0%nBin+2))
+    allocate(P0%Cspinzz(P0%Ncspin, P0%Ncspin, P0%nBin+2))
 
     ! Initialize 
     P0%meas    = ZERO
@@ -357,10 +386,8 @@ contains
     P0%Mloc    = ZERO
     P0%Ndou    = ZERO    
     P0%Eloc    = ZERO
-
     P0%Cspinxx = ZERO
     P0%Cspinzz = ZERO
-
     P0%up => WS%R5
     P0%dn => WS%R6
 
@@ -795,10 +822,16 @@ contains
         allocate(cf(8))
         cf = (/ 1,3,2,4,2,4,1,3 /)
 
+      ! PAM coupled with additional f-orbital
+      ! unit cell from bottom to top: c,f,f1 orbs
+      case (3)
+        allocate(cf(3))
+        cf = (/ 1,2,3 /)
+
       ! for stacked two PAMs coupled with additional V12
       ! unit cell from bottom to top: c1,f1,f2,c2 orbs
       ! map to orbital order: c1,f1,f2,c2
-      case (3)
+      case (4)
         allocate(cf(4))
         cf = (/ 1,2,3,4 /)
     end select
@@ -1199,8 +1232,8 @@ contains
        end do
 
        ! spin structure factor between orbitals
-       do i = 1,4
-         do j = 1,4
+       do i = 1,P0%Ncspin
+         do j = 1,P0%Ncspin
            data = P0%Cspinxx(i,j,1:n)
            call DQMC_SignJackKnife(n, P0%Cspinxx(i,j,avg), P0%Cspinxx(i,j,err), &
                data, y, sgn, sum_sgn)
@@ -1268,10 +1301,10 @@ contains
           call mpi_allreduce(P0%AllProp(:,1), P0%AllProp(:,avg), n, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
 
-          do i=1,4
-            call mpi_allreduce(P0%Cspinxx(:,i,1), P0%Cspinxx(:,i,avg), 4, mpi_double, &
+          do i=1,P0%Ncspin
+            call mpi_allreduce(P0%Cspinxx(:,i,1), P0%Cspinxx(:,i,avg), P0%Ncspin, mpi_double, &
                  mpi_sum, mpi_comm_world, mpi_err)
-            call mpi_allreduce(P0%Cspinzz(:,i,1), P0%Cspinzz(:,i,avg), 4, mpi_double, &
+            call mpi_allreduce(P0%Cspinzz(:,i,1), P0%Cspinzz(:,i,avg), P0%Ncspin, mpi_double, &
                  mpi_sum, mpi_comm_world, mpi_err)
           enddo
 
@@ -1300,10 +1333,10 @@ contains
              mpi_sum, mpi_comm_world, mpi_err)
           P0%AllProp(:,err) = sqrt(P0%AllProp(:,err) * dble(nproc-1)/dble(nproc))
 
-          do i=1,4
-            call mpi_allreduce((P0%Cspinxx(:,i,1)-P0%Cspinxx(:,i,avg))**2, P0%Cspinxx(:,i,err), 4, &
+          do i=1,P0%Ncspin
+            call mpi_allreduce((P0%Cspinxx(:,i,1)-P0%Cspinxx(:,i,avg))**2, P0%Cspinxx(:,i,err), P0%Ncspin, &
                mpi_double, mpi_sum, mpi_comm_world, mpi_err)
-            call mpi_allreduce((P0%Cspinzz(:,i,1)-P0%Cspinzz(:,i,avg))**2, P0%Cspinzz(:,i,err), 4, &
+            call mpi_allreduce((P0%Cspinzz(:,i,1)-P0%Cspinzz(:,i,avg))**2, P0%Cspinzz(:,i,err), P0%Ncspin, &
                mpi_double, mpi_sum, mpi_comm_world, mpi_err)
           enddo
           P0%Cspinxx(:,:,err) = sqrt(P0%Cspinxx(:,:,err) * dble(nproc-1)/dble(nproc))
@@ -1475,8 +1508,8 @@ contains
 
     write(OPT,'(a40)') 'Spin structure factors between orbitals:'
     write(OPT,'(a)') 'orb1   orb2   Sxx   err   Szz   err'
-    do i = 1,4
-      do j = 1,4
+    do i = 1,P0%Ncspin
+      do j = 1,P0%Ncspin
         write(OPT,'(2(i4),4(e16.8))') i,j, &
               P0%Cspinxx(i,j,avg), P0%Cspinxx(i,j,err), &
               P0%Cspinzz(i,j,avg), P0%Cspinzz(i,j,err)

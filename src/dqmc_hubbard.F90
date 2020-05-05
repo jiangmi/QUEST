@@ -152,7 +152,7 @@ contains
 
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Config(Hub, cfg, Gwrap)
+  subroutine DQMC_Hub_Config(model, Hub, cfg, Gwrap)
     use dqmc_mpi
     use DQMC_Geom_Wrap
     !
@@ -173,6 +173,7 @@ contains
     type(config), intent(inout)    :: cfg
     type(Hubbard), intent(inout)   :: Hub                   ! Hubbard model
     type(GeomWrap), intent(in)     :: Gwrap
+    integer, intent(in)   :: model
 
     ! ... Local Variables ...
     integer :: n_t, n_U, n_mu, L, HSF, nWarm, nPass
@@ -267,7 +268,7 @@ contains
     nmeas = 1; if (tdm > 0) nmeas = 0
     
     ! call the function
-    call DQMC_Hub_Init(Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
+    call DQMC_Hub_Init(model, Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
        HSF, nWarm, nPass, nMeas, nTry, nTry2, nBin, ntausk, seed, nOrth, nWrap, fixw, &
        errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype, Gwrap)
 
@@ -278,7 +279,7 @@ contains
 
   !---------------------------------------------------------------------!
 
-  subroutine DQMC_Hub_Init(Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
+  subroutine DQMC_Hub_Init(model, Hub, U, t_up, t_dn, mu_up, mu_dn, L, n_t, n_U, n_mu, dtau, &
        HSF_IPT, nWarm, nPass, nMeas, nTry, nTry2, nBin, ntausk, seed, nOrth, nWrap, fixw, &
        errrate, difflim, gamma, accept, reject, delta1, delta2, ssxx, HSFtype, Gwrap)
     use DQMC_Geom_Wrap
@@ -310,6 +311,7 @@ contains
 #   endif
     type(Hubbard),   intent(inout)  :: Hub             ! Hubbard model
     type(GeomWrap),  intent(in)     :: Gwrap
+    integer, intent(in)   :: model
     real(wp), intent(in)  :: U(:), t_up(:), t_dn(:) 
     real(wp), intent(in)  :: mu_up(:), mu_dn(:), dtau  ! Parameters
     integer,  intent(in)  :: L, n_t, n_U, n_mu
@@ -581,7 +583,7 @@ contains
 
     temp = Hub%dtau * Hub%L
 
-    call DQMC_Phy_Init(Hub%P0, Hub%S, temp, nBin, Hub%WS, Gwrap)
+    call DQMC_Phy_Init(model, Hub%P0, Hub%S, temp, nBin, Hub%WS, Gwrap)
 
     ! Initialize simulation range
     Hub%n_start = 1
@@ -905,13 +907,15 @@ contains
        select case (model)
          ! hubbard square
          case (0)
-           modelname = "Hubbard      "
+           modelname = "Hubbard       "
          case (1)
-           modelname = "PAM          "
+           modelname = "PAM           "
          case (2)
-           modelname = "staggerd PAM "
+           modelname = "staggerd PAM  "
          case (3)
-           modelname = "stacked PAM  "
+           modelname = "PAM + local_f "
+         case (4)
+           modelname = "stacked 2 PAMs"
        end select
 
        write(OPT,"(a30,a20)") "                      Model : ", modelname

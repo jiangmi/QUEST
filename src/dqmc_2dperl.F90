@@ -67,7 +67,7 @@ contains
     call CFG_Get(cfg, "ofile", ofile)   ! output file name
 
     ! Initialize the Hubbard data structure
-    call DQMC_Hub_Config(Hub, cfg, Gwrap)
+    call DQMC_Hub_Config(model, Hub, cfg, Gwrap)
 
     ! Execution MC loop
     ! Warmup sweep

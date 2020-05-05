@@ -80,7 +80,7 @@ program dqmc_ggeom
   endif
 
   ! Initialize the rest data (including seed for MPI processes), dqmc_hubbard.F90
-  call DQMC_Hub_Config(Hub, cfg, Gwrap)
+  call DQMC_Hub_Config(model, Hub, cfg, Gwrap)
 
   ! Initialize time dependent properties if comp_tdm > 0
   if (comp_tdm > 0) then

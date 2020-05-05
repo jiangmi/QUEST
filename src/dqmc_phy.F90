@@ -590,8 +590,8 @@ contains
        !=====================================================================!
        ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
        !=====================================================================!
-       P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + & !P0%up(i) * P0%dn(i) * U(S%Map(i))
-            (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
+       P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + & 
+                         (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
     end do
 
     P0%meas(P0_NUP, tmp) = sum(P0%up)
@@ -625,6 +625,7 @@ contains
           P0%meas(P0_KE, tmp)    =  P0%meas(P0_KE, tmp)    + var3
 
           P0%meas(P0_Ehop, tmp) = P0%meas(P0_Ehop, tmp) + var3
+          P0%meas(P0_ENERGY, tmp) = P0%meas(P0_ENERGY, tmp) + var3
        end do
 
        !Include -mu*(nup+ndn)
@@ -640,7 +641,7 @@ contains
        ! Total energy = kinetic energy + potential energy
        !=================================================================!
        P0%meas(P0_ENERGY, tmp) = P0%meas(P0_ENERGY, tmp) - var3 &
-                                 + P0%up(i) * P0%dn(i) * U(S%Map(i))
+                   + (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
     end do
 
     !=================================================================!

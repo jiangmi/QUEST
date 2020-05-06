@@ -507,7 +507,7 @@ contains
 
     ! ... local scalar ...
 
-    integer  :: i, j, k, ph                      ! Loop iterator
+    integer  :: i, j, k, ph, correction          ! Loop iterator
     integer  :: tmp, idx, m, o1, o2              ! Helper variables
     real(wp) :: sgn                        
     real(wp) :: var1, var2, var3, var4      
@@ -591,7 +591,7 @@ contains
        ! Potential energy (P0%up(i)-0.5d0) * (P0%dn(i)-0.5d0) * U(S%Map(i))
        !=====================================================================!
        P0%meas(P0_PE, tmp) = P0%meas(P0_PE, tmp) + & 
-                         (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
+                         P0%up(i) * P0%dn(i) * U(S%Map(i))
     end do
 
     P0%meas(P0_NUP, tmp) = sum(P0%up)
@@ -641,7 +641,7 @@ contains
        ! Total energy = kinetic energy + potential energy
        !=================================================================!
        P0%meas(P0_ENERGY, tmp) = P0%meas(P0_ENERGY, tmp) - var3 &
-                   + (P0%up(i) - 0.5d0) * (P0%dn(i) - 0.5d0) * U(S%Map(i))
+                   + P0%up(i) * P0%dn(i) * U(S%Map(i))
     end do
 
     !=================================================================!
@@ -808,11 +808,13 @@ contains
     select case (model)
       ! hubbard square
       case (0)
+        correction = 1
         allocate(cf(1))
         cf = (/ 1 /)
 
       ! conventional PAM square
       case (1)
+        correction = 2
         allocate(cf(2))
         cf = (/ 1,2 /)
 
@@ -820,12 +822,14 @@ contains
       ! 0,2,4,6 are c orbs and 1,3,5,7 are f orbs
       ! map to orbital order: c1,c2,f1,f2
       case (2)
+        correction = 2
         allocate(cf(8))
         cf = (/ 1,3,2,4,2,4,1,3 /)
 
       ! PAM coupled with additional f-orbital
       ! unit cell from bottom to top: c,f,f1 orbs
       case (3)
+        correction = 3
         allocate(cf(3))
         cf = (/ 1,2,3 /)
 
@@ -833,6 +837,7 @@ contains
       ! unit cell from bottom to top: c1,f1,f2,c2 orbs
       ! map to orbital order: c1,f1,f2,c2
       case (4)
+        correction = 4
         allocate(cf(4))
         cf = (/ 1,2,3,4 /)
     end select
@@ -973,8 +978,8 @@ contains
     
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n
-    P0%Cspinxx(:,:,tmp) = P0%Cspinxx(:,:,tmp) / n
-    P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / n
+    P0%Cspinxx(:,:,tmp) = P0%Cspinxx(:,:,tmp) / (n/correction)
+    P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / (n/correction)
     do i = 1, P0%nClass
        P0%G_fun (i, tmp) = P0%G_fun (i, tmp) / S%F(i) * HALF
        P0%Gf_up (i, tmp) = P0%Gf_up (i, tmp) / S%F(i)

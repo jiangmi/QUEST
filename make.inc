@@ -38,8 +38,8 @@ CXXLIB = -lstdc++ #-lrt
 
 # Path to Intel MKL library
 # -------------------------
-#MKLPATH = $(MKLROOT)/lib/intel64
-MKLPATH = /opt/intel/mkl/lib/intel64
+MKLPATH = $(MKLROOT)/lib/intel64
+#MKLPATH = /opt/intel/mkl/lib/intel64
 
 LAPACKLIB = -L$(MKLPATH) -mkl:sequential -lpthread 
 

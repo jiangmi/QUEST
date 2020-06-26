@@ -123,9 +123,10 @@ module DQMC_TDM
      integer  :: NkFT
      integer  :: norb      ! number of orbitals in unit cell
      integer  :: norb2     ! norb^2
+     integer  :: nchi      ! number of chi's 
 
      ! Instead of using FT transformation, 
-     ! chi_q(tau,2,norb2+1,T1%err) and chi_q_iw0(2,orb,norb2+1,T1%err)
+     ! chi_q(tau,2,norb2+1,T1%err) and chi_q_iw0(2,norb2+1,T1%err)
      ! for 2 special K=(0,0) and (pi,pi)
      ! Note norb2=norb^2 and norb2+1 stores the total chi for two K's
      real(wp), pointer :: chiqxx(:,:,:,:)    
@@ -235,7 +236,7 @@ contains
     type(GeomWrap), intent(in)  :: Gwrap
 
     ! ... local variables ...
-    integer     :: i, j, nclass, norb2
+    integer     :: i, j, nclass
 
     ! ... Executable ...
 
@@ -260,6 +261,14 @@ contains
     T1%norb  = Gwrap%lattice%natom     
     T1%norb2 = T1%norb*T1%norb
     T1%NkFT = int(sqrt(real(S%nSite/T1%norb)))/2 
+
+    ! # of chi's: inter-orb chi, total chi, then
+    ! for two stacked PAM; add chi1 and chi2 for two f's
+    if (model/=4) then
+      T1%nchi = T1%norb2+1
+    else
+      T1%nchi = T1%norb2+3
+    endif   
 
     allocate(T1%cartpos(3, 0:S%nSite-1))
     T1%cartpos = Gwrap%lattice%cartpos
@@ -296,8 +305,8 @@ contains
       T1%spinxxAvg = 0.0_wp
     endif
     if (T1%flagsFT(ISPXX) == 1) then
-      allocate(T1%chiqxx(0:T1%L-1, 2, T1%norb2+1, T1%err))
-      allocate(T1%chiqxx_iw0(2, T1%norb2+1, T1%err))
+      allocate(T1%chiqxx(0:T1%L-1, 2, T1%nchi, T1%err))
+      allocate(T1%chiqxx_iw0(2, T1%nchi, T1%err))
 
       ! for two sublattices individually
       allocate(T1%chiqxx_sub1(0:T1%L-1, T1%err))
@@ -312,8 +321,8 @@ contains
       T1%spinzzAvg = 0.0_wp
     endif
     if (T1%flagsFT(ISPZZ) == 1) then
-      allocate(T1%chiqzz(0:T1%L-1, 2, T1%norb2+1, T1%err))
-      allocate(T1%chiqzz_iw0(2, T1%norb2+1, T1%err))
+      allocate(T1%chiqzz(0:T1%L-1, 2, T1%nchi, T1%err))
+      allocate(T1%chiqzz_iw0(2, T1%nchi, T1%err))
 
       ! for two sublattices individually
       allocate(T1%chiqzz_sub1(0:T1%L-1, T1%err))
@@ -815,7 +824,7 @@ contains
 
       ! compute chi(iw=0) static chi using Composite Simpson's rule
       do i = 1,2
-        do j = 1,T1%norb2+1
+        do j = 1,T1%nchi
           chiv = 0.0
           call convert_to_iw0_real(T1%chiqxx(0:L-1,i,j,T1%tmp), chiv, L, T1%dtau)
           T1%chiqxx_iw0(i,j,T1%idx) = T1%chiqxx_iw0(i,j,T1%idx) + factor*chiv
@@ -846,7 +855,7 @@ contains
 
       ! compute chi(iw=0) static chi using Composite Simpson's rule
       do i = 1,2
-        do j = 1,T1%norb2+1
+        do j = 1,T1%nchi
           chiv = 0.0
           call convert_to_iw0_real(T1%chiqzz(0:L-1,i,j,T1%tmp), chiv, L, T1%dtau)
           T1%chiqzz_iw0(i,j,T1%idx) = T1%chiqzz_iw0(i,j,T1%idx) + factor*chiv
@@ -1039,17 +1048,51 @@ contains
                T1%chiqxx(dt1,1,o2+1,T1%tmp) = T1%chiqxx(dt1,1,o2+1,T1%tmp) - val1
                T1%chiqxx(dt2,1,o2+1,T1%tmp) = T1%chiqxx(dt2,1,o2+1,T1%tmp) - val2
 
+               ! separate total chi for two f's in stacked two PAM model
+               if (model==4) then
+                 if (int(z1)<2 .and. int(z2)<2) then
+                   T1%chiqxx(dt1,1,o2+2,T1%tmp) = T1%chiqxx(dt1,1,o2+2,T1%tmp) - val1
+                   T1%chiqxx(dt2,1,o2+2,T1%tmp) = T1%chiqxx(dt2,1,o2+2,T1%tmp) - val2
+                 elseif (int(z1)>1 .and. int(z2)>1) then
+                   T1%chiqxx(dt1,1,o2+3,T1%tmp) = T1%chiqxx(dt1,1,o2+3,T1%tmp) - val1
+                   T1%chiqxx(dt2,1,o2+3,T1%tmp) = T1%chiqxx(dt2,1,o2+3,T1%tmp) - val2
+                 endif
+               endif
+
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) - val1
                  T1%chiqxx(dt2,2,idx,T1%tmp) = T1%chiqxx(dt2,2,idx,T1%tmp) - val2
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) - val1
                  T1%chiqxx(dt2,2,o2+1,T1%tmp) = T1%chiqxx(dt2,2,o2+1,T1%tmp) - val2
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) - val1
+                     T1%chiqxx(dt2,2,o2+2,T1%tmp) = T1%chiqxx(dt2,2,o2+2,T1%tmp) - val2
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) - val1
+                     T1%chiqxx(dt2,2,o2+3,T1%tmp) = T1%chiqxx(dt2,2,o2+3,T1%tmp) - val2
+                   endif
+                 endif
+
                else
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) + val1
                  T1%chiqxx(dt2,2,idx,T1%tmp) = T1%chiqxx(dt2,2,idx,T1%tmp) + val2
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) + val1
                  T1%chiqxx(dt2,2,o2+1,T1%tmp) = T1%chiqxx(dt2,2,o2+1,T1%tmp) + val2
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
+                     T1%chiqxx(dt2,2,o2+2,T1%tmp) = T1%chiqxx(dt2,2,o2+2,T1%tmp) + val2
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) + val1
+                     T1%chiqxx(dt2,2,o2+3,T1%tmp) = T1%chiqxx(dt2,2,o2+3,T1%tmp) + val2
+                   endif
+                 endif
                endif
 
                if (abs(z1-z2)<1.e-4) then
@@ -1112,17 +1155,51 @@ contains
                T1%chiqzz(dt1,1,o2+1,T1%tmp) = T1%chiqzz(dt1,1,o2+1,T1%tmp) - val1
                T1%chiqzz(dt2,1,o2+1,T1%tmp) = T1%chiqzz(dt2,1,o2+1,T1%tmp) - val2
 
+               ! separate total chi for two f's in stacked two PAM model
+               if (model==4) then
+                 if (int(z1)<2 .and. int(z2)<2) then
+                   T1%chiqzz(dt1,1,o2+2,T1%tmp) = T1%chiqzz(dt1,1,o2+2,T1%tmp) - val1
+                   T1%chiqzz(dt2,1,o2+2,T1%tmp) = T1%chiqzz(dt2,1,o2+2,T1%tmp) - val2
+                 elseif (int(z1)>1 .and. int(z2)>1) then
+                   T1%chiqzz(dt1,1,o2+3,T1%tmp) = T1%chiqzz(dt1,1,o2+3,T1%tmp) - val1
+                   T1%chiqzz(dt2,1,o2+3,T1%tmp) = T1%chiqzz(dt2,1,o2+3,T1%tmp) - val2
+                 endif
+               endif
+
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) - val1
                  T1%chiqzz(dt2,2,idx,T1%tmp) = T1%chiqzz(dt2,2,idx,T1%tmp) - val2
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) - val1
                  T1%chiqzz(dt2,2,o2+1,T1%tmp) = T1%chiqzz(dt2,2,o2+1,T1%tmp) - val2
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) - val1
+                     T1%chiqzz(dt2,2,o2+2,T1%tmp) = T1%chiqzz(dt2,2,o2+2,T1%tmp) - val2
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) - val1
+                     T1%chiqzz(dt2,2,o2+3,T1%tmp) = T1%chiqzz(dt2,2,o2+3,T1%tmp) - val2
+                   endif
+                 endif
+
                else
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) + val1
                  T1%chiqzz(dt2,2,idx,T1%tmp) = T1%chiqzz(dt2,2,idx,T1%tmp) + val2
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) + val1
                  T1%chiqzz(dt2,2,o2+1,T1%tmp) = T1%chiqzz(dt2,2,o2+1,T1%tmp) + val2
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
+                     T1%chiqzz(dt2,2,o2+2,T1%tmp) = T1%chiqzz(dt2,2,o2+2,T1%tmp) + val2
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) + val1
+                     T1%chiqzz(dt2,2,o2+3,T1%tmp) = T1%chiqzz(dt2,2,o2+3,T1%tmp) + val2
+                   endif
+                 endif
                endif
 
                if (abs(z1-z2)<1.e-4) then
@@ -1531,18 +1608,45 @@ contains
                ! 1) sum both inter- and intra-site even for multi-site unit cell
                ! q=(0,0)
                T1%chiqxx(dt1,1,idx,T1%tmp) = T1%chiqxx(dt1,1,idx,T1%tmp) - val1
-               T1%chiqxx(dt2,1,idx,T1%tmp) = T1%chiqxx(dt2,1,idx,T1%tmp) - val2
 
                ! total chi
                T1%chiqxx(dt1,1,o2+1,T1%tmp) = T1%chiqxx(dt1,1,o2+1,T1%tmp) - val1
+
+               ! separate total chi for two f's in stacked two PAM model
+               if (model==4) then
+                 if (int(z1)<2 .and. int(z2)<2) then
+                   T1%chiqxx(dt1,1,o2+2,T1%tmp) = T1%chiqxx(dt1,1,o2+2,T1%tmp) - val1
+                 elseif (int(z1)>1 .and. int(z2)>1) then
+                   T1%chiqxx(dt1,1,o2+3,T1%tmp) = T1%chiqxx(dt1,1,o2+3,T1%tmp) - val1
+                 endif
+               endif
 
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) - val1
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) - val1
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) - val1
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) - val1
+                   endif
+                 endif
+
                else
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) + val1
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) + val1
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) + val1
+                   endif
+                 endif
                endif
 
                if (abs(z1-z2)<1.e-4) then
@@ -1594,18 +1698,45 @@ contains
                ! 1) sum both inter- and intra-site even for multi-site unit cell
                ! q=(0,0)
                T1%chiqzz(dt1,1,idx,T1%tmp) = T1%chiqzz(dt1,1,idx,T1%tmp) - val1
-               T1%chiqzz(dt2,1,idx,T1%tmp) = T1%chiqzz(dt2,1,idx,T1%tmp) - val2
 
                ! total chi
                T1%chiqzz(dt1,1,o2+1,T1%tmp) = T1%chiqzz(dt1,1,o2+1,T1%tmp) - val1
+
+               ! separate total chi for two f's in stacked two PAM model
+               if (model==4) then
+                 if (int(z1)<2 .and. int(z2)<2) then
+                   T1%chiqzz(dt1,1,o2+2,T1%tmp) = T1%chiqzz(dt1,1,o2+2,T1%tmp) - val1
+                 elseif (int(z1)>1 .and. int(z2)>1) then
+                   T1%chiqzz(dt1,1,o2+3,T1%tmp) = T1%chiqzz(dt1,1,o2+3,T1%tmp) - val1
+                 endif
+               endif
 
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) - val1
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) - val1
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) - val1
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) - val1
+                   endif
+                 endif
+
                else
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) + val1
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) + val1
+
+                 ! separate total chi for two f's in stacked two PAM model
+                 if (model==4) then
+                   if (int(z1)<2 .and. int(z2)<2) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
+                   elseif (int(z1)>1 .and. int(z2)>1) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) + val1
+                   endif
+                 endif
                endif
                
                if (abs(z1-z2)<1.e-4) then
@@ -2217,7 +2348,7 @@ contains
        if (T1%flagsFT(ISPXX) == 1) then
          do k = 0,T1%L-1
            do i = 1, 2
-             do j = 1, T1%norb2+1
+             do j = 1, T1%nchi
                data =  T1%chiqxx(k,i,j,1:n)
                call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
                T1%chiqxx(k,i,j,avg) = average
@@ -2227,7 +2358,7 @@ contains
          enddo
 
          do i = 1, 2
-           do j = 1, T1%norb2+1
+           do j = 1, T1%nchi
              data =  T1%chiqxx_iw0(i,j,1:n)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
              T1%chiqxx_iw0(i,j,avg) = average
@@ -2272,7 +2403,7 @@ contains
        if (T1%flagsFT(ISPZZ) == 1) then
          do k = 0,T1%L-1
            do i = 1, 2
-             do j = 1, T1%norb2+1
+             do j = 1, T1%nchi
                data =  T1%chiqzz(k,i,j,1:n)
                call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
                T1%chiqzz(k,i,j,avg) = average
@@ -2282,7 +2413,7 @@ contains
          enddo
 
          do i = 1, 2
-           do j = 1, T1%norb2+1
+           do j = 1, T1%nchi
              data =  T1%chiqzz_iw0(i,j,1:n)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
              T1%chiqzz_iw0(i,j,avg) = average
@@ -2455,7 +2586,7 @@ contains
           if (T1%flagsFT(ISPXX) == 1) then
             n = T1%L
             do k = 1,2
-              do j = 1,T1%norb2+1
+              do j = 1,T1%nchi
                 bins => T1%chiqxx(:,k,j,1)
                 aves => T1%chiqxx(:,k,j,avg)             
                 call mpi_allreduce(bins, aves, n, mpi_double, &
@@ -2474,7 +2605,7 @@ contains
             call mpi_allreduce(bins, aves, n, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
 
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               bins => T1%chiqxx_iw0(1:2,j,1)
               aves => T1%chiqxx_iw0(1:2,j,avg)
               call mpi_allreduce(bins, aves, 2, mpi_double, &
@@ -2498,7 +2629,7 @@ contains
           if (T1%flagsFT(ISPZZ) == 1) then
             n = T1%L
             do k = 1,2
-              do j = 1,T1%norb2+1
+              do j = 1,T1%nchi
                 bins => T1%chiqzz(:,k,j,1)
                 aves => T1%chiqzz(:,k,j,avg)
                 call mpi_allreduce(bins, aves, n, mpi_double, &
@@ -2517,7 +2648,7 @@ contains
             call mpi_allreduce(bins, aves, n, mpi_double, &
                mpi_sum, mpi_comm_world, mpi_err)
 
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               bins => T1%chiqzz_iw0(1:2,j,1)
               aves => T1%chiqzz_iw0(1:2,j,avg)
               call mpi_allreduce(bins, aves, 2, mpi_double, &
@@ -2611,7 +2742,7 @@ contains
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               binptr => T1%chiqxx(:,:,j,1)
               aveptr => T1%chiqxx(:,:,j,avg) 
               binptr = (aveptr - binptr) / dble(nproc - 1)
@@ -2647,7 +2778,7 @@ contains
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               binptr => T1%chiqzz(:,:,j,1)
               aveptr => T1%chiqzz(:,:,j,avg)
               binptr = (aveptr - binptr) / dble(nproc - 1)
@@ -2750,7 +2881,7 @@ contains
           endif
 
           if (T1%flagsFT(ISPXX) == 1) then
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               aveptr => T1%chiqxx(:,:,j,avg)
               aveptr =  aveptr / T1%sgn(avg)
 
@@ -2773,7 +2904,7 @@ contains
           endif
 
           if (T1%flagsFT(ISPZZ) == 1) then
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               aveptr => T1%chiqzz(:,:,j,avg)
               aveptr =  aveptr / T1%sgn(avg)
 
@@ -2857,7 +2988,7 @@ contains
 
           if (T1%flagsFT(ISPXX) == 1) then
             n = 2*T1%L
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               binptr => T1%chiqxx(:,:,j,1)
               aveptr => T1%chiqxx(:,:,j,avg)
               errptr => T1%chiqxx(:,:,j,err)
@@ -2910,7 +3041,7 @@ contains
 
           if (T1%flagsFT(ISPZZ) == 1) then
             n = 2*T1%L
-            do j = 1,T1%norb2+1
+            do j = 1,T1%nchi
               binptr => T1%chiqzz(:,:,j,1)
               aveptr => T1%chiqzz(:,:,j,avg)
               errptr => T1%chiqzz(:,:,j,err)
@@ -3151,6 +3282,15 @@ contains
              T1%chiqxx_iw0(1,T1%norb2+1,T1%avg), T1%chiqxx_iw0(1,T1%norb2+1,T1%err), &
              T1%chiqzz_iw0(1,T1%norb2+1,T1%avg), T1%chiqzz_iw0(1,T1%norb2+1,T1%err)
 
+      ! for two stacked PAMs, there are separate total chi for two f's
+      if (T1%nchi>T1%norb2+1) then
+        do b1 = T1%norb2+2,T1%nchi
+          write(OPT1,'(2(i4),4(e16.8))') 100, 100, &
+             T1%chiqxx_iw0(1,b1,T1%avg), T1%chiqxx_iw0(1,b1,T1%err), &
+             T1%chiqzz_iw0(1,b1,T1%avg), T1%chiqzz_iw0(1,b1,T1%err)
+        enddo
+      endif
+
       ! q=(pi,pi)
       do b1 = 1, T1%norb
         do b2 = 1, T1%norb
@@ -3166,6 +3306,15 @@ contains
              T1%chiqxx_iw0(2,T1%norb2+1,T1%avg), T1%chiqxx_iw0(2,T1%norb2+1,T1%err), &
              T1%chiqzz_iw0(2,T1%norb2+1,T1%avg), T1%chiqzz_iw0(2,T1%norb2+1,T1%err)
 
+      ! for two stacked PAMs, there are separate total chi for two f's
+      if (T1%nchi>T1%norb2+1) then
+        do b1 = T1%norb2+2,T1%nchi
+          write(OPT1,'(2(i4),4(e16.8))') 100, 100, &
+             T1%chiqxx_iw0(2,b1,T1%avg), T1%chiqxx_iw0(2,b1,T1%err), &
+             T1%chiqzz_iw0(2,b1,T1%avg), T1%chiqzz_iw0(2,b1,T1%err)
+        enddo
+      endif
+
       write(OPT1,"(a)") &
              "chi_xx_sub1(q=0,iw=0)  err    chi_zz_sub1(q=0,iw=0)  err  &
               chi_xx_sub2(q=0,iw=0)  err    chi_zz_sub2(q=0,iw=0)  err  "
@@ -3176,6 +3325,9 @@ contains
              T1%chiqxx_iw0_sub2(T1%avg), T1%chiqxx_iw0_sub2(T1%err), &
              T1%chiqzz_iw0_sub2(T1%avg), T1%chiqzz_iw0_sub2(T1%err)
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Below for chi(tau)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !write(OPT1,"(a)") "==================================================================================="
       !write(OPT1,"(a)") "   b   b   tau         chi_xx(q=0)           err       chi_zz(q=0)             err"
       do b1 = 1, T1%norb
@@ -3192,6 +3344,17 @@ contains
           enddo
         enddo
       enddo
+
+      ! for two stacked PAMs, there are separate total chi for two f's
+      if (T1%nchi>T1%norb2+1) then
+        do idx = T1%norb2+2,T1%nchi
+            write(OPT2,'(f10.5,8(f16.8))') t*T1%dtau, &
+               T1%chiqxx(t,1,idx,T1%avg), T1%chiqxx(t,1,idx,T1%err), &
+               T1%chiqzz(t,1,idx,T1%avg), T1%chiqzz(t,1,idx,T1%err), &
+               T1%chiqxx(t,2,idx,T1%avg), T1%chiqxx(t,2,idx,T1%err), &
+               T1%chiqzz(t,2,idx,T1%avg), T1%chiqzz(t,2,idx,T1%err)
+        enddo
+      endif
 
       ! total chi(tau)
       write(OPT2,'(a)') "=============Total chi(tau)================"

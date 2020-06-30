@@ -227,7 +227,7 @@ program dqmc_ggeom
   !Print P0 results: determine if qmc_sim%rank==0 in subroutines
   call DQMC_Hub_OutputParam(model, Hub, OPT)
   call DQMC_Phy_Print(Hub%P0, Hub%S, OPT)
-  call DQMC_Phy_Print_local(Hub%P0, ofile, Hub%S, OPT1)
+  call DQMC_Phy_Print_local(model, Hub%P0, ofile, Hub%S, OPT1)
 
   !Print tdm and G(tau) local: determine if qmc_sim%rank==0 in subroutines
   if (comp_tdm > 0) then

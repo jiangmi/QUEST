@@ -231,6 +231,20 @@ module DQMC_Phy
      real(wp), allocatable :: Cspinxx(:,:,:)
      real(wp), allocatable :: Cspinzz(:,:,:)
 
+     !structure factor of all possible charge correlations between orbitals
+     integer :: Nccharge
+     real(wp), allocatable :: Ccharge(:,:,:)
+
+     !for charge structure factor of c and f of staggered PAM
+     ! nnprod = (nc+nf)*(nc+nf), n_c*n_c, n_f*n_f
+     ! nnsum  = (nc+nf)+(nc+nf), n_c+n_c, n_f+n_f
+     ! S_cdw  = <(n-<n>)*(n-<n>)> so that need nnsum
+     real(wp), allocatable :: Snnprod(:,:)
+     real(wp), allocatable :: Snnsum(:,:)
+
+     !For staggered PAM, add measurements of 
+     !Scdw_c = sum AF
+
      ! working space
      real(wp), pointer :: up(:) 
      real(wp), pointer :: dn(:) 
@@ -345,31 +359,39 @@ contains
       ! hubbard square
       case (0)
         P0%Ncspin = 1
+        P0%Nccharge = 1
 
       ! conventional PAM square
       case (1)
         P0%Ncspin = 2
+        P0%Nccharge = 2
 
       ! staggered PAM square, 8 site unit cell
       ! 0,2,4,6 are c orbs and 1,3,5,7 are f orbs
       ! map to orbital order: c1,c2,f1,f2
       case (2)
         P0%Ncspin = 4
+        P0%Nccharge = 4
 
       ! PAM coupled with additional f-orbital
       ! unit cell from bottom to top: c,f,f1 orbs
       case (3)
         P0%Ncspin = 3
+        P0%Nccharge = 3
 
       ! for stacked two PAMs coupled with additional V12
       ! unit cell from bottom to top: c1,f1,f2,c2 orbs
       ! map to orbital order: c1,f1,f2,c2
       case (4)
         P0%Ncspin = 4
+        P0%Nccharge = 4
     end select
 
     allocate(P0%Cspinxx(P0%Ncspin, P0%Ncspin, P0%nBin+2))
     allocate(P0%Cspinzz(P0%Ncspin, P0%Ncspin, P0%nBin+2))
+    allocate(P0%Ccharge(P0%Nccharge, P0%Nccharge, P0%nBin+2))
+    allocate(P0%Snnprod(3, P0%nBin+2))
+    allocate(P0%Snnsum (3, P0%nBin+2))
 
     ! Initialize 
     P0%meas    = ZERO
@@ -388,6 +410,9 @@ contains
     P0%Eloc    = ZERO
     P0%Cspinxx = ZERO
     P0%Cspinzz = ZERO
+    P0%Ccharge = ZERO
+    P0%Snnprod = ZERO
+    P0%Snnsum  = ZERO
     P0%up => WS%R5
     P0%dn => WS%R6
 
@@ -472,6 +497,9 @@ contains
 
     deallocate(P0%Cspinxx)
     deallocate(P0%Cspinzz)
+    deallocate(P0%Ccharge)
+    deallocate(P0%Snnprod)
+    deallocate(P0%Snnsum)
     deallocate(P0%rt)
     deallocate(P0%lf)
     deallocate(P0%top)
@@ -510,7 +538,7 @@ contains
     integer  :: i, j, k, ph, correction          ! Loop iterator
     integer  :: tmp, idx, m, o1, o2              ! Helper variables
     real(wp) :: sgn                        
-    real(wp) :: var1, var2, var3, var4      
+    real(wp) :: var1, var2, var3, var4, var5     
     real(wp) :: x1,y1,z1,x2,y2,z2
     integer, pointer  :: start(:) 
     integer, pointer  :: r(:) 
@@ -545,6 +573,9 @@ contains
 
     P0%Cspinxx(:,:,tmp) = ZERO
     P0%Cspinzz(:,:,tmp) = ZERO
+    P0%Ccharge(:,:,tmp) = ZERO
+    P0%Snnprod(:,tmp)   = ZERO
+    P0%Snnsum (:,tmp)   = ZERO
 
     ! Compute the site density for spin up and spin down
     do i = 1, n
@@ -855,15 +886,15 @@ contains
           var2 = -TWO * G_up(i,j) * G_dn(j,i)
           var3 = G_up(i,i) * G_up(j,j) + G_dn(i,i) * G_dn(j,j) - &
                  TWO * G_up(i,i) * G_dn(j,j) - var1
-          
+          var4 = P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1         
+ 
           ! k is the index
           k = S%D(i,j)
           ph = S%gf_phase(i,j)
           P0%G_fun(k, tmp) = P0%G_fun(k, tmp) + ph*(G_up(i,j) + G_dn(i,j))
           P0%Gf_up(k, tmp) = P0%Gf_up(k, tmp) + ph*G_up(i,j) 
           P0%Gf_dn(k, tmp) = P0%Gf_dn(k, tmp) + ph*G_dn(i,j)
-          P0%Den0(k, tmp)  = P0%Den0(k, tmp) + &
-               P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1
+          P0%Den0(k, tmp)  = P0%Den0(k, tmp) + var4
           P0%Den1(k, tmp)  = P0%Den1(k, tmp) + P0%up(i)*P0%dn(j)
           P0%SpinXX(k, tmp) = P0%SpinXX(k, tmp) + var2
           P0%SpinZZ(k, tmp) = P0%SpinZZ(k, tmp) + var3
@@ -877,7 +908,7 @@ contains
              ! CDW related quantities also in plane
              ! <n_i*n_j>
              P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + &
-                   S%AFphase(k)* (P0%up(i)*P0%up(j) + P0%dn(i)*P0%dn(j) - var1 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
+                   S%AFphase(k)* (var4 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)) 
              ! <n_i+n_j>, seems not necessary for staggered potential and/or other projects
            !  P0%meas(P0_NNSUM, tmp)  = P0%meas(P0_NNSUM, tmp) + S%AFphase(k)* (P0%up(i)+P0%dn(i)+P0%up(j)+P0%dn(j))
 !          end if
@@ -919,17 +950,73 @@ contains
            ! The code assumes all correlations (i,j)=(j,i) so always o2>=o1
            ! Hence in case of o2/=o1, need divided by 2 for (i,j) (same as (j,i))
            if (cf(o1)==cf(o2)) then
-             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + S%AFphase(k) * var2
-             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + S%AFphase(k) * var3
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + S%AFphase(k) *var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + S%AFphase(k) *var3
            else
-             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5*S%AFphase(k) * var2
-             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5*S%AFphase(k) * var3
-             P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5*S%AFphase(k) * var2
-             P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5*S%AFphase(k) * var3
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var3
+             P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var2
+             P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var3
+           endif
+
+           !========================================================!
+           ! Compute charge structure factor                        !
+           ! Ref: similar to PRL 110, 246401 (2013) Eq.2            !
+           !========================================================!
+           ! add up*dn+dn*up terms to var4
+           var4 = var4 + P0%up(i)*P0%dn(j) + P0%dn(i)*P0%up(j)
+
+           ! The code assumes all correlations (i,j)=(j,i) so always o2>=o1
+           ! Hence in case of o2/=o1, need divided by 2 for (i,j) (same as (j,i))
+           if (cf(o1)==cf(o2)) then
+             P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + S%AFphase(k) *var4
+           else
+             P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var4
+             P0%Ccharge(cf(o2),cf(o1),tmp) = P0%Ccharge(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var4
+           endif
+
+           !======================================================================!
+           ! Further compute n*n and n+n for <(n-<n>)*(n-<n>)> of staggered PAM   !
+           ! Ref: similar to PRL 110, 246401 (2013) Eq.2                          !
+           !======================================================================!
+           var5 = P0%up(i) + P0%dn(i) + P0%up(j) + P0%dn(j)
+
+           if (model<5) then
+             ! consider exp*{separation*pi}
+             if (mod(int(x1-x2+y1-y2),2)==0) then
+               ! (nc+nf)*(nc+nf):
+               P0%Snnprod(1,tmp) = P0%Snnprod(1,tmp) + var4
+               P0%Snnsum (1,tmp) = P0%Snnsum (1,tmp) + var5
+               ! c orbital:
+               if (abs(z1)<1.e-4 .and. abs(z2)<1.e-4) then
+                 P0%Snnprod(2,tmp) = P0%Snnprod(2,tmp) + var4
+                 P0%Snnsum (2,tmp) = P0%Snnsum (2,tmp) + var5
+               ! f orbital:
+               elseif (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+                 P0%Snnprod(3,tmp) = P0%Snnprod(3,tmp) + var4
+                 P0%Snnsum (3,tmp) = P0%Snnsum (3,tmp) + var5
+               endif
+             else
+               ! (nc+nf)*(nc+nf):
+               P0%Snnprod(1,tmp) = P0%Snnprod(1,tmp) - var4
+               P0%Snnsum (1,tmp) = P0%Snnsum (1,tmp) - var5
+               ! c orbital:
+               if (abs(z1)<1.e-4 .and. abs(z2)<1.e-4) then
+                 P0%Snnprod(2,tmp) = P0%Snnprod(2,tmp) - var4
+                 P0%Snnsum (2,tmp) = P0%Snnsum (2,tmp) - var5
+               ! f orbital:
+               elseif (abs(z1-1.)<1.e-4 .and. abs(z2-1.)<1.e-4) then
+                 P0%Snnprod(3,tmp) = P0%Snnprod(3,tmp) - var4
+                 P0%Snnsum (3,tmp) = P0%Snnsum (3,tmp) - var5
+               endif
+             endif
            endif
        end do
 
        ! special case for (i,i) due to additional Wick contraction terms
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Whenever there is G*G terms appears, need consider this correction
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        k = S%D(i,i)
        var1 =  G_up(i,i) + G_dn(i,i)
        P0%Den0(k, tmp)   = P0%Den0(k, tmp)   + var1
@@ -964,10 +1051,24 @@ contains
        ! Need S%AFphase(k) because some layers it is zero instead of one
        ! because e.g. only need Saf for f-electrons
        o1 = int(S%vecClass(k,1))+1
-       P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k)*var1
-       P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k)*var1
+       P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
+       P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
+       P0%Ccharge(cf(o1),cf(o1),tmp) = P0%Ccharge(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
 
-       P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + var1
+       ! Correction for n*n similar to Ccharge
+       if (model<5) then
+          ! (nc+nf)*(nc+nf):
+          P0%Snnprod(1,tmp) = P0%Snnprod(1,tmp) + var1
+          ! c orbital:
+          if (abs(z1)<1.e-4) then
+            P0%Snnprod(2,tmp) = P0%Snnprod(2,tmp) + var1
+          ! f orbital:
+          elseif (abs(z1-1.)<1.e-4) then
+            P0%Snnprod(3,tmp) = P0%Snnprod(3,tmp) + var1
+          endif
+       endif
+
+       P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + S%AFphase(k) *var1
     end do
     
     P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
@@ -978,8 +1079,17 @@ contains
     
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n
+
+    ! correction accounts for actual number of site pairs for Cspin and Ccharge
     P0%Cspinxx(:,:,tmp) = P0%Cspinxx(:,:,tmp) / (n/correction)
     P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / (n/correction)
+    P0%Ccharge(:,:,tmp) = P0%Ccharge(:,:,tmp) / (n/correction)
+
+    if (model<5) then
+      P0%Snnprod(:,tmp) = P0%Snnprod(:,tmp) / (n/correction)
+      P0%Snnsum (:,tmp) = P0%Snnsum (:,tmp) / (n/correction)
+    endif
+
     do i = 1, P0%nClass
        P0%G_fun (i, tmp) = P0%G_fun (i, tmp) / S%F(i) * HALF
        P0%Gf_up (i, tmp) = P0%Gf_up (i, tmp) / S%F(i)
@@ -1006,6 +1116,12 @@ contains
                         + P0%Cspinxx(:,:,tmp) * sgn
     P0%Cspinzz(:,:,idx) = P0%Cspinzz(:,:,idx)  &
                         + P0%Cspinzz(:,:,tmp) * sgn
+    P0%Ccharge(:,:,idx) = P0%Ccharge(:,:,idx)  &
+                        + P0%Ccharge(:,:,tmp) * sgn
+    P0%Snnprod(:,idx) = P0%Snnprod(:,idx)  &
+                        + P0%Snnprod(:,tmp) * sgn
+    P0%Snnsum (:,idx) = P0%Snnsum (:,idx)  &
+                        + P0%Snnsum (:,tmp) * sgn
 
     m = P0%nClass
     call blas_daxpy(m, sgn, P0%G_fun (1:m,tmp), 1, P0%G_fun (1:m,idx), 1)
@@ -1065,6 +1181,9 @@ contains
 
     P0%Cspinxx(:,:,idx) = P0%Cspinxx(:,:,idx) * factor
     P0%Cspinzz(:,:,idx) = P0%Cspinzz(:,:,idx) * factor
+    P0%Ccharge(:,:,idx) = P0%Ccharge(:,:,idx) * factor
+    P0%Snnprod(:,idx) = P0%Snnprod(:,idx) * factor
+    P0%Snnsum (:,idx) = P0%Snnsum (:,idx) * factor
 
 !    if (P0%compSAF) then
        ! The sqaure terms
@@ -1249,15 +1368,39 @@ contains
          end do
        end do
 
+       ! charge structure factor between orbitals
+       do i = 1,P0%Nccharge
+         do j = 1,P0%Nccharge
+           data = P0%Ccharge(i,j,1:n)
+           call DQMC_SignJackKnife(n, P0%Ccharge(i,j,avg), P0%Ccharge(i,j,err), &
+               data, y, sgn, sum_sgn)
+         end do
+       end do
+
+       do i = 1,3
+         data = P0%Snnprod(i,1:n)
+         call DQMC_SignJackKnife(n, P0%Snnprod(i,avg), P0%Snnprod(i,err), &
+             data, y, sgn, sum_sgn)
+         data = P0%Snnsum(i,1:n)
+         call DQMC_SignJackKnife(n, P0%Snnsum(i,avg), P0%Snnsum(i,err), &
+             data, y, sgn, sum_sgn)
+       end do
+
        ! Store Jackknife in bins
        do i = 1, n
           P0%sign(:,i) = (n*P0%sign(:,avg) - P0%sign(:,i)) / dble(n-1)
           P0%AllProp(:,i) = (sum_sgn*P0%AllProp(:,avg) - P0%AllProp(:,i)) / dble(n-1)
           P0%Cspinxx(:,:,i) = (sum_sgn*P0%Cspinxx(:,:,avg) - P0%Cspinxx(:,:,i)) / dble(n-1)
           P0%Cspinzz(:,:,i) = (sum_sgn*P0%Cspinzz(:,:,avg) - P0%Cspinzz(:,:,i)) / dble(n-1)
+          P0%Ccharge(:,:,i) = (sum_sgn*P0%Ccharge(:,:,avg) - P0%Ccharge(:,:,i)) / dble(n-1)
+          P0%Snnprod(:,i) = (sum_sgn*P0%Snnprod(:,avg) - P0%Snnprod(:,i)) / dble(n-1)
+          P0%Snnsum (:,i) = (sum_sgn*P0%Snnsum (:,avg) - P0%Snnsum (:,i)) / dble(n-1)
           P0%AllProp(:,i) = P0%AllProp(:,i) / P0%sign(P0_SGN,i)
           P0%Cspinxx(:,:,i) = P0%Cspinxx(:,:,i) / P0%sign(P0_SGN,i)
           P0%Cspinzz(:,:,i) = P0%Cspinzz(:,:,i) / P0%sign(P0_SGN,i)
+          P0%Ccharge(:,:,i) = P0%Ccharge(:,:,i) / P0%sign(P0_SGN,i)
+          P0%Snnprod(:,i) = P0%Snnprod(:,i) / P0%sign(P0_SGN,i)
+          P0%Snnsum (:,i) = P0%Snnsum (:,i) / P0%sign(P0_SGN,i)
        enddo
 
        do i = 1,n
@@ -1314,19 +1457,38 @@ contains
                  mpi_sum, mpi_comm_world, mpi_err)
           enddo
 
+          do i=1,P0%Nccharge
+            call mpi_allreduce(P0%Ccharge(:,i,1), P0%Ccharge(:,i,avg), P0%Nccharge, mpi_double, &
+                 mpi_sum, mpi_comm_world, mpi_err)
+          enddo
+
+          call mpi_allreduce(P0%Snnprod(:,1), P0%Snnprod(:,avg), 3, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+          call mpi_allreduce(P0%Snnsum (:,1), P0%Snnsum (:,avg), 3, mpi_double, &
+               mpi_sum, mpi_comm_world, mpi_err)
+
           P0%AllProp(:,1) = (P0%AllProp(:,avg) - P0%AllProp(:,1)) / dble(nproc - 1)
           P0%Cspinxx(:,:,1) = (P0%Cspinxx(:,:,avg) - P0%Cspinxx(:,:,1)) / dble(nproc - 1)
           P0%Cspinzz(:,:,1) = (P0%Cspinzz(:,:,avg) - P0%Cspinzz(:,:,1)) / dble(nproc - 1)
+          P0%Ccharge(:,:,1) = (P0%Ccharge(:,:,avg) - P0%Ccharge(:,:,1)) / dble(nproc - 1)
+          P0%Snnprod(:,1) = (P0%Snnprod(:,avg) - P0%Snnprod(:,1)) / dble(nproc - 1)
+          P0%Snnsum (:,1) = (P0%Snnsum (:,avg) - P0%Snnsum (:,1)) / dble(nproc - 1)
           P0%sign(:,1)    = (P0%sign(:,avg) - P0%sign(:,1)) / dble(nproc - 1)
           P0%AllProp(:,1) = P0%AllProp(:,1) / P0%sign(P0_SGN,1)
           P0%Cspinxx(:,:,1) = P0%Cspinxx(:,:,1) / P0%sign(P0_SGN,1)
           P0%Cspinzz(:,:,1) = P0%Cspinzz(:,:,1) / P0%sign(P0_SGN,1)
+          P0%Ccharge(:,:,1) = P0%Ccharge(:,:,1) / P0%sign(P0_SGN,1)
+          P0%Snnprod(:,1) = P0%Snnprod(:,1) / P0%sign(P0_SGN,1)
+          P0%Snnsum (:,1) = P0%Snnsum (:,1) / P0%sign(P0_SGN,1)
 
           ! similar to avg = sum_x/sum_sgn step in DQMC_SignJackKnife_Real
           ! both divided by dble(nproc), below two lines cannot switch 
           P0%AllProp(:,avg) = P0%AllProp(:,avg) / P0%sign(P0_SGN,avg) 
           P0%Cspinxx(:,:,avg) = P0%Cspinxx(:,:,avg) / P0%sign(P0_SGN,avg)
           P0%Cspinzz(:,:,avg) = P0%Cspinzz(:,:,avg) / P0%sign(P0_SGN,avg)
+          P0%Ccharge(:,:,avg) = P0%Ccharge(:,:,avg) / P0%sign(P0_SGN,avg)
+          P0%Snnprod(:,avg) = P0%Snnprod(:,avg) / P0%sign(P0_SGN,avg)
+          P0%Snnsum (:,avg) = P0%Snnsum (:,avg) / P0%sign(P0_SGN,avg)
           P0%sign(:,avg)    = P0%sign(:,avg) / dble(nproc)
 
           !i Compute proper chi_thermal and C_v
@@ -1347,6 +1509,20 @@ contains
           enddo
           P0%Cspinxx(:,:,err) = sqrt(P0%Cspinxx(:,:,err) * dble(nproc-1)/dble(nproc))
           P0%Cspinzz(:,:,err) = sqrt(P0%Cspinzz(:,:,err) * dble(nproc-1)/dble(nproc))
+
+          do i=1,P0%Nccharge
+            call mpi_allreduce((P0%Ccharge(:,i,1)-P0%Ccharge(:,i,avg))**2, P0%Ccharge(:,i,err), P0%Nccharge, &
+               mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+          enddo
+          P0%Ccharge(:,:,err) = sqrt(P0%Ccharge(:,:,err) * dble(nproc-1)/dble(nproc))
+
+          call mpi_allreduce((P0%Snnprod(:,1)-P0%Snnprod(:,avg))**2, P0%Snnprod(:,err), 3, &
+             mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+          call mpi_allreduce((P0%Snnsum (:,1)-P0%Snnsum (:,avg))**2, P0%Snnsum (:,err), 3, &
+             mpi_double, mpi_sum, mpi_comm_world, mpi_err)
+
+          P0%Snnprod(:,err) = sqrt(P0%Snnprod(:,err) * dble(nproc-1)/dble(nproc))
+          P0%Snnsum (:,err) = sqrt(P0%Snnsum (:,err) * dble(nproc-1)/dble(nproc))
 
           call mpi_allreduce((P0%sign(:,1)-P0%sign(:,avg))**2, P0%sign(:,err), 3, mpi_double, &
              mpi_sum, mpi_comm_world, mpi_err)
@@ -1439,11 +1615,12 @@ contains
  
   !--------------------------------------------------------------------!
 
-  subroutine DQMC_Phy_Print_local(P0, ofile, S, OPT)
+  subroutine DQMC_Phy_Print_local(model, P0, ofile, S, OPT)
     use dqmc_mpi
     !
     type(Phy), intent(in)    :: P0   ! Phy
     type(Struct), intent(in) :: S    ! Underline lattice structure
+    integer, intent(in)      :: model
     integer                  :: OPT  ! Output file handle
     integer                  :: i, j, b1, b2
     character(len=80)        :: ofile
@@ -1521,6 +1698,32 @@ contains
               P0%Cspinzz(i,j,avg), P0%Cspinzz(i,j,err)
       enddo
     enddo
+
+    write(OPT,'(a42)') 'Charge structure factors between orbitals:'
+    write(OPT,'(a)') 'orb1   orb2   Sch   err'
+    do i = 1,P0%Nccharge
+      do j = 1,P0%Nccharge
+        write(OPT,'(2(i4),2(e16.8))') i,j, &
+              P0%Ccharge(i,j,avg), P0%Ccharge(i,j,err)
+      enddo
+    enddo
+
+    if (model<5) then
+      !for charge structure factor of c and f of staggered PAM
+      ! nnprod = (nc+nf)*(nc+nf), n_c*n_c, n_f*n_f
+      ! nnsum  = (nc+nf)+(nc+nf), n_c+n_c, n_f+n_f
+      ! S_cdw  = <(n-<n>)*(n-<n>)> so that need nnsum
+      write(OPT,'(a42)') 'nnprod = (nc+nf)*(nc+nf), n_c*n_c, n_f*n_f:'
+      do i = 1,3
+          write(OPT,'((i4),2(e16.8))') i, &
+                P0%Snnprod(i,avg), P0%Snnprod(i,err)
+      enddo
+      write(OPT,'(a42)') 'nnsum  = (nc+nf)+(nc+nf), n_c+n_c, n_f+n_f:'
+      do i = 1,3
+          write(OPT,'((i4),2(e16.8))') i, &
+                P0%Snnsum(i,avg), P0%Snnsum(i,err)
+      enddo
+    endif
 
   end subroutine DQMC_Phy_Print_local
  

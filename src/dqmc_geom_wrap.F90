@@ -229,7 +229,10 @@ module DQMC_GEOM_WRAP
       ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
       ! for PAM model, which only need S_AF for f-electrons
       if (model==1 .or. model==2) then
-        if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then                 
+   !     if (abs(S%vecClass(ic,5))<0.0001 .and. mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1) then                 
+
+        ! temporarily adapt to disordered V PAM 8x8
+        if (abs(S%vecClass(ic,5))<0.0001 .and. abs(int(S%vecClass(ic,1)))>=64 .and. abs(int(S%vecClass(ic,2)))>=64) then
           if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
             S%AFphase(ic) = 1.0
           else

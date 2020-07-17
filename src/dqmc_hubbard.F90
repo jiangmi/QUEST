@@ -915,7 +915,9 @@ contains
          case (3)
            modelname = "PAM + local_f "
          case (4)
-           modelname = "stacked 2 PAMs"
+           modelname = "c1-f1-f2-c2   "
+         case (5)
+           modelname = "c1-f1-c2-f2   "
        end select
 
        write(OPT,"(a30,a20)") "                      Model : ", modelname

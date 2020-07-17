@@ -264,10 +264,10 @@ contains
 
     ! # of chi's: inter-orb chi, total chi, then
     ! for two stacked PAM; add chi1 and chi2 for two f's
-    if (model/=4) then
-      T1%nchi = T1%norb2+1
-    else
+    if (model==4 .or. model==5) then
       T1%nchi = T1%norb2+3
+    else
+      T1%nchi = T1%norb2+1
     endif   
 
     allocate(T1%cartpos(3, 0:S%nSite-1))
@@ -364,6 +364,12 @@ contains
         ! unit cell from bottom to top: c1,f1,f2,c2 orbs
         ! 2 components denote f1 and f2 layers
         case (4)
+          T1%NPd = 2
+
+        ! stacked two PAMs square
+        ! unit cell from bottom to top: c1,f1,c2,f2 orbs
+        ! 2 components denote f1 and f2 layers
+        case (5)
           T1%NPd = 2
       end select
 
@@ -1049,7 +1055,7 @@ contains
                T1%chiqxx(dt2,1,o2+1,T1%tmp) = T1%chiqxx(dt2,1,o2+1,T1%tmp) - val2
 
                ! separate total chi for two f's in stacked two PAM model
-               if (model==4) then
+               if (model==4 .or. model==5) then
                  if (int(z1)<2 .and. int(z2)<2) then
                    T1%chiqxx(dt1,1,o2+2,T1%tmp) = T1%chiqxx(dt1,1,o2+2,T1%tmp) - val1
                    T1%chiqxx(dt2,1,o2+2,T1%tmp) = T1%chiqxx(dt2,1,o2+2,T1%tmp) - val2
@@ -1067,7 +1073,7 @@ contains
                  T1%chiqxx(dt2,2,o2+1,T1%tmp) = T1%chiqxx(dt2,2,o2+1,T1%tmp) - val2
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) - val1
                      T1%chiqxx(dt2,2,o2+2,T1%tmp) = T1%chiqxx(dt2,2,o2+2,T1%tmp) - val2
@@ -1084,7 +1090,7 @@ contains
                  T1%chiqxx(dt2,2,o2+1,T1%tmp) = T1%chiqxx(dt2,2,o2+1,T1%tmp) + val2
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
                      T1%chiqxx(dt2,2,o2+2,T1%tmp) = T1%chiqxx(dt2,2,o2+2,T1%tmp) + val2
@@ -1156,7 +1162,7 @@ contains
                T1%chiqzz(dt2,1,o2+1,T1%tmp) = T1%chiqzz(dt2,1,o2+1,T1%tmp) - val2
 
                ! separate total chi for two f's in stacked two PAM model
-               if (model==4) then
+               if (model==4 .or. model==5) then
                  if (int(z1)<2 .and. int(z2)<2) then
                    T1%chiqzz(dt1,1,o2+2,T1%tmp) = T1%chiqzz(dt1,1,o2+2,T1%tmp) - val1
                    T1%chiqzz(dt2,1,o2+2,T1%tmp) = T1%chiqzz(dt2,1,o2+2,T1%tmp) - val2
@@ -1174,7 +1180,7 @@ contains
                  T1%chiqzz(dt2,2,o2+1,T1%tmp) = T1%chiqzz(dt2,2,o2+1,T1%tmp) - val2
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) - val1
                      T1%chiqzz(dt2,2,o2+2,T1%tmp) = T1%chiqzz(dt2,2,o2+2,T1%tmp) - val2
@@ -1191,7 +1197,7 @@ contains
                  T1%chiqzz(dt2,2,o2+1,T1%tmp) = T1%chiqzz(dt2,2,o2+1,T1%tmp) + val2
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
                      T1%chiqzz(dt2,2,o2+2,T1%tmp) = T1%chiqzz(dt2,2,o2+2,T1%tmp) + val2
@@ -1289,6 +1295,12 @@ contains
                 cycle
              endif
 
+             if ((model==5) .and.                  &
+                 .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
+                        ( abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6 ))) then
+                cycle
+             endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1364,12 +1376,22 @@ contains
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b               
                  endif
 
-               ! stacked two PAMs; 2 components denote f1 and f2 layers
+               ! stacked two PAMs: c1-f1-f2-c2; 2 components denote f1 and f2 layers
                case (4)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+                 endif
+
+               ! stacked two PAMs: c1-f1-c2-f2; 2 components denote f1 and f2
+               case (5)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                 elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
                  endif
@@ -1613,7 +1635,7 @@ contains
                T1%chiqxx(dt1,1,o2+1,T1%tmp) = T1%chiqxx(dt1,1,o2+1,T1%tmp) - val1
 
                ! separate total chi for two f's in stacked two PAM model
-               if (model==4) then
+               if (model==4 .or. model==5) then
                  if (int(z1)<2 .and. int(z2)<2) then
                    T1%chiqxx(dt1,1,o2+2,T1%tmp) = T1%chiqxx(dt1,1,o2+2,T1%tmp) - val1
                  elseif (int(z1)>1 .and. int(z2)>1) then
@@ -1627,7 +1649,7 @@ contains
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) - val1
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) - val1
                    elseif (int(z1)>1 .and. int(z2)>1) then
@@ -1640,7 +1662,7 @@ contains
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) + val1
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
                    elseif (int(z1)>1 .and. int(z2)>1) then
@@ -1703,7 +1725,7 @@ contains
                T1%chiqzz(dt1,1,o2+1,T1%tmp) = T1%chiqzz(dt1,1,o2+1,T1%tmp) - val1
 
                ! separate total chi for two f's in stacked two PAM model
-               if (model==4) then
+               if (model==4 .or. model==5) then
                  if (int(z1)<2 .and. int(z2)<2) then
                    T1%chiqzz(dt1,1,o2+2,T1%tmp) = T1%chiqzz(dt1,1,o2+2,T1%tmp) - val1
                  elseif (int(z1)>1 .and. int(z2)>1) then
@@ -1717,7 +1739,7 @@ contains
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) - val1
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) - val1
                    elseif (int(z1)>1 .and. int(z2)>1) then
@@ -1730,7 +1752,7 @@ contains
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) + val1
 
                  ! separate total chi for two f's in stacked two PAM model
-                 if (model==4) then
+                 if (model==4 .or. model==5) then
                    if (int(z1)<2 .and. int(z2)<2) then
                      T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
                    elseif (int(z1)>1 .and. int(z2)>1) then
@@ -1810,6 +1832,12 @@ contains
                 cycle
              endif
 
+             if ((model==5) .and.                  &
+                 .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
+                        ( abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6 ))) then
+                cycle
+             endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1866,7 +1894,7 @@ contains
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                  endif
 
-               ! stacked two PAMs; 2 components denote f1 and f2 layers
+               ! stacked two PAMs:c1-f1-f2-c2; 2 components denote f1 and f2 layers
                case (4)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
@@ -1874,6 +1902,13 @@ contains
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                  endif
 
+               ! stacked two PAMs:c1-f1-c2-f2; 2 components denote f1 and f2 layers
+               case (5)
+                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                 elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                 endif
              end select
           end do
        end do
@@ -2014,6 +2049,11 @@ contains
       ! unit cell from bottom to top: c1,f1,f2,c2 orbs
       ! map to orbital order: c1,f1,f2,c2
       case (4)
+        correction = 4
+
+      ! for stacked two PAMs coupled with additional V12
+      ! unit cell from bottom to top: c1,f1,c2,f2 orbs
+      case (5)
         correction = 4
     end select    
       
@@ -2166,6 +2206,12 @@ contains
                   cycle
                endif
 
+               if ((model==5) .and.                  &
+                   .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
+                          ( abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6 ))) then
+                  cycle
+               endif
+
                ! 4 neighbors of each site so that totally 16 terms
                ! with different phase factors for d-wave pairing
                ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -2252,11 +2298,19 @@ contains
                      T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + tmp
                    endif
 
-                 ! stacked two PAMs; 2 components denote f1 and f2 layers
+                 ! stacked two PAMs:c1-f1-f2-c2; 2 components denote f1 and f2 layers
                  case (4)
                    if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + tmp
                    elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + tmp
+                   endif
+
+                 ! stacked two PAMs:c1-f1-c2-f2; 2 components denote f1 and f2
+                 case (5)
+                   if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + tmp
+                   elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + tmp
                    endif
 

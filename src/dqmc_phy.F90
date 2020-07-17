@@ -385,6 +385,12 @@ contains
       case (4)
         P0%Ncspin = 4
         P0%Nccharge = 4
+
+      ! unit cell from bottom to top: c1,f1,c2,f2 orbs
+      ! might be relevant to Ce3PtIn11
+      case (5)
+        P0%Ncspin = 4
+        P0%Nccharge = 4
     end select
 
     allocate(P0%Cspinxx(P0%Ncspin, P0%Ncspin, P0%nBin+2))
@@ -871,6 +877,12 @@ contains
         correction = 4
         allocate(cf(4))
         cf = (/ 1,2,3,4 /)
+
+      ! unit cell from bottom to top: c1,f1,c2,f2 orbs
+      case (5)
+        correction = 4
+        allocate(cf(4))
+        cf = (/ 1,2,3,4 /)
     end select
 
     do i = 1,n
@@ -949,15 +961,15 @@ contains
 
            ! The code assumes all correlations (i,j)=(j,i) so always o2>=o1
            ! Hence in case of o2/=o1, need divided by 2 for (i,j) (same as (j,i))
-     !      if (cf(o1)==cf(o2)) then
-     !        P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + S%AFphase(k) *var2
-     !        P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + S%AFphase(k) *var3
-     !      else
-     !        P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var2
-     !        P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var3
-     !        P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var2
-     !        P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var3
-     !      endif
+           if (cf(o1)==cf(o2)) then
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + S%AFphase(k) *var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + S%AFphase(k) *var3
+           else
+             P0%Cspinxx(cf(o1),cf(o2),tmp) = P0%Cspinxx(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var2
+             P0%Cspinzz(cf(o1),cf(o2),tmp) = P0%Cspinzz(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var3
+             P0%Cspinxx(cf(o2),cf(o1),tmp) = P0%Cspinxx(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var2
+             P0%Cspinzz(cf(o2),cf(o1),tmp) = P0%Cspinzz(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var3
+           endif
 
            !========================================================!
            ! Compute charge structure factor                        !
@@ -968,12 +980,12 @@ contains
 
            ! The code assumes all correlations (i,j)=(j,i) so always o2>=o1
            ! Hence in case of o2/=o1, need divided by 2 for (i,j) (same as (j,i))
-     !      if (cf(o1)==cf(o2)) then
-     !        P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + S%AFphase(k) *var4
-     !      else
-     !        P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var4
-     !        P0%Ccharge(cf(o2),cf(o1),tmp) = P0%Ccharge(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var4
-     !      endif
+           if (cf(o1)==cf(o2)) then
+             P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + S%AFphase(k) *var4
+           else
+             P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var4
+             P0%Ccharge(cf(o2),cf(o1),tmp) = P0%Ccharge(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var4
+           endif
 
            !======================================================================!
            ! Further compute n*n and n+n for <(n-<n>)*(n-<n>)> of staggered PAM   !
@@ -981,7 +993,7 @@ contains
            !======================================================================!
            var5 = P0%up(i) + P0%dn(i) + P0%up(j) + P0%dn(j)
 
-           if (model<5) then
+           if (model<6) then
              ! consider exp*{separation*pi}
              if (mod(int(x1-x2+y1-y2),2)==0) then
                ! (nc+nf)*(nc+nf):
@@ -1051,12 +1063,12 @@ contains
        ! Need S%AFphase(k) because some layers it is zero instead of one
        ! because e.g. only need Saf for f-electrons
        o1 = int(S%vecClass(k,1))+1
-      ! P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
-      ! P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
-      ! P0%Ccharge(cf(o1),cf(o1),tmp) = P0%Ccharge(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
+       P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
+       P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
+       P0%Ccharge(cf(o1),cf(o1),tmp) = P0%Ccharge(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
 
        ! Correction for n*n similar to Ccharge
-       if (model<5) then
+       if (model<6) then
           ! (nc+nf)*(nc+nf):
           P0%Snnprod(1,tmp) = P0%Snnprod(1,tmp) + var1
           ! c orbital:
@@ -1085,7 +1097,7 @@ contains
     P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / (n/correction)
     P0%Ccharge(:,:,tmp) = P0%Ccharge(:,:,tmp) / (n/correction)
 
-    if (model<5) then
+    if (model<6) then
       P0%Snnprod(:,tmp) = P0%Snnprod(:,tmp) / (n/correction)
       P0%Snnsum (:,tmp) = P0%Snnsum (:,tmp) / (n/correction)
     endif
@@ -1708,7 +1720,7 @@ contains
       enddo
     enddo
 
-    if (model<5) then
+    if (model<6) then
       !for charge structure factor of c and f of staggered PAM
       ! nnprod = (nc+nf)*(nc+nf), n_c*n_c, n_f*n_f
       ! nnsum  = (nc+nf)+(nc+nf), n_c+n_c, n_f+n_f

@@ -335,7 +335,7 @@ contains
     endif
 
     if (T1%flags(IPAIRs) == 1) then
-      allocate(T1%swaveAvg(0:T1%L-1,T1%err))
+      allocate(T1%swaveAvg(0:T1%L,T1%err))
       T1%swaveAvg = 0.0_wp
     endif
 
@@ -381,8 +381,11 @@ contains
           T1%NPd = 3
       end select
 
-      allocate(T1%Pdtau(0:T1%L-1, 1:T1%err, T1%NPd))
-      allocate(T1%Pd0tau(0:T1%L-1, 1:T1%err, T1%NPd))
+      ! Need Pdtau(beta) for integration to obtain Pd
+      ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+      ! See Ben's notes
+      allocate(T1%Pdtau(0:T1%L, 1:T1%err, T1%NPd))
+      allocate(T1%Pd0tau(0:T1%L, 1:T1%err, T1%NPd))
       allocate(T1%Pd(1:T1%err, T1%NPd))
       allocate(T1%Pd0(1:T1%err, T1%NPd))
       allocate(T1%Gammad(1:T1%err, T1%NPd))
@@ -458,7 +461,7 @@ contains
           T1%properties(iprop)%vecClass  => S%vecClass
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
-       case(ISPXX, ISPZZ, IDENS, IPAIRs, IPAIRd)
+       case(ISPXX, ISPZZ, IDENS)
 
           nclass = S%nClass
           np     = Gwrap%lattice%natom
@@ -474,6 +477,26 @@ contains
           T1%properties(iprop)%clabel  => S%clabel
           T1%properties(iprop)%vecClass  => S%vecClass
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
+
+      ! Need Pdtau(beta) for integration to obtain Pd
+      ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+      ! See Ben's notes
+       case(IPAIRs, IPAIRd)
+
+          nclass = S%nClass
+          np     = Gwrap%lattice%natom
+
+          nullify(T1%properties(iprop)%tlink)
+          T1%properties(iprop)%n      =  S%nSite
+          T1%properties(iprop)%nclass =  S%nClass
+          T1%properties(iprop)%D      => S%D
+          T1%properties(iprop)%F      => S%F
+          T1%properties(iprop)%np     =  np
+          T1%properties(iprop)%ftw    => T1%ftwbos
+          T1%properties(iprop)%phase  => S%chi_phase
+          T1%properties(iprop)%clabel  => S%clabel
+          T1%properties(iprop)%vecClass  => S%vecClass
+          allocate(T1%properties(iprop)%values(nclass,0:T1%L,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
 
@@ -533,7 +556,7 @@ contains
           allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
-       case(ISPXX, ISPZZ, IDENS, IPAIRs, IPAIRd)
+       case(ISPXX, ISPZZ, IDENS)
 
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
@@ -543,6 +566,20 @@ contains
           allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L-1,T1%err))
           allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
+
+      ! Need Pdtau(beta) for integration to obtain Pd
+      ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+      ! See Ben's notes
+       case(IPAIRs, IPAIRd)
+
+          np     = Gwrap%lattice%natom
+          npp    = (np*(np+1))/2
+          nk = Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%nk     =  Gwrap%GammaLattice%nclass_k
+          T1%properties(iprop)%ftk    => Gwrap%GammaLattice%FourierC
+          allocate(T1%properties(iprop)%valueskold(nk*npp,0:T1%L,T1%err))
+          allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
+          allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L,T1%err))
 
        case(ICOND, ICONDup, ICONDdn)
 
@@ -891,14 +928,17 @@ contains
       T1%chiqzz_iw0_sub2(T1%tmp) = ZERO
     endif
 
+    ! Need Pdtau(beta) for integration to obtain Pd
+    ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+    ! See Ben's notes
     if (T1%flags(IPAIRd) == 1) then
       factor = sgn/cnt
-      T1%Pdtau(0:T1%L-1, T1%idx, 1:T1%NPd) = T1%Pdtau(0:T1%L-1, T1%idx, 1:T1%NPd) &
-                                    + T1%Pdtau(0:T1%L-1, T1%tmp, 1:T1%NPd) * factor
+      T1%Pdtau(0:T1%L, T1%idx, 1:T1%NPd) = T1%Pdtau(0:T1%L, T1%idx, 1:T1%NPd) &
+                                    + T1%Pdtau(0:T1%L, T1%tmp, 1:T1%NPd) * factor
 
       do i = 1,T1%NPd
         chiv = 0.0
-        call convert_to_iw0_real(T1%Pdtau(0:T1%L-1, T1%tmp, i), chiv, T1%L, T1%dtau)
+        call convert_to_iw0_PsPd(T1%Pdtau(0:T1%L, T1%tmp, i), chiv, T1%L, T1%dtau)
         T1%Pd(T1%idx, i) = T1%Pd(T1%idx, i) + factor*chiv
       enddo
 
@@ -933,10 +973,10 @@ contains
     ! ... Local scalar ...
 
     character(label_len) :: label
-    integer  :: i, j, k, dt, dt1, dt2, b1, b2, idx, o2
+    integer  :: i, j, k, dt, dt1, dt2, b1, b2, idx, o2, L
     real*8   :: a,b,c,d,x,y,z
     real*8   :: x1,y1,z1,x2,y2,z2
-    real(wp), pointer :: value1(:), value2(:)
+    real(wp), pointer :: value1(:), value2(:), valueL(:)
     real(wp) :: factor
     real(wp), dimension(1:5) :: vec
     real(wp) :: val1, val2
@@ -945,6 +985,7 @@ contains
     if (.not.T1%compute) return
 
     o2 = T1%norb2
+    L = T1%L
 
     ! Below dt1 and dt2's length switch for two cases
     ! 2*factor=0.5 for double counting of site loops
@@ -1252,9 +1293,14 @@ contains
        end do
      endif
 
+    ! Need Pstau(beta) for integration to obtain Pd
+    ! because Ps(tau) is simply symmetric over beta/2 like chi(tau)
+    ! See Ben's notes
      if (T1%flags(IPAIRs) == 1) then
        value1  => T1%properties(IPAIRs)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRs)%values(:, dt2, T1%tmp)
+       valueL  => T1%properties(IPAIRs)%values(:, L,   T1%tmp)
+
        do i = 1,  T1%properties(IPAIRs)%n
           do j = 1,  T1%properties(IPAIRs)%n
              ! Delta^+_i = c^+_i,up * c^+_i,dn 
@@ -1263,13 +1309,22 @@ contains
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) *0.5_wp 
              value2(k)  = value2(k) + up0t(i,j)*dn0t(i,j) *0.5_wp
+             valueL(k)  = valueL(k) + up00(i,j)*dn00(i,j) *0.5_wp
+             
+             if (i==j) then
+               valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
+             endif
           end do
        end do
      endif
 
+    ! Need Pdtau(beta) for integration to obtain Pd
+    ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+    ! See Ben's notes
      if (T1%flags(IPAIRd) == 1) then
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRd)%values(:, dt2, T1%tmp)
+       valueL  => T1%properties(IPAIRd)%values(:, L,   T1%tmp)
 
        ! Following the general def of P_abcd in WeiWu's PRX (2015)
        ! See also RTS's paper in 1989 PRB
@@ -1338,12 +1393,22 @@ contains
                 -dn0t(T1%dn(i), T1%rt(j)) + dn0t(T1%dn(i), T1%up(j))  &
                 -dn0t(T1%dn(i), T1%lf(j)) + dn0t(T1%dn(i), T1%dn(j))
 
+             c = dn00(T1%rt(i), T1%rt(j)) - dn00(T1%rt(i), T1%up(j))  &
+                +dn00(T1%rt(i), T1%lf(j)) - dn00(T1%rt(i), T1%dn(j))  &
+                -dn00(T1%up(i), T1%rt(j)) + dn00(T1%up(i), T1%up(j))  &
+                -dn00(T1%up(i), T1%lf(j)) + dn00(T1%up(i), T1%dn(j))  &
+                +dn00(T1%lf(i), T1%rt(j)) - dn00(T1%lf(i), T1%up(j))  &
+                +dn00(T1%lf(i), T1%lf(j)) - dn00(T1%lf(i), T1%dn(j))  &
+                -dn00(T1%dn(i), T1%rt(j)) + dn00(T1%dn(i), T1%up(j))  &
+                -dn00(T1%dn(i), T1%lf(j)) + dn00(T1%dn(i), T1%dn(j))
+
              ! *0.25 or /4 accounts for the convention for definition
              ! See 1989 PRB paper: Numerical study of 2D Hubbard model
              a = a*0.5_wp*0.25
              b = b*0.5_wp*0.25
              value1(k)  = value1(k) + upt0(i,j)*a
              value2(k)  = value2(k) + up0t(i,j)*b
+             valueL(k)  = valueL(k) + up00(i,j)*c*2.0
 
              ! only compute in-plane d-wave pairing susceptibility (square lattice)
              select case (model)
@@ -1351,12 +1416,14 @@ contains
                case (0)
                  T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                  T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                 T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
 
                ! PAM (P_ffff only temporarily)
                case (1)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  endif
 
                ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
@@ -1364,6 +1431,7 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
 
                    ! compute Pd within and between two sublattice
                    ! separation limitation:
@@ -1372,13 +1440,16 @@ contains
                      if (mod(int(x1+y1),2)==0) then
                        T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                        T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+                       T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                      else
                        T1%Pdtau(dt1, T1%tmp, 4) = T1%Pdtau(dt1, T1%tmp, 4) + upt0(i,j)*a
                        T1%Pdtau(dt2, T1%tmp, 4) = T1%Pdtau(dt2, T1%tmp, 4) + up0t(i,j)*b
+                       T1%Pdtau(L, T1%tmp, 4) = T1%Pdtau(L, T1%tmp, 4) + up00(i,j)*c*2.0
                      endif
                    else
                      T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                      T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
+                     T1%Pdtau(L, T1%tmp, 3) = T1%Pdtau(L, T1%tmp, 3) + up00(i,j)*c*2.0
                    endif
                  endif
 
@@ -1387,9 +1458,11 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then             
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a                   
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b                 
+                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then         
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a               
-                   T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b               
+                   T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b           
+                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0    
                  endif
 
                ! stacked two PAMs: c1-f1-f2-c2; 2 components denote f1 and f2 layers
@@ -1397,9 +1470,11 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                  endif
 
                ! stacked two PAMs: c1-f1-c2-f2; 2 components denote f1 and f2
@@ -1407,9 +1482,11 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                  endif
 
                ! Ce3MIn11: f2-c2-f1-c1-f1-c2; 3 components denote two f1 and f2
@@ -1417,12 +1494,15 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                  elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
+                   T1%Pdtau(L, T1%tmp, 3) = T1%Pdtau(L, T1%tmp, 3) + up00(i,j)*c*2.0
                  endif
              end select
           end do
@@ -1823,11 +1903,17 @@ contains
 
      if (T1%flags(IPAIRs) == 1) then
        value1  => T1%properties(IPAIRs)%values(:, dt1, T1%tmp)
+       valueL  => T1%properties(IPAIRs)%values(:, L,   T1%tmp)
        do i = 1,  T1%properties(IPAIRs)%n
           do j = 1,  T1%properties(IPAIRs)%n
              ! k is the distance index of site i and site j
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
+             valueL(k)  = valueL(k) + up00(i,j)*dn00(i,j)
+
+             if (i==j) then
+               valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
+             endif
           end do
        end do
      endif
@@ -2064,7 +2150,7 @@ contains
     integer  :: nl, idx, i, j, k, it, x1,x2,y1,y2,z1,z2,correction
     integer, intent(in)  :: model
     real(wp) :: factor, fac, a, tmp
-    real(wp), allocatable :: value1(:), value2(:)
+    real(wp), allocatable :: value1(:), value2(:), valueL(:)
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -2208,7 +2294,7 @@ contains
     ! record the average of all local sum_r pair(r, tau) for average pair
     ! susceptibility
     if (T1%flags(IPAIRs) == 1) then
-      do j = 0, T1%L-1
+      do j = 0, T1%L
          do i = 1, T1%properties(IPAIRs)%n    ! avg over n sites
             k = T1%properties(IPAIRs)%D(i,i)  ! local quantity
             T1%swaveAvg(j, T1%idx) = T1%swaveAvg(j, T1%idx) &
@@ -2232,6 +2318,7 @@ contains
          ! Here assume that G = Gup = Gdn
          value1 = T1%properties(IGFUP)%values(:, it, idx)
          value2 = T1%properties(IGFDN)%values(:, it, idx)
+         valueL = T1%properties(IGFDN)%values(:, 0,  idx)
 
          a = 0.0_wp
          do i = 1,  T1%properties(IPAIRd)%n
@@ -2316,6 +2403,7 @@ contains
 
                ! only compute in-plane d-wave pairing susceptibility (square lattice)
                tmp = value1(k)*a/(4.d0*T1%properties(IPAIRd)%n/correction)*2.d0
+
 
                select case (model)
                  ! Hubbard
@@ -2446,14 +2534,25 @@ contains
 
        do iprop = 1, NTDMARRAY
          if (T1%flags(iprop)==1) then
-           do i = 1, T1%properties(iprop)%nClass
-             do j = 0, T1%L-1
-                data =  T1%properties(iprop)%values(i, j, 1:n)
-                call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
-                T1%properties(iprop)%values(i, j, avg) = average
-                T1%properties(iprop)%values(i, j, err) = error
-             enddo
-           end do
+           if (iprop==IPAIRs .or. iprop==IPAIRd) then
+             do i = 1, T1%properties(iprop)%nClass
+               do j = 0, T1%L
+                  data =  T1%properties(iprop)%values(i, j, 1:n)
+                  call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+                  T1%properties(iprop)%values(i, j, avg) = average
+                  T1%properties(iprop)%values(i, j, err) = error
+               enddo
+             end do
+           else
+             do i = 1, T1%properties(iprop)%nClass
+               do j = 0, T1%L-1
+                  data =  T1%properties(iprop)%values(i, j, 1:n)
+                  call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+                  T1%properties(iprop)%values(i, j, avg) = average
+                  T1%properties(iprop)%values(i, j, err) = error
+               enddo
+             end do
+           endif
          endif
        enddo
 
@@ -2611,7 +2710,7 @@ contains
        endif
 
        if (T1%flags(IPAIRs) == 1) then
-         do j = 0, T1%L-1
+         do j = 0, T1%L
            data =  T1%swaveAvg(j, 1:n)
            call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
            T1%swaveAvg(j, avg) = average
@@ -2620,7 +2719,7 @@ contains
        endif
 
        if (T1%flags(IPAIRd) == 1) then
-         do j = 0, T1%L-1
+         do j = 0, T1%L
            do i = 1,T1%NPd
              data =  T1%Pdtau(j, 1:n, i)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
@@ -2628,7 +2727,7 @@ contains
              T1%Pdtau(j, err, i) = error
            enddo
          enddo
-         do j = 0, T1%L-1
+         do j = 0, T1%L
            do i = 1,T1%NPd
              data =  T1%Pd0tau(j, 1:n, i)
              call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
@@ -2688,11 +2787,19 @@ contains
 
           do iprop = 1, NTDMARRAY
             if (T1%flags(iprop)==1) then
-                binptr => T1%properties(iprop)%values(:,:,1)
-                aveptr => T1%properties(iprop)%values(:,:,avg)
-                n = T1%properties(iprop)%nClass * T1%L
-                call mpi_allreduce(binptr, aveptr, n, mpi_double, &
-                   mpi_sum, mpi_comm_world, mpi_err)
+              if (iprop==IPAIRs .or. iprop==IPAIRd) then
+                 binptr => T1%properties(iprop)%values(:,:,1)
+                 aveptr => T1%properties(iprop)%values(:,:,avg)
+                 n = T1%properties(iprop)%nClass * (T1%L+1)
+                 call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+                      mpi_sum, mpi_comm_world, mpi_err)
+              else
+                 binptr => T1%properties(iprop)%values(:,:,1)
+                 aveptr => T1%properties(iprop)%values(:,:,avg)
+                 n = T1%properties(iprop)%nClass * T1%L
+                 call mpi_allreduce(binptr, aveptr, n, mpi_double, &
+                      mpi_sum, mpi_comm_world, mpi_err)
+              endif
             endif
           enddo
 
@@ -2815,19 +2922,19 @@ contains
           if (T1%flags(IPAIRs) == 1) then
              bins => T1%swaveAvg(:, 1)
              aves => T1%swaveAvg(:, avg)
-             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+             call mpi_allreduce(bins, aves, T1%L+1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
           endif
           if (T1%flags(IPAIRd) == 1) then
            do i = 1,T1%NPd
              bins => T1%Pdtau(:, 1, i)
              aves => T1%Pdtau(:, avg, i)
-             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+             call mpi_allreduce(bins, aves, T1%L+1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
              bins => T1%Pd0tau(:, 1, i)
              aves => T1%Pd0tau(:, avg, i)
-             call mpi_allreduce(bins, aves, T1%L, mpi_double, &
+             call mpi_allreduce(bins, aves, T1%L+1, mpi_double, &
                      mpi_sum, mpi_comm_world, mpi_err)
 
              call mpi_allreduce(T1%Pd(1,i), T1%Pd(avg,i), 1, mpi_double, &
@@ -3090,7 +3197,14 @@ contains
                 binptr => T1%properties(iprop)%values(:,:,1)
                 aveptr => T1%properties(iprop)%values(:,:,avg)
                 errptr => T1%properties(iprop)%values(:,:,err)
-                n = T1%properties(iprop)%nClass * T1%L
+
+                ! tau=beta term is needed for pairing correlation
+                if (iprop==IPAIRs .or. iprop==IPAIRd) then
+                  n = T1%properties(iprop)%nClass * (T1%L+1)
+                else  
+                  n = T1%properties(iprop)%nClass * T1%L
+                endif
+
                 call mpi_allreduce((binptr-aveptr)**2, errptr, n, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
                 errptr = sqrt(errptr * dble(nproc-1)/dble(nproc))
@@ -3247,7 +3361,7 @@ contains
              bins => T1%swaveAvg(:, 1)
              aves => T1%swaveAvg(:, avg)
              errs => T1%swaveAvg(:, err)
-             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+             call mpi_allreduce((bins-aves)**2, errs, T1%L+1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
           endif
@@ -3256,14 +3370,14 @@ contains
              bins => T1%Pdtau(:, 1, i)
              aves => T1%Pdtau(:, avg, i)
              errs => T1%Pdtau(:, err, i)
-             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+             call mpi_allreduce((bins-aves)**2, errs, T1%L+1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
 
              bins => T1%Pd0tau(:, 1, i)
              aves => T1%Pd0tau(:, avg, i)
              errs => T1%Pd0tau(:, err, i)
-             call mpi_allreduce((bins-aves)**2, errs, T1%L, mpi_double, &
+             call mpi_allreduce((bins-aves)**2, errs, T1%L+1, mpi_double, &
                     mpi_sum, mpi_comm_world, mpi_err)
              errs = sqrt(errs * dble(nproc-1)/dble(nproc))
 
@@ -3308,9 +3422,9 @@ contains
     integer, intent(in)     :: OPT
 
     integer             :: i, j, t, iprop, OPT1, OPT2, b1, b2, idx
-    real(wp)            :: tmp(T1%L, 2)
+    real(wp)            :: tmp(T1%L+1, 2)
     real(wp)            :: x, y
-    character(len=10)   :: label(T1%L)
+    character(len=10)   :: label(T1%L+1)
     character(len=slen) :: title
     character(len=80)   :: ofile
     character(label_len) :: lab
@@ -3321,20 +3435,31 @@ contains
 
     if (qmc_sim%rank .ne. 0) return
 
-    do j = 1, T1%L
+    do j = 1, T1%L+1
        write(label(j),'(f10.5)') (j-1)*T1%dtau
     enddo
 
     do iprop = 1, NTDMARRAY
       if (T1%flags(iprop)==1) then
-        do i = 1, T1%properties(iprop)%nclass
-          do j = 0, T1%L-1
-             tmp(j+1, 1:2) = T1%properties(iprop)%values(i, j, T1%avg:T1%err)
+        if (iprop==IPAIRs .or. iprop==IPAIRd) then
+          do i = 1, T1%properties(iprop)%nclass
+            do j = 0, T1%L
+              tmp(j+1, 1:2) = T1%properties(iprop)%values(i, j, T1%avg:T1%err)
+            enddo
+            title=pname(iprop)//" "//trim(adjustl(T1%properties(iprop)%clabel(i)))
+            call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+            write(OPT,'(1x)')
           enddo
-          title=pname(iprop)//" "//trim(adjustl(T1%properties(iprop)%clabel(i)))
-          call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
-          write(OPT,'(1x)')
-        enddo
+        else
+          do i = 1, T1%properties(iprop)%nclass
+            do j = 0, T1%L-1
+              tmp(j+1, 1:2) = T1%properties(iprop)%values(i, j, T1%avg:T1%err)
+            enddo
+            title=pname(iprop)//" "//trim(adjustl(T1%properties(iprop)%clabel(i)))
+            call DQMC_Print_Array(0, T1%L, title, label(1:T1%L), tmp(:, 1:1), tmp(:, 2:2), OPT)
+            write(OPT,'(1x)')
+          enddo
+        endif
       endif
     enddo
 
@@ -3361,19 +3486,19 @@ contains
        do i = 1,T1%NPd
          write(OPT,"(a10,i3)") 'component', i
          ! Pd(tau)
-         do j = 0, T1%L-1
-            tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err, i)
+         do j = 0, T1%L
+            tmp(j, 1:2) = T1%Pdtau(j, T1%avg:T1%err, i)
          enddo
          title="Pd(tau)"
-         call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+         call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
          write(OPT,'(1x)')
 
          ! Pd0(tau) 
-         do j = 0, T1%L-1
-            tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, i)
+         do j = 0, T1%L
+            tmp(j, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, i)
          enddo
          title="Pd0 (nonvertex) (tau)"
-         call DQMC_Print_Array(0, T1%L , title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+         call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
          write(OPT,'(1x)')
          write(OPT,FMT_DBLINE)
        enddo
@@ -3514,7 +3639,7 @@ contains
     integer                 :: OPT1, OPT2, OPT3, OPT4, OPT5
 
     integer             :: i, j, b1, b2
-    real(wp)            :: tmp(T1%L, 2)
+    real(wp)            :: tmp(0:T1%L, 2)
     real(wp)            :: x, y
     character(len=10)   :: label(T1%L)
     character(len=slen) :: title
@@ -3527,8 +3652,8 @@ contains
 
     if (qmc_sim%rank .ne. 0) return
 
-    do j = 1, T1%L
-       write(label(j),'(f10.5)') (j-1)*T1%dtau
+    do j = 0, T1%L
+       write(label(j),'(f10.5)') j*T1%dtau
     enddo
 
     if (T1%flags(IGFUN) == 1) then
@@ -3537,7 +3662,7 @@ contains
       ! Print local G(tau)'s
       do i = 1, T1%properties(IGFUN)%nclass
         do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
+          tmp(j, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3549,7 +3674,7 @@ contains
       ! Print average of local G(tau) for average N(w)
       title="average local G(tau)"
       do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%GtauAvg(j, T1%avg:T1%err)
+         tmp(j, 1:2) = T1%GtauAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
@@ -3557,7 +3682,7 @@ contains
     if (T1%flags(IGFUP) == 1) then
       title="average local Gup(tau)"
       do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%GtupAvg(j, T1%avg:T1%err)
+         tmp(j, 1:2) = T1%GtupAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
@@ -3565,7 +3690,7 @@ contains
     if (T1%flags(IGFDN) == 1) then
       title="average local Gdn(tau)"
       do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%GtdnAvg(j, T1%avg:T1%err)
+         tmp(j, 1:2) = T1%GtdnAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
@@ -3577,7 +3702,7 @@ contains
       ! Print local spin-xx correlation
       do i = 1, T1%properties(ISPXX)%nclass
         do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%properties(ISPXX)%values(i, j, T1%avg:T1%err)
+          tmp(j, 1:2) = T1%properties(ISPXX)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(ISPXX)//" "//trim(adjustl(T1%properties(ISPXX)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3589,7 +3714,7 @@ contains
       ! Print average of sum_r spin-xx(r,tau) for average spin-xx susceptibility
       title="average local spin-xx(tau)"
       do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%spinxxAvg(j, T1%avg:T1%err)
+         tmp(j, 1:2) = T1%spinxxAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
     endif
@@ -3601,7 +3726,7 @@ contains
       ! Print local spin-zz correlation
       do i = 1, T1%properties(ISPZZ)%nclass
         do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%properties(ISPZZ)%values(i, j, T1%avg:T1%err)
+          tmp(j, 1:2) = T1%properties(ISPZZ)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(ISPZZ)//" "//trim(adjustl(T1%properties(ISPZZ)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3613,7 +3738,7 @@ contains
       ! Print average of sum_r spin-zz(r,tau) for average spin-zz susceptibility
       title="average local spin-zz(tau)"
       do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%spinzzAvg(j, T1%avg:T1%err)
+         tmp(j, 1:2) = T1%spinzzAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
     endif
@@ -3624,8 +3749,8 @@ contains
 
       ! Print local s-wave
       do i = 1, T1%properties(IPAIRs)%nclass
-        do j = 0, T1%L-1
-          tmp(j+1, 1:2) = T1%properties(IPAIRs)%values(i, j, T1%avg:T1%err)
+        do j = 0, T1%L
+          tmp(j, 1:2) = T1%properties(IPAIRs)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(IPAIRs)//" "//trim(adjustl(T1%properties(IPAIRs)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3636,8 +3761,8 @@ contains
 
       ! Print average of sum_r pair(r,tau) for average pair susceptibility
       title="average local swave(tau)"
-      do j = 0, T1%L-1
-         tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
+      do j = 0, T1%L
+         tmp(j, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
     endif

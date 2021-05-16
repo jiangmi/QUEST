@@ -1290,6 +1290,35 @@ contains
 
   !--------------------------------------------------------------------!
 
+  subroutine convert_to_iw0_PsPd(tdmtau, tdmiw0, L, dtau)
+     ! 5/15/2021:
+     ! convert pair correlation(tau) to Ps/Pd(iw=0) component
+     ! using composite Simpson's rule
+     ! Need Pdtau(beta) for integration to obtain Pd
+     ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+     ! See Ben's notes
+
+     integer,  intent(in)  :: L
+     real(wp), intent(in)  :: tdmtau(0:L)
+     real(wp), intent(out) :: tdmiw0
+     integer :: it
+     real*8  :: dtau
+
+     tdmiw0 = 0.0
+     ! special term for chi(beta) = chi(0)
+     tdmiw0 = tdmiw0 + tdmtau(0) + tdmtau(L)
+       do it = 1, L-1, 2
+         tdmiw0 = tdmiw0 + 4.*tdmtau(it)
+       enddo
+       do it = 2, L-2, 2
+         tdmiw0 = tdmiw0 + 2.*tdmtau(it)
+       enddo
+     tdmiw0 = tdmiw0 * dtau/3.0
+
+  end subroutine convert_to_iw0_PsPd
+
+  !--------------------------------------------------------------------!
+
   subroutine DQMC_getFTw(gl,gw,maxl,dtau,bose,nmax)
      ! Fourier transform g(n,l) to get g(n,w) (Fermi or Bose frequencies).
 

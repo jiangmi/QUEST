@@ -810,7 +810,7 @@ contains
 
              jt = tau%it_up; j0 = tau%i0_up
              call DQMC_TDM_Compute(T1, model, upt0, up0t, dnt0, dn0t, up00, uptt, dn00, dntt, jt, j0)
-          enddo
+          enddo 
 
           if (m .gt. 0) then
              call DQMC_Gtau_DumpA(tau, TAU_UP, it, i0)
@@ -847,7 +847,7 @@ contains
           values => T1%properties(iprop)%values
           do i = 1, T1%properties(iprop)%nClass
             factor = sgn/(T1%properties(iprop)%F(i)*cnt)
-            values(i,0:L-1,T1%idx)   = values(i,0:L-1,T1%idx)   + factor*values(i,0:L-1,T1%tmp)
+            values(i,:,T1%idx) = values(i,:,T1%idx) + factor*values(i,:,T1%tmp)
 
             !compute chixx_r0_iw0 with composite Simpson's rule:
             if (iprop==ISPXX) then
@@ -1309,8 +1309,8 @@ contains
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) *0.5_wp 
              value2(k)  = value2(k) + up0t(i,j)*dn0t(i,j) *0.5_wp
-             valueL(k)  = valueL(k) + up00(i,j)*dn00(i,j) *0.5_wp
-             
+             valueL(k)  = valueL(k) + up00(i,j)*dn00(i,j) 
+
              if (i==j) then
                valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
              endif
@@ -2203,9 +2203,15 @@ contains
     do i = 1, NTDMARRAY
        if (T1%flags(i)==1) then
          nl = T1%properties(i)%nClass
-         do j = 0, T1%L-1
-           call dscal(nl, factor, T1%properties(i)%values(:,j,idx), 1)
-         enddo
+         if (i==IPAIRs .or. i==IPAIRd) then
+           do j = 0, T1%L
+             call dscal(nl, factor, T1%properties(i)%values(:,j,idx), 1)
+           enddo
+         else
+           do j = 0, T1%L-1
+             call dscal(nl, factor, T1%properties(i)%values(:,j,idx), 1)
+           enddo
+         endif
        endif
     enddo
 
@@ -3487,7 +3493,7 @@ contains
          write(OPT,"(a10,i3)") 'component', i
          ! Pd(tau)
          do j = 0, T1%L
-            tmp(j, 1:2) = T1%Pdtau(j, T1%avg:T1%err, i)
+            tmp(j+1, 1:2) = T1%Pdtau(j, T1%avg:T1%err, i)
          enddo
          title="Pd(tau)"
          call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
@@ -3495,7 +3501,7 @@ contains
 
          ! Pd0(tau) 
          do j = 0, T1%L
-            tmp(j, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, i)
+            tmp(j+1, 1:2) = T1%Pd0tau(j, T1%avg:T1%err, i)
          enddo
          title="Pd0 (nonvertex) (tau)"
          call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
@@ -3639,9 +3645,9 @@ contains
     integer                 :: OPT1, OPT2, OPT3, OPT4, OPT5
 
     integer             :: i, j, b1, b2
-    real(wp)            :: tmp(0:T1%L, 2)
+    real(wp)            :: tmp(T1%L+1, 2)
     real(wp)            :: x, y
-    character(len=10)   :: label(T1%L)
+    character(len=10)   :: label(T1%L+1)
     character(len=slen) :: title
     character(len=80)   :: ofile
     character(len=label_len)  :: lab
@@ -3652,8 +3658,8 @@ contains
 
     if (qmc_sim%rank .ne. 0) return
 
-    do j = 0, T1%L
-       write(label(j),'(f10.5)') j*T1%dtau
+    do j = 1, T1%L+1
+       write(label(j),'(f10.5)') (j-1)*T1%dtau
     enddo
 
     if (T1%flags(IGFUN) == 1) then
@@ -3662,7 +3668,7 @@ contains
       ! Print local G(tau)'s
       do i = 1, T1%properties(IGFUN)%nclass
         do j = 0, T1%L-1
-          tmp(j, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
+          tmp(j+1, 1:2) = T1%properties(IGFUN)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(IGFUN)//" "//trim(adjustl(T1%properties(IGFUN)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3674,7 +3680,7 @@ contains
       ! Print average of local G(tau) for average N(w)
       title="average local G(tau)"
       do j = 0, T1%L-1
-         tmp(j, 1:2) = T1%GtauAvg(j, T1%avg:T1%err)
+         tmp(j+1, 1:2) = T1%GtauAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
@@ -3682,7 +3688,7 @@ contains
     if (T1%flags(IGFUP) == 1) then
       title="average local Gup(tau)"
       do j = 0, T1%L-1
-         tmp(j, 1:2) = T1%GtupAvg(j, T1%avg:T1%err)
+         tmp(j+1, 1:2) = T1%GtupAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
@@ -3690,7 +3696,7 @@ contains
     if (T1%flags(IGFDN) == 1) then
       title="average local Gdn(tau)"
       do j = 0, T1%L-1
-         tmp(j, 1:2) = T1%GtdnAvg(j, T1%avg:T1%err)
+         tmp(j+1, 1:2) = T1%GtdnAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT1)
     endif
@@ -3702,7 +3708,7 @@ contains
       ! Print local spin-xx correlation
       do i = 1, T1%properties(ISPXX)%nclass
         do j = 0, T1%L-1
-          tmp(j, 1:2) = T1%properties(ISPXX)%values(i, j, T1%avg:T1%err)
+          tmp(j+1, 1:2) = T1%properties(ISPXX)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(ISPXX)//" "//trim(adjustl(T1%properties(ISPXX)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3714,7 +3720,7 @@ contains
       ! Print average of sum_r spin-xx(r,tau) for average spin-xx susceptibility
       title="average local spin-xx(tau)"
       do j = 0, T1%L-1
-         tmp(j, 1:2) = T1%spinxxAvg(j, T1%avg:T1%err)
+         tmp(j+1, 1:2) = T1%spinxxAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT2)
     endif
@@ -3726,7 +3732,7 @@ contains
       ! Print local spin-zz correlation
       do i = 1, T1%properties(ISPZZ)%nclass
         do j = 0, T1%L-1
-          tmp(j, 1:2) = T1%properties(ISPZZ)%values(i, j, T1%avg:T1%err)
+          tmp(j+1, 1:2) = T1%properties(ISPZZ)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(ISPZZ)//" "//trim(adjustl(T1%properties(ISPZZ)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
@@ -3738,7 +3744,7 @@ contains
       ! Print average of sum_r spin-zz(r,tau) for average spin-zz susceptibility
       title="average local spin-zz(tau)"
       do j = 0, T1%L-1
-         tmp(j, 1:2) = T1%spinzzAvg(j, T1%avg:T1%err)
+         tmp(j+1, 1:2) = T1%spinzzAvg(j, T1%avg:T1%err)
       enddo
       call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT3)
     endif
@@ -3750,11 +3756,11 @@ contains
       ! Print local s-wave
       do i = 1, T1%properties(IPAIRs)%nclass
         do j = 0, T1%L
-          tmp(j, 1:2) = T1%properties(IPAIRs)%values(i, j, T1%avg:T1%err)
+          tmp(j+1, 1:2) = T1%properties(IPAIRs)%values(i, j, T1%avg:T1%err)
         enddo
         title=pname(IPAIRs)//" "//trim(adjustl(T1%properties(IPAIRs)%clabel(i)))
         if (index(title, " 0.0000000   0.0000000   0.0000000") > 0) then
-          call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
+          call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
         endif
         ! write(OPT1,'(1x)')
       enddo
@@ -3762,9 +3768,9 @@ contains
       ! Print average of sum_r pair(r,tau) for average pair susceptibility
       title="average local swave(tau)"
       do j = 0, T1%L
-         tmp(j, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
+         tmp(j+1, 1:2) = T1%swaveAvg(j, T1%avg:T1%err)
       enddo
-      call DQMC_Print_Array(0, T1%L, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
+      call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT4)
     endif
 
     !############################################################################

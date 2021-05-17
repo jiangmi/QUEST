@@ -461,7 +461,7 @@ contains
           T1%properties(iprop)%vecClass  => S%vecClass
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
-       case(ISPXX, ISPZZ, IDENS)
+       case(ISPZZ, IDENS)
 
           nclass = S%nClass
           np     = Gwrap%lattice%natom
@@ -481,7 +481,7 @@ contains
       ! Need Pdtau(beta) for integration to obtain Pd
       ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
       ! See Ben's notes
-       case(IPAIRs, IPAIRd)
+       case(ISPXX, IPAIRs, IPAIRd)
 
           nclass = S%nClass
           np     = Gwrap%lattice%natom
@@ -1072,7 +1072,8 @@ contains
              val1 = up0t(j,i)*dnt0(i,j)
              val2 = up0t(i,j)*dnt0(j,i)
              value1(k)  = value1(k) - val1 
-             value2(k)  = value2(k) - val2 
+             value2(k)  = value2(k) - val2
+
            !  value1(k)  = value1(k) - (up0t(j,i)*dnt0(i,j) &
            !       + up0t(i,j)*dnt0(j,i))/2
            !  value2(k)  = value2(k) - (up0t(i,j)*dnt0(j,i) &
@@ -1299,7 +1300,6 @@ contains
      if (T1%flags(IPAIRs) == 1) then
        value1  => T1%properties(IPAIRs)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRs)%values(:, dt2, T1%tmp)
-       valueL  => T1%properties(IPAIRs)%values(:, L,   T1%tmp)
 
        do i = 1,  T1%properties(IPAIRs)%n
           do j = 1,  T1%properties(IPAIRs)%n
@@ -1309,11 +1309,6 @@ contains
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) *0.5_wp 
              value2(k)  = value2(k) + up0t(i,j)*dn0t(i,j) *0.5_wp
-             valueL(k)  = valueL(k) + up00(i,j)*dn00(i,j) 
-
-             if (i==j) then
-               valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
-             endif
           end do
        end do
      endif
@@ -1324,7 +1319,6 @@ contains
      if (T1%flags(IPAIRd) == 1) then
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRd)%values(:, dt2, T1%tmp)
-       valueL  => T1%properties(IPAIRd)%values(:, L,   T1%tmp)
 
        ! Following the general def of P_abcd in WeiWu's PRX (2015)
        ! See also RTS's paper in 1989 PRB
@@ -1393,22 +1387,12 @@ contains
                 -dn0t(T1%dn(i), T1%rt(j)) + dn0t(T1%dn(i), T1%up(j))  &
                 -dn0t(T1%dn(i), T1%lf(j)) + dn0t(T1%dn(i), T1%dn(j))
 
-             c = dn00(T1%rt(i), T1%rt(j)) - dn00(T1%rt(i), T1%up(j))  &
-                +dn00(T1%rt(i), T1%lf(j)) - dn00(T1%rt(i), T1%dn(j))  &
-                -dn00(T1%up(i), T1%rt(j)) + dn00(T1%up(i), T1%up(j))  &
-                -dn00(T1%up(i), T1%lf(j)) + dn00(T1%up(i), T1%dn(j))  &
-                +dn00(T1%lf(i), T1%rt(j)) - dn00(T1%lf(i), T1%up(j))  &
-                +dn00(T1%lf(i), T1%lf(j)) - dn00(T1%lf(i), T1%dn(j))  &
-                -dn00(T1%dn(i), T1%rt(j)) + dn00(T1%dn(i), T1%up(j))  &
-                -dn00(T1%dn(i), T1%lf(j)) + dn00(T1%dn(i), T1%dn(j))
-
              ! *0.25 or /4 accounts for the convention for definition
              ! See 1989 PRB paper: Numerical study of 2D Hubbard model
              a = a*0.5_wp*0.25
              b = b*0.5_wp*0.25
              value1(k)  = value1(k) + upt0(i,j)*a
              value2(k)  = value2(k) + up0t(i,j)*b
-             valueL(k)  = valueL(k) + up00(i,j)*c*2.0
 
              ! only compute in-plane d-wave pairing susceptibility (square lattice)
              select case (model)
@@ -1416,14 +1400,12 @@ contains
                case (0)
                  T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                  T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                 T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
 
                ! PAM (P_ffff only temporarily)
                case (1)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  endif
 
                ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
@@ -1431,7 +1413,6 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
 
                    ! compute Pd within and between two sublattice
                    ! separation limitation:
@@ -1440,16 +1421,13 @@ contains
                      if (mod(int(x1+y1),2)==0) then
                        T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                        T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
-                       T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                      else
                        T1%Pdtau(dt1, T1%tmp, 4) = T1%Pdtau(dt1, T1%tmp, 4) + upt0(i,j)*a
                        T1%Pdtau(dt2, T1%tmp, 4) = T1%Pdtau(dt2, T1%tmp, 4) + up0t(i,j)*b
-                       T1%Pdtau(L, T1%tmp, 4) = T1%Pdtau(L, T1%tmp, 4) + up00(i,j)*c*2.0
                      endif
                    else
                      T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                      T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
-                     T1%Pdtau(L, T1%tmp, 3) = T1%Pdtau(L, T1%tmp, 3) + up00(i,j)*c*2.0
                    endif
                  endif
 
@@ -1458,11 +1436,9 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then             
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a                   
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b                 
-                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then         
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a               
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b           
-                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0    
                  endif
 
                ! stacked two PAMs: c1-f1-f2-c2; 2 components denote f1 and f2 layers
@@ -1470,11 +1446,9 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                  endif
 
                ! stacked two PAMs: c1-f1-c2-f2; 2 components denote f1 and f2
@@ -1482,11 +1456,9 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                  endif
 
                ! Ce3MIn11: f2-c2-f1-c1-f1-c2; 3 components denote two f1 and f2
@@ -1494,15 +1466,12 @@ contains
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 1) = T1%Pdtau(L, T1%tmp, 1) + up00(i,j)*c*2.0
                  elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 2) = T1%Pdtau(L, T1%tmp, 2) + up00(i,j)*c*2.0
                  elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
-                   T1%Pdtau(L, T1%tmp, 3) = T1%Pdtau(L, T1%tmp, 3) + up00(i,j)*c*2.0
                  endif
              end select
           end do
@@ -1711,6 +1680,7 @@ contains
 
      if (T1%flags(ISPXX) == 1) then
        value1  => T1%properties(ISPXX)%values(:, dt1, T1%tmp)
+       valueL  => T1%properties(ISPXX)%values(:, L, T1%tmp)
        do i = 1,  T1%properties(ISPXX)%n
           do j = 1,  T1%properties(ISPXX)%n
              ! k is the distance index of site i and site j
@@ -1718,6 +1688,11 @@ contains
  
              val1 = (up0t(j,i)*dnt0(i,j) + up0t(i,j)*dnt0(j,i))
              value1(k)  = value1(k) - val1
+             valueL(k)  = valueL(k) - (up00(j,i)*dn00(i,j) + up00(i,j)*dn00(j,i))
+
+             if (i==j) then
+               valueL(k)  = valueL(k) + up00(i,i)+dn00(i,i)
+             endif
 
              ! compute chi_q at q=(0,0) and (pi,pi)
              if (T1%flagsFT(ISPXX) == 1) then
@@ -1920,6 +1895,7 @@ contains
 
      if (T1%flags(IPAIRd) == 1) then
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
+       valueL  => T1%properties(IPAIRd)%values(:, L,   T1%tmp)
 
        ! D_i*D_j = sum_{dd'} Gup(i,j)*Gdn(i+d,j+d')
        do i = 1,  T1%properties(IPAIRd)%n
@@ -1972,22 +1948,40 @@ contains
                 +dnt0(T1%lf(i), T1%lf(j)) - dnt0(T1%lf(i), T1%dn(j))  &
                 -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  & 
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))    
-               
+              
+             c = dn00(T1%rt(i), T1%rt(j)) - dn00(T1%rt(i), T1%up(j))  &                                                        
+                +dn00(T1%rt(i), T1%lf(j)) - dn00(T1%rt(i), T1%dn(j))  &                                                        
+                -dn00(T1%up(i), T1%rt(j)) + dn00(T1%up(i), T1%up(j))  &                                                        
+                -dn00(T1%up(i), T1%lf(j)) + dn00(T1%up(i), T1%dn(j))  &                                                        
+                +dn00(T1%lf(i), T1%rt(j)) - dn00(T1%lf(i), T1%up(j))  &                                                        
+                +dn00(T1%lf(i), T1%lf(j)) - dn00(T1%lf(i), T1%dn(j))  &                                                        
+                -dn00(T1%dn(i), T1%rt(j)) + dn00(T1%dn(i), T1%up(j))  &                                                        
+                -dn00(T1%dn(i), T1%lf(j)) + dn00(T1%dn(i), T1%dn(j))   
+ 
              ! *0.25 or /4 accounts for the convention for definition
              ! See 1989 PRB paper: Numerical study of 2D Hubbard model
              a = a*0.25                                                                        
              value1(k) = value1(k) + upt0(i,j)*a
+
+             ! Calculate value at beta closely related to value at tau=0
+             valueL(k) = valueL(k) + up00(i,j)*c
+
+             if (i==j) then
+               valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
+             endif
                                             
              ! only compute in-plane d-wave pairing susceptibility (square lattice)
              select case (model)
                ! Hubbard
                case (0)
                  T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                 T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + up00(i,j)*c
 
                ! PAM (P_ffff only temporarily)
                case (1)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+
                  endif
 
                ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
@@ -2203,7 +2197,7 @@ contains
     do i = 1, NTDMARRAY
        if (T1%flags(i)==1) then
          nl = T1%properties(i)%nClass
-         if (i==IPAIRs .or. i==IPAIRd) then
+         if (i==ISPXX .or. i==IPAIRs .or. i==IPAIRd) then
            do j = 0, T1%L
              call dscal(nl, factor, T1%properties(i)%values(:,j,idx), 1)
            enddo
@@ -2540,7 +2534,7 @@ contains
 
        do iprop = 1, NTDMARRAY
          if (T1%flags(iprop)==1) then
-           if (iprop==IPAIRs .or. iprop==IPAIRd) then
+           if (iprop==ISPXX .or. iprop==IPAIRs .or. iprop==IPAIRd) then
              do i = 1, T1%properties(iprop)%nClass
                do j = 0, T1%L
                   data =  T1%properties(iprop)%values(i, j, 1:n)
@@ -3447,7 +3441,7 @@ contains
 
     do iprop = 1, NTDMARRAY
       if (T1%flags(iprop)==1) then
-        if (iprop==IPAIRs .or. iprop==IPAIRd) then
+        if (iprop==ISPXX .or. iprop==IPAIRs .or. iprop==IPAIRd) then
           do i = 1, T1%properties(iprop)%nclass
             do j = 0, T1%L
               tmp(j+1, 1:2) = T1%properties(iprop)%values(i, j, T1%avg:T1%err)

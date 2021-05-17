@@ -93,6 +93,32 @@ contains
   end function conjg_real2
 
   !--------------------------------------------------------!
+  ! G related
+  !--------------------------------------------------------|
+
+  function one_G(G, i, j) result(GG)
+    !
+    ! Purpose
+    ! =======
+    !    This function returns G or 1-G depending on if i==j
+    !
+    ! Arguments
+    ! =========
+    integer,  intent(in)    :: i, j      
+    real(WP), intent(in)    :: G
+    !
+    ! ... Return value ...
+    !
+    real(WP) :: GG
+
+    GG = G
+    if (i==j) then
+      GG = 1. - G
+    endif
+
+  end function one_G
+
+  !--------------------------------------------------------!
   ! Matrix computations
   !--------------------------------------------------------|
 

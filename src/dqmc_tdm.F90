@@ -979,7 +979,7 @@ contains
     real(wp), pointer :: value1(:), value2(:), valueL(:)
     real(wp) :: factor
     real(wp), dimension(1:5) :: vec
-    real(wp) :: val1, val2
+    real(wp) :: val1, val2, val3
 
     ! ... Executable ...
     if (.not.T1%compute) return
@@ -1884,11 +1884,11 @@ contains
              ! k is the distance index of site i and site j
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
-             valueL(k)  = valueL(k) + up00(i,j)*dn00(i,j)
 
-             if (i==j) then
-               valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
-             endif
+             ! For tau=beta 
+             val1 = one_G(up00(i,j), i, j)
+             val2 = one_G(dn00(i,j), i, j)
+             valueL(k) = valueL(k) + val1*val2
           end do
        end do
      endif
@@ -1949,39 +1949,45 @@ contains
                 -dnt0(T1%dn(i), T1%rt(j)) + dnt0(T1%dn(i), T1%up(j))  & 
                 -dnt0(T1%dn(i), T1%lf(j)) + dnt0(T1%dn(i), T1%dn(j))    
               
-             c = dn00(T1%rt(i), T1%rt(j)) - dn00(T1%rt(i), T1%up(j))  &                                                        
-                +dn00(T1%rt(i), T1%lf(j)) - dn00(T1%rt(i), T1%dn(j))  &                                                        
-                -dn00(T1%up(i), T1%rt(j)) + dn00(T1%up(i), T1%up(j))  &                                                        
-                -dn00(T1%up(i), T1%lf(j)) + dn00(T1%up(i), T1%dn(j))  &                                                        
-                +dn00(T1%lf(i), T1%rt(j)) - dn00(T1%lf(i), T1%up(j))  &                                                        
-                +dn00(T1%lf(i), T1%lf(j)) - dn00(T1%lf(i), T1%dn(j))  &                                                        
-                -dn00(T1%dn(i), T1%rt(j)) + dn00(T1%dn(i), T1%up(j))  &                                                        
-                -dn00(T1%dn(i), T1%lf(j)) + dn00(T1%dn(i), T1%dn(j))   
- 
              ! *0.25 or /4 accounts for the convention for definition
              ! See 1989 PRB paper: Numerical study of 2D Hubbard model
              a = a*0.25                                                                        
              value1(k) = value1(k) + upt0(i,j)*a
 
-             ! Calculate value at beta closely related to value at tau=0
-             valueL(k) = valueL(k) + up00(i,j)*c
+             ! For tau=beta 
+             val1 = one_G(up00(i,j), i, j)
+             val2 = one_G(dn00(T1%rt(i), T1%rt(j)), T1%rt(i), T1%rt(j))  &
+                  - one_G(dn00(T1%rt(i), T1%up(j)), T1%rt(i), T1%up(j))  &
+                  + one_G(dn00(T1%rt(i), T1%lf(j)), T1%rt(i), T1%lf(j))  &
+                  - one_G(dn00(T1%rt(i), T1%dn(j)), T1%rt(i), T1%dn(j))  &
+                  - one_G(dn00(T1%up(i), T1%rt(j)), T1%up(i), T1%rt(j))  &
+                  + one_G(dn00(T1%up(i), T1%up(j)), T1%up(i), T1%up(j))  &
+                  - one_G(dn00(T1%up(i), T1%lf(j)), T1%up(i), T1%lf(j))  &
+                  + one_G(dn00(T1%up(i), T1%dn(j)), T1%up(i), T1%dn(j))  &
+                  + one_G(dn00(T1%lf(i), T1%rt(j)), T1%lf(i), T1%rt(j))  &
+                  - one_G(dn00(T1%lf(i), T1%up(j)), T1%lf(i), T1%up(j))  &
+                  + one_G(dn00(T1%lf(i), T1%lf(j)), T1%lf(i), T1%lf(j))  &
+                  - one_G(dn00(T1%lf(i), T1%dn(j)), T1%lf(i), T1%dn(j))  &
+                  - one_G(dn00(T1%dn(i), T1%rt(j)), T1%dn(i), T1%rt(j))  &
+                  + one_G(dn00(T1%dn(i), T1%up(j)), T1%dn(i), T1%up(j))  &
+                  - one_G(dn00(T1%dn(i), T1%lf(j)), T1%dn(i), T1%lf(j))  &
+                  + one_G(dn00(T1%dn(i), T1%dn(j)), T1%dn(i), T1%dn(j))  
 
-             if (i==j) then
-               valueL(k)  = valueL(k) + 1.0-up00(i,i)-dn00(i,i)
-             endif
+             val3 = val1*val2*0.25
+             valueL(k) = valueL(k) + val3
                                             
              ! only compute in-plane d-wave pairing susceptibility (square lattice)
              select case (model)
                ! Hubbard
                case (0)
                  T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
-                 T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + up00(i,j)*c
+                 T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
 
                ! PAM (P_ffff only temporarily)
                case (1)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
-
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + val3
                  endif
 
                ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
@@ -2305,13 +2311,13 @@ contains
 
     ! Correlated d-wave susceptibility Pd
     if (T1%flags(IPAIRd) == 1) then
-       T1%Pdtau(0:T1%L-1, T1%idx, :) = T1%Pdtau(0:T1%L-1, T1%idx, :) * fac
+       T1%Pdtau(0:T1%L, T1%idx, :) = T1%Pdtau(0:T1%L, T1%idx, :) * fac
        T1%Pd(T1%idx, :) = T1%Pd(T1%idx, :) * fac
 
        ! compute uncorrelated or non-vertex d-wave susceptibility Pd^bar
        ! D_i*D_j = sum_{dd'} <Gup(i,j)>*<Gdn(i+d,j+d')>
        ! Pd0 = int^beta_0 sum_ij D_i*D_j
-       do it = 0, T1%L-1
+       do it = 0, T1%L
          ! Note that precisely value1 (value2) should use
          ! Gup and Gdn respectively. Because sometimes the code
          ! input file does not specify computing them
@@ -2476,7 +2482,7 @@ contains
        enddo
 
        do i = 1,T1%NPd
-         call convert_to_iw0_real(T1%Pd0tau(0:T1%L-1, idx, i), T1%Pd0(idx, i), T1%L, T1%dtau)
+         call convert_to_iw0_PsPd(T1%Pd0tau(0:T1%L, idx, i), T1%Pd0(idx, i), T1%L, T1%dtau)
 
          ! calculate the d-wave pairing vertex Gammad
          T1%Gammad(T1%idx,i) = 1.0/T1%Pd(T1%idx,i) - 1.0/T1%Pd0(idx,i)

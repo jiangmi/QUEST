@@ -106,14 +106,13 @@ contains
     ! =========
     integer,  intent(in)    :: i, j      
     real(WP), intent(in)    :: G
-    !
-    ! ... Return value ...
-    !
     real(WP) :: GG
 
-    GG = G
+    GG = 0.0
     if (i==j) then
-      GG = 1. - G
+      GG = 1.0 - G
+    else
+      GG = G
     endif
 
   end function one_G

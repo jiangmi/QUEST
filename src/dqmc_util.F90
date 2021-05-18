@@ -112,7 +112,7 @@ contains
     if (i==j) then
       GG = 1.0 - G
     else
-      GG = G
+      GG = -G
     endif
 
   end function one_G

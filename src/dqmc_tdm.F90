@@ -1885,7 +1885,8 @@ contains
              k = T1%properties(IPAIRs)%D(i,j)
              value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
 
-             ! For tau=beta 
+             ! For tau=beta, see Ben's notes and email on May.14, 2021
+             ! one_G function defined in dqmc_util.F90
              val1 = one_G(up00(i,j), i, j)
              val2 = one_G(dn00(i,j), i, j)
              valueL(k) = valueL(k) + val1*val2
@@ -2149,7 +2150,7 @@ contains
     ! ... local scalar ...
     integer  :: nl, idx, i, j, k, it, x1,x2,y1,y2,z1,z2,correction
     integer, intent(in)  :: model
-    real(wp) :: factor, fac, a, tmp
+    real(wp) :: factor, fac, a, tmp, valL
     real(wp), allocatable :: value1(:), value2(:), valueL(:)
 
     ! ... Executable ...
@@ -2198,6 +2199,7 @@ contains
 
     allocate(value1(1:T1%properties(IGFUN)%nClass))
     allocate(value2(1:T1%properties(IGFUN)%nClass))
+    allocate(valueL(1:T1%properties(IGFUN)%nClass))
 
     ! Compute average on Green's function
     do i = 1, NTDMARRAY
@@ -2322,9 +2324,20 @@ contains
          ! Gup and Gdn respectively. Because sometimes the code
          ! input file does not specify computing them
          ! Here assume that G = Gup = Gdn
-         value1 = T1%properties(IGFUP)%values(:, it, idx)
-         value2 = T1%properties(IGFDN)%values(:, it, idx)
-         valueL = T1%properties(IGFDN)%values(:, 0,  idx)
+
+         if (it<T1%L) then
+           value1 = T1%properties(IGFUP)%values(:, it, idx)
+           value2 = T1%properties(IGFDN)%values(:, it, idx)
+         else
+           ! tau=beta: G_ij(beta) = delta_ij*(1-G_ij(0))
+           do i = 1, T1%properties(IPAIRd)%n
+             do j = 1, T1%properties(IPAIRd)%n  
+                k = T1%properties(IPAIRd)%D(i,j)
+                value1(k) = one_G(T1%properties(IGFUP)%values(k,0,idx), i, j)
+                value2(k) = one_G(T1%properties(IGFDN)%values(k,0,idx), i, j)
+             enddo
+           enddo
+         endif
 
          a = 0.0_wp
          do i = 1,  T1%properties(IPAIRd)%n
@@ -2409,7 +2422,6 @@ contains
 
                ! only compute in-plane d-wave pairing susceptibility (square lattice)
                tmp = value1(k)*a/(4.d0*T1%properties(IPAIRd)%n/correction)*2.d0
-
 
                select case (model)
                  ! Hubbard

@@ -2158,6 +2158,8 @@ contains
     idx    = T1%idx
     factor = ONE/T1%cnt
 
+    T1%sgn(idx) = T1%sgn(idx)*factor
+
     ! set correction factor considering No.orb per site
     select case (model)
       ! hubbard square
@@ -2421,7 +2423,7 @@ contains
                ! G(i,j) = G(j,i) because (i,j) and (j,i) have same class k
 
                ! only compute in-plane d-wave pairing susceptibility (square lattice)
-               tmp = value1(k)*a/(4.d0*T1%properties(IPAIRd)%n/correction)*2.d0
+               tmp = value1(k)*a/(4.d0*T1%properties(IPAIRd)%n/correction)*2.d0/T1%sgn(idx)
 
                select case (model)
                  ! Hubbard
@@ -2506,7 +2508,7 @@ contains
        enddo
     endif
 
-    T1%sgn(idx) = T1%sgn(idx)*factor
+!    T1%sgn(idx) = T1%sgn(idx)*factor
     T1%cnt = 0
     T1%idx = T1%idx + 1
 

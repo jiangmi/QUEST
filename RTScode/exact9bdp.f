@@ -265,6 +265,7 @@ c
               bspinxx(k,j1,j2) = aspinxx(j1,j2) / asgn
               bspinzz(k,j1,j2) = aspinzz(j1,j2) / asgn
 c Set gnl and chinl for this tenth of the run.
+c redefining gnl is for accumulating non-vertex pairgsus
               do 41 ti = 0, l
                gnl(j1,j2,ti) = agnl(j1,j2,ti)/asgnt
                gql(j1,j2,ti) = 0.d0

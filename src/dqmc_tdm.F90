@@ -468,7 +468,7 @@ contains
 
           nullify(T1%properties(iprop)%tlink)
           T1%properties(iprop)%n      =  S%nSite
-          T1%properties(iprop)%nclass =  S%nClass
+          T1%properties(iprop)%nclass =  nClass
           T1%properties(iprop)%D      => S%D
           T1%properties(iprop)%F      => S%F
           T1%properties(iprop)%np     =  np
@@ -479,7 +479,7 @@ contains
           allocate(T1%properties(iprop)%values(nclass,0:T1%L-1,T1%err))
 
       ! Need Pdtau(beta) for integration to obtain Pd
-      ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
+      ! because Ps/Pd(tau) is NOT simply symmetric over beta/2 like chi(tau)
       ! See Ben's notes
        case(ISPXX, IPAIRs, IPAIRd)
 
@@ -488,7 +488,7 @@ contains
 
           nullify(T1%properties(iprop)%tlink)
           T1%properties(iprop)%n      =  S%nSite
-          T1%properties(iprop)%nclass =  S%nClass
+          T1%properties(iprop)%nclass =  nClass
           T1%properties(iprop)%D      => S%D
           T1%properties(iprop)%F      => S%F
           T1%properties(iprop)%np     =  np
@@ -556,7 +556,7 @@ contains
           allocate(T1%properties(iprop)%valueskold_iw0(nk*npp,T1%err))
           allocate(T1%properties(iprop)%valuesk(0:T1%NkFT,0:T1%NkFT,0:T1%L-1,T1%err))
 
-       case(ISPXX, ISPZZ, IDENS)
+       case(ISPZZ, IDENS)
 
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
@@ -570,7 +570,7 @@ contains
       ! Need Pdtau(beta) for integration to obtain Pd
       ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
       ! See Ben's notes
-       case(IPAIRs, IPAIRd)
+       case(ISPXX, IPAIRs, IPAIRd)
 
           np     = Gwrap%lattice%natom
           npp    = (np*(np+1))/2
@@ -1294,9 +1294,6 @@ contains
        end do
      endif
 
-    ! Need Pstau(beta) for integration to obtain Pd
-    ! because Ps(tau) is simply symmetric over beta/2 like chi(tau)
-    ! See Ben's notes
      if (T1%flags(IPAIRs) == 1) then
        value1  => T1%properties(IPAIRs)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRs)%values(:, dt2, T1%tmp)
@@ -1313,9 +1310,6 @@ contains
        end do
      endif
 
-    ! Need Pdtau(beta) for integration to obtain Pd
-    ! because Pd(tau) is simply symmetric over beta/2 like chi(tau)
-    ! See Ben's notes
      if (T1%flags(IPAIRd) == 1) then
        value1  => T1%properties(IPAIRd)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRd)%values(:, dt2, T1%tmp)
@@ -1955,7 +1949,8 @@ contains
              a = a*0.25                                                                        
              value1(k) = value1(k) + upt0(i,j)*a
 
-             ! For tau=beta 
+             ! For tau=beta, not simply the same as tau=0 for pair corre
+             ! see Ben's notes
              val1 = one_G(up00(i,j), i, j)
              val2 = one_G(dn00(T1%rt(i), T1%rt(j)), T1%rt(i), T1%rt(j))  &
                   - one_G(dn00(T1%rt(i), T1%up(j)), T1%rt(i), T1%up(j))  &
@@ -1988,13 +1983,14 @@ contains
                case (1)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
-                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + val3
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
                  endif
 
                ! staggered PAM; 4 components denote total, f1f1, f1f2, f2f2
                case (2)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
 
                    ! compute Pd within and between two sublattice
                    ! separation limitation:
@@ -2002,11 +1998,14 @@ contains
                      ! one sublattice
                      if (mod(int(x1+y1),2)==0) then
                        T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                       T1%Pdtau(L,   T1%tmp, 2) = T1%Pdtau(L,   T1%tmp, 2) + val3
                      else
                        T1%Pdtau(dt1, T1%tmp, 4) = T1%Pdtau(dt1, T1%tmp, 4) + upt0(i,j)*a
+                       T1%Pdtau(L,   T1%tmp, 4) = T1%Pdtau(L,   T1%tmp, 4) + val3
                      endif
                    else
                      T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
+                     T1%Pdtau(L,   T1%tmp, 3) = T1%Pdtau(L,   T1%tmp, 3) + val3
                    endif
                  endif
 
@@ -2014,34 +2013,43 @@ contains
                case (3)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 2) = T1%Pdtau(L,   T1%tmp, 2) + val3
                  endif
 
                ! stacked two PAMs:c1-f1-f2-c2; 2 components denote f1 and f2 layers
                case (4)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
                  elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 2) = T1%Pdtau(L,   T1%tmp, 2) + val3
                  endif
 
                ! stacked two PAMs:c1-f1-c2-f2; 2 components denote f1 and f2 layers
                case (5)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
                  elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 2) = T1%Pdtau(L,   T1%tmp, 2) + val3
                  endif
 
                ! Ce3MIn11: f2-c2-f1-c1-f1-c2; 3 components denote two f1 and f2
                case (6)
                  if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
                  elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 2) = T1%Pdtau(L,   T1%tmp, 2) + val3
                  elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 3) = T1%Pdtau(L,   T1%tmp, 3) + val3
                  endif
              end select
           end do
@@ -2151,12 +2159,15 @@ contains
     integer  :: nl, idx, i, j, k, it, x1,x2,y1,y2,z1,z2,correction
     integer, intent(in)  :: model
     real(wp) :: factor, fac, a, tmp, valL
-    real(wp), allocatable :: value1(:), value2(:), valueL(:)
+    real(wp), allocatable :: value1(:), value2(:)
 
     ! ... Executable ...
     if (.not.T1%compute) return
     idx    = T1%idx
     factor = ONE/T1%cnt
+
+    allocate(value1(1:T1%properties(IGFUN)%nClass))
+    allocate(value2(1:T1%properties(IGFUN)%nClass))
 
     T1%sgn(idx) = T1%sgn(idx)*factor
 
@@ -2198,10 +2209,6 @@ contains
     end select    
       
     fac = factor/(T1%properties(ISPXX)%n/correction)  
-
-    allocate(value1(1:T1%properties(IGFUN)%nClass))
-    allocate(value2(1:T1%properties(IGFUN)%nClass))
-    allocate(valueL(1:T1%properties(IGFUN)%nClass))
 
     ! Compute average on Green's function
     do i = 1, NTDMARRAY
@@ -2327,16 +2334,20 @@ contains
          ! input file does not specify computing them
          ! Here assume that G = Gup = Gdn
 
+         ! Mi: May 19, 2021
+         ! here /sgn becasue previously in DQMC_TDM_Meas
+         ! all quantities are multiplied by sgn, so here temporarily
+         ! divide it again
          if (it<T1%L) then
-           value1 = T1%properties(IGFUP)%values(:, it, idx)
-           value2 = T1%properties(IGFDN)%values(:, it, idx)
+           value1 = T1%properties(IGFUP)%values(:, it, idx)/T1%sgn(idx)
+           value2 = T1%properties(IGFDN)%values(:, it, idx)/T1%sgn(idx)
          else
            ! tau=beta: G_ij(beta) = delta_ij*(1-G_ij(0))
            do i = 1, T1%properties(IPAIRd)%n
              do j = 1, T1%properties(IPAIRd)%n  
                 k = T1%properties(IPAIRd)%D(i,j)
-                value1(k) = one_G(T1%properties(IGFUP)%values(k,0,idx), i, j)
-                value2(k) = one_G(T1%properties(IGFDN)%values(k,0,idx), i, j)
+                value1(k) = one_G(T1%properties(IGFUP)%values(k,0,idx)/T1%sgn(idx), i, j)
+                value2(k) = one_G(T1%properties(IGFDN)%values(k,0,idx)/T1%sgn(idx), i, j)
              enddo
            enddo
          endif
@@ -2423,7 +2434,11 @@ contains
                ! G(i,j) = G(j,i) because (i,j) and (j,i) have same class k
 
                ! only compute in-plane d-wave pairing susceptibility (square lattice)
-               tmp = value1(k)*a/(4.d0*T1%properties(IPAIRd)%n/correction)*2.d0/T1%sgn(idx)
+               ! Mi: May 19, 2021
+               ! similar to other quantites, MC average needs *sgn factor
+               ! All future quantities calculated directly using binned values
+               ! of (for example G) in DQMC_TDM_Avg need do like this !!!
+               tmp = value1(k)*a/(4.d0*T1%properties(IPAIRd)%n/correction)*2.d0*T1%sgn(idx)
 
                select case (model)
                  ! Hubbard

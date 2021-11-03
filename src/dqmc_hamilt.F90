@@ -286,15 +286,15 @@ contains
     ! 1. Get an array from cartpos to site index !
     !    namely inverse map of cartpos(3,0:n-1)  !
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    xmax = int(maxval(pos(1,:)))
-    ymax = int(maxval(pos(2,:)))
-    zmax = int(maxval(pos(3,:)))
+    xmax = nint(maxval(pos(1,:)))
+    ymax = nint(maxval(pos(2,:)))
+    zmax = nint(maxval(pos(3,:)))
     allocate(pos2site(0:xmax, 0:ymax, 0:zmax))
 
     do it = 0, nsites-1
-      x = int(pos(1,it))
-      y = int(pos(2,it))
-      z = int(pos(3,it))
+      x = nint(pos(1,it))
+      y = nint(pos(2,it))
+      z = nint(pos(3,it))
       pos2site(x,y,z) = it
     enddo 
 
@@ -302,9 +302,9 @@ contains
     ! 2. Set up 4 neighbors in plane
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     do it = 0, nsites-1
-      x = int(pos(1,it))
-      y = int(pos(2,it))
-      z = int(pos(3,it))
+      x = nint(pos(1,it))
+      y = nint(pos(2,it))
+      z = nint(pos(3,it))
       pos2site(x,y,z) = it
 
       tmp = plus(x,xmax)  

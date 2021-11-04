@@ -918,6 +918,10 @@ contains
            modelname = "c1-f1-f2-c2   "
          case (5)
            modelname = "c1-f1-c2-f2   "
+         case (7)
+           modelname = "bilayer square"
+         case (8)
+           modelname = "1cell lattice"
        end select
 
        write(OPT,"(a30,a20)") "                      Model : ", modelname
@@ -2137,7 +2141,6 @@ contains
  
      !Duplicate the Green's function
      call DQMC_Gfun_Duplicate(G_up_local, Hub%G_up)
-   
      if (.not.Hub%neg_u .or. Hub%comp_dn) then
         call DQMC_Gfun_Duplicate(G_dn_local, Hub%G_dn)
      else
@@ -2169,7 +2172,7 @@ contains
      if (Hub%comp_dn .or. .not.Hub%neg_u) then
         call DQMC_GetG_2nd_order(G_dn_local, Hub%B_dn)
      endif
-     
+
      ! Basic measurement
      call DQMC_Phy_Meas(model, Hub%n, Hub%P0, G_up_local%GS, G_dn_local%GS, Hub%U, &
         Hub%mu_up, Hub%mu_dn, Hub%t_up, Hub%t_dn, sgn_up, sgn_dn, Hub%S)

@@ -391,6 +391,11 @@ contains
       case (5)
         P0%Ncspin = 4
         P0%Nccharge = 4
+
+      ! bilayer square that can differ
+      case (7)
+        P0%Ncspin = 2
+        P0%Nccharge = 2
     end select
 
     allocate(P0%Cspinxx(P0%Ncspin, P0%Ncspin, P0%nBin+2))
@@ -586,7 +591,6 @@ contains
     ! Compute the site density for spin up and spin down
     do i = 1, n
        k = S%D(i,i)
-
        !======================================================!
        ! The density of electrons of spin up(dn) on site i    !
        ! is 1-G_up(i,i) (1-G_dn(i,i)).                        !
@@ -633,7 +637,7 @@ contains
 
     P0%meas(P0_NUP, tmp) = sum(P0%up)
     P0%meas(P0_NDN, tmp) = sum(P0%dn)
-    
+
     !=================================================================!
     ! Total occupancy = nup + ndn
     !=================================================================!
@@ -684,7 +688,6 @@ contains
     !=================================================================!
     ! KE in x direction <-Kx> for D and Ds (up and dn spins)
     !=================================================================!
-
     do i = 1, n
        ! - sign for <-Kx>
        ! Below applies for isotropic system
@@ -883,6 +886,16 @@ contains
         correction = 4
         allocate(cf(4))
         cf = (/ 1,2,3,4 /)
+
+      ! bilayer square that can differ
+      case (7)
+        correction = 2
+        allocate(cf(2))
+        cf = (/ 1,2 /)
+
+      ! 1cell with each site is inequivalent
+      case (8)
+        correction = n
     end select
 
     do i = 1,n
@@ -955,6 +968,7 @@ contains
            ! Compute AF structure factor of all spin correlations   !
            ! Ref: similar to PRB 97, 085123 (2018) Eq.11 but AF here
            !========================================================!
+          if (model<8) then
            ! +1 because the code uses site index from 0
            o1 = int(S%vecClass(k,1))+1
            o2 = int(S%vecClass(k,2))+1
@@ -986,14 +1000,14 @@ contains
              P0%Ccharge(cf(o1),cf(o2),tmp) = P0%Ccharge(cf(o1),cf(o2),tmp) + 0.5 * S%AFphase(k) *var4
              P0%Ccharge(cf(o2),cf(o1),tmp) = P0%Ccharge(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var4
            endif
-
+          endif
            !======================================================================!
            ! Further compute n*n and n+n for <(n-<n>)*(n-<n>)> of staggered PAM   !
            ! Ref: similar to PRL 110, 246401 (2013) Eq.2                          !
            !======================================================================!
-           var5 = P0%up(i) + P0%dn(i) + P0%up(j) + P0%dn(j)
+           if (model<6) then  
+             var5 = P0%up(i) + P0%dn(i) + P0%up(j) + P0%dn(j)
 
-           if (model<6) then
              ! consider exp*{separation*pi}
              if (mod(int(x1-x2+y1-y2),2)==0) then
                ! (nc+nf)*(nc+nf):
@@ -1062,10 +1076,12 @@ contains
        ! Additional term for all structure factor calculation
        ! Need S%AFphase(k) because some layers it is zero instead of one
        ! because e.g. only need Saf for f-electrons
+      if (model<8) then
        o1 = int(S%vecClass(k,1))+1
        P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
        P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
        P0%Ccharge(cf(o1),cf(o1),tmp) = P0%Ccharge(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
+      endif
 
        ! Correction for n*n similar to Ccharge
        if (model<6) then
@@ -1082,7 +1098,7 @@ contains
 
        P0%meas(P0_NNPROD, tmp) = P0%meas(P0_NNPROD, tmp) + S%AFphase(k) *var1
     end do
-    
+
     P0%meas(P0_SFERRO, tmp) = sum(P0%SpinXX(:,tmp))
     P0%meas(P0_SFER2,  tmp) = sum(P0%SpinZZ(:,tmp))
     P0%meas(P0_PAIR,   tmp) = sum(P0%Pair(:,tmp))
@@ -1092,10 +1108,12 @@ contains
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n
 
+   if (model<8) then
     ! correction accounts for actual number of site pairs for Cspin and Ccharge
     P0%Cspinxx(:,:,tmp) = P0%Cspinxx(:,:,tmp) / (n/correction)
     P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / (n/correction)
     P0%Ccharge(:,:,tmp) = P0%Ccharge(:,:,tmp) / (n/correction)
+   endif
 
     if (model<6) then
       P0%Snnprod(:,tmp) = P0%Snnprod(:,tmp) / (n/correction)
@@ -1124,6 +1142,8 @@ contains
     ! Accumulate result to P0(:, idx)
     sgn = sgnup * sgndn
     P0%meas(:, idx) =  P0%meas(:, idx) + P0%meas(:, tmp) * sgn
+
+   if (model<8) then
     P0%Cspinxx(:,:,idx) = P0%Cspinxx(:,:,idx)  &
                         + P0%Cspinxx(:,:,tmp) * sgn
     P0%Cspinzz(:,:,idx) = P0%Cspinzz(:,:,idx)  &
@@ -1134,6 +1154,7 @@ contains
                         + P0%Snnprod(:,tmp) * sgn
     P0%Snnsum (:,idx) = P0%Snnsum (:,idx)  &
                         + P0%Snnsum (:,tmp) * sgn
+   endif
 
     m = P0%nClass
     call blas_daxpy(m, sgn, P0%G_fun (1:m,tmp), 1, P0%G_fun (1:m,idx), 1)

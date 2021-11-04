@@ -292,7 +292,7 @@ contains
     allocate(pos2site(0:xmax, 0:ymax, 0:zmax))
 
     do it = 0, nsites-1
-      x = nint(pos(1,it))
+      x = nint(pos(1,it))                                                                                                       
       y = nint(pos(2,it))
       z = nint(pos(3,it))
       pos2site(x,y,z) = it
@@ -301,11 +301,10 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! 2. Set up 4 neighbors in plane
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    do it = 0, nsites-1
-      x = nint(pos(1,it))
+    do it = 0, nsites-1                                                                                                        
+      x = nint(pos(1,it))                                                                                                       
       y = nint(pos(2,it))
       z = nint(pos(3,it))
-      pos2site(x,y,z) = it
 
       tmp = plus(x,xmax)  
       hamilt%rt(it) = pos2site(tmp,y,z)

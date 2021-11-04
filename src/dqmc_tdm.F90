@@ -379,6 +379,10 @@ contains
         ! 3 components denote two f1 and f2 layers
         case (6)
           T1%NPd = 3
+
+        ! Bilayer square: two layers can differ
+        case (7)
+          T1%NPd = 1
       end select
 
       ! Need Pdtau(beta) for integration to obtain Pd
@@ -1360,6 +1364,13 @@ contains
                 cycle
              endif
 
+             ! bilayer
+          !   if ((model==7) .and.                  &
+          !       .not. (( abs(z1)<1.d-6 .and. abs(z2)<1.d-6 ) .or. &
+          !              ( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ))) then
+          !      cycle
+          !   endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -1467,6 +1478,16 @@ contains
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
                  endif
+
+               ! bilayer square that can differ
+               case (7)
+          !       if (abs(z1)<1.d-6 .and. abs(z2)<1.d-6) then
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
+          !       elseif (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+          !         T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
+          !         T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
+          !       endif
              end select
           end do
        end do
@@ -1932,6 +1953,12 @@ contains
                 cycle
              endif
 
+        !     if ((model==7) .and.                  &
+        !         .not. (( abs(z1)<1.d-6 .and. abs(z2)<1.d-6 ) .or. &
+        !                ( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ))) then
+        !        cycle
+        !     endif
+
              ! 4 neighbors of each site so that totally 16 terms
              ! with different phase factors for d-wave pairing
              ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -2051,6 +2078,11 @@ contains
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    T1%Pdtau(L,   T1%tmp, 3) = T1%Pdtau(L,   T1%tmp, 3) + val3
                  endif
+
+               ! bilayer square that can differ
+               case (7)
+                   T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
+                   T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
              end select
           end do
        end do
@@ -2206,6 +2238,14 @@ contains
       ! Ce3MIn11: f2-c2-f1-c1-f1-c2
       case (6)
         correction = 6
+
+      ! bilayer square that can differ
+      case (7)
+        correction = 2
+
+      ! 1cell with each site is inequivalent
+      case (8)
+        correction = T1%properties(ISPXX)%n
     end select    
       
     fac = factor/(T1%properties(ISPXX)%n/correction)  
@@ -2389,6 +2429,7 @@ contains
                   cycle
                endif
 
+
                ! 4 neighbors of each site so that totally 16 terms
                ! with different phase factors for d-wave pairing
                ! record all 16 possible Gdn(i+d,j+d') as a below
@@ -2504,6 +2545,10 @@ contains
                    elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 3) = T1%Pd0tau(it, idx, 3) + tmp
                    endif
+
+                 ! bilayer square that can differ
+                 case (7)
+                     T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + tmp
                end select
             end do
          end do

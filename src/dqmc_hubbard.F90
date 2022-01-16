@@ -918,6 +918,8 @@ contains
            modelname = "c1-f1-f2-c2   "
          case (5)
            modelname = "c1-f1-c2-f2   "
+         case (6)
+           modelname = "f2-c2-f1-c1-f1-c2"
          case (7)
            modelname = "bilayer square"
          case (8)

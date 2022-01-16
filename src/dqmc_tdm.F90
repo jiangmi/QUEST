@@ -267,7 +267,7 @@ contains
     if (model==4 .or. model==5) then
       T1%nchi = T1%norb2+3
     elseif (model==6) then
-      ! for f2-c2-f1-c1-f1-c2 model, add two chi1 and chi2
+      ! for f2-c2-f1-c1-f1-c2 model, add chi's for f2,f1,f1
       T1%nchi = T1%norb2+4
     else
       T1%nchi = T1%norb2+1
@@ -836,6 +836,7 @@ contains
 
        enddo
 
+       ! TODO: what is this cnt??
        cnt = cnt + 1
     enddo blocks
  
@@ -1119,6 +1120,20 @@ contains
                  endif
                endif
 
+               ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+               if (model==6) then
+                 if (int(z1)==0 .and. int(z2)==0) then
+                   T1%chiqxx(dt1,1,o2+2,T1%tmp) = T1%chiqxx(dt1,1,o2+2,T1%tmp) - val1
+                   T1%chiqxx(dt2,1,o2+2,T1%tmp) = T1%chiqxx(dt2,1,o2+2,T1%tmp) - val2
+                 elseif (int(z1)==2 .and. int(z2)==2) then
+                   T1%chiqxx(dt1,1,o2+3,T1%tmp) = T1%chiqxx(dt1,1,o2+3,T1%tmp) - val1
+                   T1%chiqxx(dt2,1,o2+3,T1%tmp) = T1%chiqxx(dt2,1,o2+3,T1%tmp) - val2
+                 elseif (int(z1)==4 .and. int(z2)==4) then
+                   T1%chiqxx(dt1,1,o2+4,T1%tmp) = T1%chiqxx(dt1,1,o2+4,T1%tmp) - val1
+                   T1%chiqxx(dt2,1,o2+4,T1%tmp) = T1%chiqxx(dt2,1,o2+4,T1%tmp) - val2
+                 endif
+               endif
+
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) - val1
@@ -1137,6 +1152,20 @@ contains
                    endif
                  endif
 
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) - val1
+                     T1%chiqxx(dt2,2,o2+2,T1%tmp) = T1%chiqxx(dt2,2,o2+2,T1%tmp) - val2
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) - val1
+                     T1%chiqxx(dt2,2,o2+3,T1%tmp) = T1%chiqxx(dt2,2,o2+3,T1%tmp) - val2
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqxx(dt1,2,o2+4,T1%tmp) = T1%chiqxx(dt1,2,o2+4,T1%tmp) - val1
+                     T1%chiqxx(dt2,2,o2+4,T1%tmp) = T1%chiqxx(dt2,2,o2+4,T1%tmp) - val2
+                   endif
+                 endif
+
                else
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) + val1
                  T1%chiqxx(dt2,2,idx,T1%tmp) = T1%chiqxx(dt2,2,idx,T1%tmp) + val2
@@ -1151,6 +1180,20 @@ contains
                    elseif (int(z1)>1 .and. int(z2)>1) then
                      T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) + val1
                      T1%chiqxx(dt2,2,o2+3,T1%tmp) = T1%chiqxx(dt2,2,o2+3,T1%tmp) + val2
+                   endif
+                 endif
+
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
+                     T1%chiqxx(dt2,2,o2+2,T1%tmp) = T1%chiqxx(dt2,2,o2+2,T1%tmp) + val2
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) + val1
+                     T1%chiqxx(dt2,2,o2+3,T1%tmp) = T1%chiqxx(dt2,2,o2+3,T1%tmp) + val2
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqxx(dt1,2,o2+4,T1%tmp) = T1%chiqxx(dt1,2,o2+4,T1%tmp) + val1
+                     T1%chiqxx(dt2,2,o2+4,T1%tmp) = T1%chiqxx(dt2,2,o2+4,T1%tmp) + val2
                    endif
                  endif
                endif
@@ -1226,6 +1269,20 @@ contains
                  endif
                endif
 
+               ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+               if (model==6) then
+                 if (int(z1)==0 .and. int(z2)==0) then
+                   T1%chiqzz(dt1,1,o2+2,T1%tmp) = T1%chiqzz(dt1,1,o2+2,T1%tmp) - val1
+                   T1%chiqzz(dt2,1,o2+2,T1%tmp) = T1%chiqzz(dt2,1,o2+2,T1%tmp) - val2
+                 elseif (int(z1)==2 .and. int(z2)==2) then
+                   T1%chiqzz(dt1,1,o2+3,T1%tmp) = T1%chiqzz(dt1,1,o2+3,T1%tmp) - val1
+                   T1%chiqzz(dt2,1,o2+3,T1%tmp) = T1%chiqzz(dt2,1,o2+3,T1%tmp) - val2
+                 elseif (int(z1)==4 .and. int(z2)==4) then
+                   T1%chiqzz(dt1,1,o2+4,T1%tmp) = T1%chiqzz(dt1,1,o2+4,T1%tmp) - val1
+                   T1%chiqzz(dt2,1,o2+4,T1%tmp) = T1%chiqzz(dt2,1,o2+4,T1%tmp) - val2
+                 endif
+               endif
+
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) - val1
@@ -1244,6 +1301,20 @@ contains
                    endif
                  endif
 
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) - val1
+                     T1%chiqzz(dt2,2,o2+2,T1%tmp) = T1%chiqzz(dt2,2,o2+2,T1%tmp) - val2
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) - val1
+                     T1%chiqzz(dt2,2,o2+3,T1%tmp) = T1%chiqzz(dt2,2,o2+3,T1%tmp) - val2
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqzz(dt1,2,o2+4,T1%tmp) = T1%chiqzz(dt1,2,o2+4,T1%tmp) - val1
+                     T1%chiqzz(dt2,2,o2+4,T1%tmp) = T1%chiqzz(dt2,2,o2+4,T1%tmp) - val2
+                   endif
+                 endif
+
                else
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) + val1
                  T1%chiqzz(dt2,2,idx,T1%tmp) = T1%chiqzz(dt2,2,idx,T1%tmp) + val2
@@ -1258,6 +1329,20 @@ contains
                    elseif (int(z1)>1 .and. int(z2)>1) then
                      T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) + val1
                      T1%chiqzz(dt2,2,o2+3,T1%tmp) = T1%chiqzz(dt2,2,o2+3,T1%tmp) + val2
+                   endif
+                 endif
+
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
+                     T1%chiqzz(dt2,2,o2+2,T1%tmp) = T1%chiqzz(dt2,2,o2+2,T1%tmp) + val2
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) + val1
+                     T1%chiqzz(dt2,2,o2+3,T1%tmp) = T1%chiqzz(dt2,2,o2+3,T1%tmp) + val2
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqzz(dt1,2,o2+4,T1%tmp) = T1%chiqzz(dt1,2,o2+4,T1%tmp) + val1
+                     T1%chiqzz(dt2,2,o2+4,T1%tmp) = T1%chiqzz(dt2,2,o2+4,T1%tmp) + val2
                    endif
                  endif
                endif
@@ -1358,9 +1443,9 @@ contains
 
              ! Ce3MIn11: f2-c2-f1-c1-f1-c2
              if ((model==6) .and.                  &
-                 .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
-                 .not.  ( abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6 ) .or. &
-                        ( abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6 ))) then
+                 .not. (( abs(z1-0.d0)<1.d-6 .and. abs(z2-0.d0)<1.d-6 ) .or. &
+                        ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ) .or. &
+                        ( abs(z1-4.d0)<1.d-6 .and. abs(z2-4.d0)<1.d-6 ))) then
                 cycle
              endif
 
@@ -1468,13 +1553,13 @@ contains
 
                ! Ce3MIn11: f2-c2-f1-c1-f1-c2; 3 components denote two f1 and f2
                case (6)
-                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                 if (abs(z1-0.d0)<1.d-6 .and. abs(z2-0.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 1) = T1%Pdtau(dt2, T1%tmp, 1) + up0t(i,j)*b
-                 elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
+                 elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 2) = T1%Pdtau(dt2, T1%tmp, 2) + up0t(i,j)*b
-                 elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
+                 elseif (abs(z1-4.d0)<1.d-6 .and. abs(z2-4.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    T1%Pdtau(dt2, T1%tmp, 3) = T1%Pdtau(dt2, T1%tmp, 3) + up0t(i,j)*b
                  endif
@@ -1742,6 +1827,17 @@ contains
                  endif
                endif
 
+               ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+               if (model==6) then
+                 if (int(z1)==0 .and. int(z2)==0) then
+                   T1%chiqxx(dt1,1,o2+2,T1%tmp) = T1%chiqxx(dt1,1,o2+2,T1%tmp) - val1
+                 elseif (int(z1)==2 .and. int(z2)==2) then
+                   T1%chiqxx(dt1,1,o2+3,T1%tmp) = T1%chiqxx(dt1,1,o2+3,T1%tmp) - val1
+                 elseif (int(z1)==4 .and. int(z2)==4) then
+                   T1%chiqxx(dt1,1,o2+4,T1%tmp) = T1%chiqxx(dt1,1,o2+4,T1%tmp) - val1
+                 endif
+               endif
+
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) - val1
@@ -1756,6 +1852,17 @@ contains
                    endif
                  endif
 
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) - val1
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) - val1
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqxx(dt1,2,o2+4,T1%tmp) = T1%chiqxx(dt1,2,o2+4,T1%tmp) - val1
+                   endif
+                 endif
+
                else
                  T1%chiqxx(dt1,2,idx,T1%tmp) = T1%chiqxx(dt1,2,idx,T1%tmp) + val1
                  T1%chiqxx(dt1,2,o2+1,T1%tmp) = T1%chiqxx(dt1,2,o2+1,T1%tmp) + val1
@@ -1766,6 +1873,17 @@ contains
                      T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
                    elseif (int(z1)>1 .and. int(z2)>1) then
                      T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) + val1
+                   endif
+                 endif
+
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqxx(dt1,2,o2+2,T1%tmp) = T1%chiqxx(dt1,2,o2+2,T1%tmp) + val1
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqxx(dt1,2,o2+3,T1%tmp) = T1%chiqxx(dt1,2,o2+3,T1%tmp) + val1
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqxx(dt1,2,o2+4,T1%tmp) = T1%chiqxx(dt1,2,o2+4,T1%tmp) + val1
                    endif
                  endif
                endif
@@ -1832,6 +1950,17 @@ contains
                  endif
                endif
 
+               ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+               if (model==6) then
+                 if (int(z1)==0 .and. int(z2)==0) then
+                   T1%chiqzz(dt1,1,o2+2,T1%tmp) = T1%chiqzz(dt1,1,o2+2,T1%tmp) - val1
+                 elseif (int(z1)==2 .and. int(z2)==2) then
+                   T1%chiqzz(dt1,1,o2+3,T1%tmp) = T1%chiqzz(dt1,1,o2+3,T1%tmp) - val1
+                 elseif (int(z1)==4 .and. int(z2)==4) then
+                   T1%chiqzz(dt1,1,o2+4,T1%tmp) = T1%chiqzz(dt1,1,o2+4,T1%tmp) - val1
+                 endif
+               endif
+
                ! q=(pi,pi), note the sign accouting for exp(separation*pi)
                if (mod(int(x1-x2+y1-y2),2)==0) then
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) - val1
@@ -1846,6 +1975,16 @@ contains
                    endif
                  endif
 
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) - val1
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) - val1
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqzz(dt1,2,o2+4,T1%tmp) = T1%chiqzz(dt1,2,o2+4,T1%tmp) - val1
+                   endif
+                 endif
                else
                  T1%chiqzz(dt1,2,idx,T1%tmp) = T1%chiqzz(dt1,2,idx,T1%tmp) + val1
                  T1%chiqzz(dt1,2,o2+1,T1%tmp) = T1%chiqzz(dt1,2,o2+1,T1%tmp) + val1
@@ -1856,6 +1995,17 @@ contains
                      T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
                    elseif (int(z1)>1 .and. int(z2)>1) then
                      T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) + val1
+                   endif
+                 endif
+
+                 ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+                 if (model==6) then
+                   if (int(z1)==0 .and. int(z2)==0) then
+                     T1%chiqzz(dt1,2,o2+2,T1%tmp) = T1%chiqzz(dt1,2,o2+2,T1%tmp) + val1
+                   elseif (int(z1)==2 .and. int(z2)==2) then
+                     T1%chiqzz(dt1,2,o2+3,T1%tmp) = T1%chiqzz(dt1,2,o2+3,T1%tmp) + val1
+                   elseif (int(z1)==4 .and. int(z2)==4) then
+                     T1%chiqzz(dt1,2,o2+4,T1%tmp) = T1%chiqzz(dt1,2,o2+4,T1%tmp) + val1
                    endif
                  endif
                endif
@@ -1947,9 +2097,9 @@ contains
 
              ! Ce3MIn11: f2-c2-f1-c1-f1-c2
              if ((model==6) .and.                  &
-                 .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
-                 .not.  ( abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6 ) .or. &
-                        ( abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6 ))) then
+                 .not. (( abs(z1-0.d0)<1.d-6 .and. abs(z2-0.d0)<1.d-6 ) .or. &
+                        ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ) .or. &
+                        ( abs(z1-4.d0)<1.d-6 .and. abs(z2-4.d0)<1.d-6 ))) then
                 cycle
              endif
 
@@ -2068,13 +2218,13 @@ contains
 
                ! Ce3MIn11: f2-c2-f1-c1-f1-c2; 3 components denote two f1 and f2
                case (6)
-                 if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                 if (abs(z1-0.d0)<1.d-6 .and. abs(z2-0.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 1) = T1%Pdtau(dt1, T1%tmp, 1) + upt0(i,j)*a
                    T1%Pdtau(L,   T1%tmp, 1) = T1%Pdtau(L,   T1%tmp, 1) + val3
-                 elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
+                 elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 2) = T1%Pdtau(dt1, T1%tmp, 2) + upt0(i,j)*a
                    T1%Pdtau(L,   T1%tmp, 2) = T1%Pdtau(L,   T1%tmp, 2) + val3
-                 elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
+                 elseif (abs(z1-4.d0)<1.d-6 .and. abs(z2-4.d0)<1.d-6) then
                    T1%Pdtau(dt1, T1%tmp, 3) = T1%Pdtau(dt1, T1%tmp, 3) + upt0(i,j)*a
                    T1%Pdtau(L,   T1%tmp, 3) = T1%Pdtau(L,   T1%tmp, 3) + val3
                  endif
@@ -2360,7 +2510,7 @@ contains
       enddo
     endif
 
-    ! Correlated d-wave susceptibility Pd
+    ! Uncorrelated d-wave susceptibility Pd0 within each MC bin
     if (T1%flags(IPAIRd) == 1) then
        T1%Pdtau(0:T1%L, T1%idx, :) = T1%Pdtau(0:T1%L, T1%idx, :) * fac
        T1%Pd(T1%idx, :) = T1%Pd(T1%idx, :) * fac
@@ -2377,17 +2527,20 @@ contains
          ! Mi: May 19, 2021
          ! here /sgn becasue previously in DQMC_TDM_Meas
          ! all quantities are multiplied by sgn, so here temporarily
-         ! divide it again
+         ! divide it again to obtain the signed average 
+         ! see 2011 CT-QMC review Eq.(41)
          if (it<T1%L) then
            value1 = T1%properties(IGFUP)%values(:, it, idx)/T1%sgn(idx)
            value2 = T1%properties(IGFDN)%values(:, it, idx)/T1%sgn(idx)
+           value1 = T1%properties(IGFUN)%values(:, it, idx)/T1%sgn(idx)
+           value2 = T1%properties(IGFUN)%values(:, it, idx)/T1%sgn(idx)
          else
            ! tau=beta: G_ij(beta) = delta_ij*(1-G_ij(0))
            do i = 1, T1%properties(IPAIRd)%n
              do j = 1, T1%properties(IPAIRd)%n  
                 k = T1%properties(IPAIRd)%D(i,j)
-                value1(k) = one_G(T1%properties(IGFUP)%values(k,0,idx)/T1%sgn(idx), i, j)
-                value2(k) = one_G(T1%properties(IGFDN)%values(k,0,idx)/T1%sgn(idx), i, j)
+                value1(k) = one_G(T1%properties(IGFUN)%values(k,0,idx)/T1%sgn(idx), i, j)
+                value2(k) = one_G(T1%properties(IGFUN)%values(k,0,idx)/T1%sgn(idx), i, j)
              enddo
            enddo
          endif
@@ -2423,9 +2576,9 @@ contains
                endif
 
                if ((model==6) .and.                  &
-                   .not. (( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6 ) .or. &
-                   .not.  ( abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6 ) .or. &
-                          ( abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6 ))) then
+                   .not. (( abs(z1-0.d0)<1.d-6 .and. abs(z2-0.d0)<1.d-6 ) .or. &
+                          ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6 ) .or. &
+                          ( abs(z1-4.d0)<1.d-6 .and. abs(z2-4.d0)<1.d-6 ))) then
                   cycle
                endif
 
@@ -2538,11 +2691,11 @@ contains
 
                  ! Ce3MIn11: f2-c2-f1-c1-f1-c2; 3 components denote two f1 and f2
                  case (6)
-                   if (abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   if (abs(z1-0.d0)<1.d-6 .and. abs(z2-0.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 1) = T1%Pd0tau(it, idx, 1) + tmp
-                   elseif (abs(z1-3.d0)<1.d-6 .and. abs(z2-3.d0)<1.d-6) then
+                   elseif (abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 2) = T1%Pd0tau(it, idx, 2) + tmp
-                   elseif (abs(z1-5.d0)<1.d-6 .and. abs(z2-5.d0)<1.d-6) then
+                   elseif (abs(z1-4.d0)<1.d-6 .and. abs(z2-4.d0)<1.d-6) then
                      T1%Pd0tau(it, idx, 3) = T1%Pd0tau(it, idx, 3) + tmp
                    endif
 

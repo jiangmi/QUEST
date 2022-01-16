@@ -300,6 +300,25 @@ module DQMC_GEOM_WRAP
         endif
       endif
 
+      ! f2-c2-f1-c1-f1-c2 model
+      ! need S_AF for three layers of f-electrons
+      if (model==6) then
+        if (abs(S%vecClass(ic,5))<0.0001 .and. ((mod(int(S%vecClass(ic,1)),4)==0 .and. mod(int(S%vecClass(ic,2)),4)==0) .or. &
+                                                (mod(int(S%vecClass(ic,1)),4)==2 .and. mod(int(S%vecClass(ic,2)),4)==2) .or. &
+                                                (mod(int(S%vecClass(ic,1)),4)==4 .and. mod(int(S%vecClass(ic,2)),4)==4))) then
+          if ( mod(int(abs(S%vecClass(ic,3)))+int(abs(S%vecClass(ic,4))),2) == 0) then  ! (-1)**(x+y)=1
+            S%AFphase(ic) = 1.0
+          else
+            S%AFphase(ic) = -1.0
+          endif
+          write(*,*) 'AFphase = '
+          write(*,'(a6,2(f4.1),a5,3(f5.1),a7,f5.1)') 'sites', S%vecClass(ic,1),S%vecClass(ic,2), &
+                ' r=',S%vecClass(ic,3),S%vecClass(ic,4),S%vecClass(ic,5),'phase=',S%AFphase(ic)
+        else
+          S%AFphase(ic) = 0.0
+        endif
+      endif
+
       ! decide (-1)^x for computing S(pi,0) in plane
       ! mod(int(S%vecClass(ic,1)),2)==1 .and. mod(int(S%vecClass(ic,2)),2)==1 if
       ! for PAM model, which only need S_AF for f-electrons

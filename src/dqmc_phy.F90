@@ -392,6 +392,12 @@ contains
         P0%Ncspin = 4
         P0%Nccharge = 4
 
+      ! f2-c2-f1-c1-f1-c2 model for Ce3PtIn11
+      ! each layer is one orbital, directly from lattice structure
+      case (6)
+        P0%Ncspin = 6
+        P0%Nccharge = 6
+
       ! bilayer square that can differ
       case (7)
         P0%Ncspin = 2
@@ -887,6 +893,12 @@ contains
         allocate(cf(4))
         cf = (/ 1,2,3,4 /)
 
+      ! unit cell from top to bottom: f2,c2,f1,c1,f1,c2 orbs
+      case (6)
+        correction = 6
+        allocate(cf(6))
+        cf = (/ 1,2,3,4,5,6 /)
+
       ! bilayer square that can differ
       case (7)
         correction = 2
@@ -968,7 +980,7 @@ contains
            ! Compute AF structure factor of all spin correlations   !
            ! Ref: similar to PRB 97, 085123 (2018) Eq.11 but AF here
            !========================================================!
-          if (model<8) then
+          if (model>0 .and. model<8) then
            ! +1 because the code uses site index from 0
            o1 = int(S%vecClass(k,1))+1
            o2 = int(S%vecClass(k,2))+1
@@ -1001,11 +1013,12 @@ contains
              P0%Ccharge(cf(o2),cf(o1),tmp) = P0%Ccharge(cf(o2),cf(o1),tmp) + 0.5 * S%AFphase(k) *var4
            endif
           endif
+
            !======================================================================!
            ! Further compute n*n and n+n for <(n-<n>)*(n-<n>)> of staggered PAM   !
            ! Ref: similar to PRL 110, 246401 (2013) Eq.2                          !
            !======================================================================!
-           if (model<6) then  
+           if (model<7) then  
              var5 = P0%up(i) + P0%dn(i) + P0%up(j) + P0%dn(j)
 
              ! consider exp*{separation*pi}
@@ -1076,7 +1089,7 @@ contains
        ! Additional term for all structure factor calculation
        ! Need S%AFphase(k) because some layers it is zero instead of one
        ! because e.g. only need Saf for f-electrons
-      if (model<8) then
+      if (model>0 .and. model<8) then
        o1 = int(S%vecClass(k,1))+1
        P0%Cspinxx(cf(o1),cf(o1),tmp) = P0%Cspinxx(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
        P0%Cspinzz(cf(o1),cf(o1),tmp) = P0%Cspinzz(cf(o1),cf(o1),tmp) + S%AFphase(k) *var1
@@ -1084,7 +1097,7 @@ contains
       endif
 
        ! Correction for n*n similar to Ccharge
-       if (model<6) then
+       if (model<7) then
           ! (nc+nf)*(nc+nf):
           P0%Snnprod(1,tmp) = P0%Snnprod(1,tmp) + var1
           ! c orbital:
@@ -1108,14 +1121,14 @@ contains
     ! Average
     P0%meas(:,tmp) = P0%meas(:,tmp) / n
 
-   if (model<8) then
+   if (model>0 .and. model<8) then
     ! correction accounts for actual number of site pairs for Cspin and Ccharge
     P0%Cspinxx(:,:,tmp) = P0%Cspinxx(:,:,tmp) / (n/correction)
     P0%Cspinzz(:,:,tmp) = P0%Cspinzz(:,:,tmp) / (n/correction)
     P0%Ccharge(:,:,tmp) = P0%Ccharge(:,:,tmp) / (n/correction)
    endif
 
-    if (model<6) then
+    if (model<7) then
       P0%Snnprod(:,tmp) = P0%Snnprod(:,tmp) / (n/correction)
       P0%Snnsum (:,tmp) = P0%Snnsum (:,tmp) / (n/correction)
     endif
@@ -1143,13 +1156,16 @@ contains
     sgn = sgnup * sgndn
     P0%meas(:, idx) =  P0%meas(:, idx) + P0%meas(:, tmp) * sgn
 
-   if (model<8) then
+   if (model>0 .and. model<8) then
     P0%Cspinxx(:,:,idx) = P0%Cspinxx(:,:,idx)  &
                         + P0%Cspinxx(:,:,tmp) * sgn
     P0%Cspinzz(:,:,idx) = P0%Cspinzz(:,:,idx)  &
                         + P0%Cspinzz(:,:,tmp) * sgn
     P0%Ccharge(:,:,idx) = P0%Ccharge(:,:,idx)  &
                         + P0%Ccharge(:,:,tmp) * sgn
+   endif
+
+   if (model<8) then
     P0%Snnprod(:,idx) = P0%Snnprod(:,idx)  &
                         + P0%Snnprod(:,tmp) * sgn
     P0%Snnsum (:,idx) = P0%Snnsum (:,idx)  &
@@ -1741,7 +1757,7 @@ contains
       enddo
     enddo
 
-    if (model<6) then
+    if (model<7) then
       !for charge structure factor of c and f of staggered PAM
       ! nnprod = (nc+nf)*(nc+nf), n_c*n_c, n_f*n_f
       ! nnsum  = (nc+nf)+(nc+nf), n_c+n_c, n_f+n_f

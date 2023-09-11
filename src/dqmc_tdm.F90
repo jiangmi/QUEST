@@ -175,6 +175,15 @@ module DQMC_TDM
      real(wp), pointer :: Pd(:,:)
      real(wp), pointer :: Gammad(:,:)
      real(wp), pointer :: Gd_Pd0(:,:)
+     
+     ! for La3Ni2O7 bilayer two-orbital model
+     ! only compute dz2-dz2 s-wave pairing
+     real(wp), pointer :: Ps0tau(:,:)
+     real(wp), pointer :: Pstau(:,:)
+     real(wp), pointer :: Ps0(:)
+     real(wp), pointer :: Ps(:)
+     real(wp), pointer :: Gammas(:)
+     real(wp), pointer :: Gd_Ps0(:)
 
      ! Fourier transform matrix for bosonic and fermionic fields
      complex(wp), pointer :: ftwfer(:,:), ftwbos(:,:)
@@ -337,6 +346,21 @@ contains
     if (T1%flags(IPAIRs) == 1) then
       allocate(T1%swaveAvg(0:T1%L,T1%err))
       T1%swaveAvg = 0.0_wp
+      
+      ! Ps similar to above Pd
+      allocate(T1%Pstau(0:T1%L, 1:T1%err))
+      allocate(T1%Ps0tau(0:T1%L, 1:T1%err))
+      allocate(T1%Ps(1:T1%err))
+      allocate(T1%Ps0(1:T1%err))
+      allocate(T1%Gammas(1:T1%err))
+      allocate(T1%Gd_Ps0(1:T1%err))
+      
+      T1%Pstau  = 0.0_wp
+      T1%Ps0tau = 0.0_wp
+      T1%Ps  = 0.0_wp
+      T1%Ps0 = 0.0_wp
+      T1%Gammas = 0.0_wp
+      T1%Gd_Ps0 = 0.0_wp
     endif
 
     if (T1%flags(IPAIRd) == 1) then
@@ -394,7 +418,7 @@ contains
       allocate(T1%Pd0(1:T1%err, T1%NPd))
       allocate(T1%Gammad(1:T1%err, T1%NPd))
       allocate(T1%Gd_Pd0(1:T1%err, T1%NPd))
-
+     
       T1%Pdtau  = 0.0_wp
       T1%Pd0tau = 0.0_wp
       T1%Pd  = 0.0_wp
@@ -733,6 +757,12 @@ contains
     endif
     if (T1%flags(IPAIRs) == 1) then
       deallocate(T1%swaveAvg)
+      deallocate(T1%Pstau)
+      deallocate(T1%Ps0tau)
+      deallocate(T1%Ps)
+      deallocate(T1%Ps0)
+      deallocate(T1%Gammas)
+      deallocate(T1%Gd_Ps0)
     endif
     if (T1%flags(IPAIRd) == 1) then
       deallocate(T1%Pdtau)
@@ -915,8 +945,8 @@ contains
           chiv = 0.0
           call convert_to_iw0_real(T1%chiqzz(0:L-1,i,j,T1%tmp), chiv, L, T1%dtau)
           T1%chiqzz_iw0(i,j,T1%idx) = T1%chiqzz_iw0(i,j,T1%idx) + factor*chiv
-        enddo
-      enddo
+        end do
+      end do
 
       chiv = 0.0
       call convert_to_iw0_real(T1%chiqzz_sub1(0:L-1,T1%tmp), chiv, L, T1%dtau)
@@ -945,11 +975,26 @@ contains
         chiv = 0.0
         call convert_to_iw0_PsPd(T1%Pdtau(0:T1%L, T1%tmp, i), chiv, T1%L, T1%dtau)
         T1%Pd(T1%idx, i) = T1%Pd(T1%idx, i) + factor*chiv
-      enddo
+      end do
 
       T1%Pdtau(:, T1%tmp, :) = ZERO
       T1%Pd(T1%tmp, :) = ZERO
     endif
+    
+    
+    ! Ps
+    if (T1%flags(IPAIRs) == 1) then
+      factor = sgn/cnt
+      T1%Pstau(0:T1%L, T1%idx) = T1%Pstau(0:T1%L, T1%idx) + T1%Pstau(0:T1%L, T1%tmp) * factor
+
+      chiv = 0.0
+      call convert_to_iw0_PsPd(T1%Pstau(0:T1%L, T1%tmp), chiv, T1%L, T1%dtau)
+      T1%Ps(T1%idx) = T1%Ps(T1%idx) + factor*chiv
+
+      T1%Pstau(:, T1%tmp) = ZERO
+      T1%Ps(T1%tmp) = ZERO
+    endif
+    
 
     T1%sgn(T1%idx) =  T1%sgn(T1%idx) + sgn
     T1%cnt = T1%cnt + 1
@@ -981,7 +1026,7 @@ contains
     integer  :: i, j, k, dt, dt1, dt2, b1, b2, idx, o2, L
     real*8   :: a,b,c,d,x,y,z
     real*8   :: x1,y1,z1,x2,y2,z2
-    real(wp), pointer :: value1(:), value2(:), valueL(:)
+    real(wp), pointer :: value1(:), value2(:), valueL(:), value0(:)
     real(wp) :: factor
     real(wp), dimension(1:5) :: vec
     real(wp) :: val1, val2, val3
@@ -1387,16 +1432,64 @@ contains
        value1  => T1%properties(IPAIRs)%values(:, dt1, T1%tmp)
        value2  => T1%properties(IPAIRs)%values(:, dt2, T1%tmp)
 
-       do i = 1,  T1%properties(IPAIRs)%n
-          do j = 1,  T1%properties(IPAIRs)%n
-             ! Delta^+_i = c^+_i,up * c^+_i,dn 
-             ! So rules for value1 --> value2:
-             ! upt0 <--> -up0t, dnt0 <--> -dn0t
-             k = T1%properties(IPAIRs)%D(i,j)
-             value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) *0.5_wp 
-             value2(k)  = value2(k) + up0t(i,j)*dn0t(i,j) *0.5_wp
-          end do
-       end do
+       ! Sept.8,2023:
+       ! for the model for bilayer 2orb of La3Ni2O7 
+       ! dx2y2-dz2-dz2-dx2y2 model, similar to stacked two PAM model: c1-f1-f2-c2
+       ! change to compute interlayer dz2-dz2 s-wave pairing, 
+       ! which is Gup(1i,1j)*Gup(2i,2j), where i and j denote site in each layer
+       ! and 1 and 2 are layer index
+       
+       if (model==4) then
+           do i = 1,  T1%properties(IPAIRs)%n
+              do j = 1,  T1%properties(IPAIRs)%n
+                 ! Delta^+_i = c^+_i,up * c^+_i,dn 
+                 ! So rules for value1 --> value2:
+                 ! upt0 <--> -up0t, dnt0 <--> -dn0t
+                 
+                 ! Need to first get the site index of i and j in the other dz2 layer
+                 ! from our* file, the site cycles frist in z direction
+                 ! so that the other dz2 layer's index is the current index +- 1
+                 
+                 ! get the cartesian coordinates of site i
+                 ! Note i-1 accounts for the different convention of labeling sites  
+                 z1 = T1%cartpos(3,i-1)
+                 z2 = T1%cartpos(3,j-1)
+
+                 k = T1%properties(IPAIRs)%D(i,j)
+             
+                 if ( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     value1(k)  = value1(k) + upt0(i,j)*dnt0(i+1,j+1) *0.5_wp 
+                     value2(k)  = value2(k) + up0t(i,j)*dn0t(i+1,j+1) *0.5_wp
+                     T1%Pstau(dt1, T1%tmp) = T1%Pstau(dt1, T1%tmp) + upt0(i,j)*dnt0(i+1,j+1) *0.5_wp 
+                     T1%Pstau(dt2, T1%tmp) = T1%Pstau(dt2, T1%tmp) + up0t(i,j)*dn0t(i+1,j+1) *0.5_wp
+                     
+                 else if ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                     value1(k)  = value1(k) + upt0(i,j)*dnt0(i-1,j-1) *0.5_wp 
+                     value2(k)  = value2(k) + up0t(i,j)*dn0t(i-1,j-1) *0.5_wp
+                     T1%Pstau(dt1, T1%tmp) = T1%Pstau(dt1, T1%tmp) + upt0(i,j)*dnt0(i-1,j-1) *0.5_wp 
+                     T1%Pstau(dt2, T1%tmp) = T1%Pstau(dt2, T1%tmp) + up0t(i,j)*dn0t(i-1,j-1) *0.5_wp
+                 endif
+                 
+                 
+              end do
+           end do
+           
+       else
+       
+           do i = 1,  T1%properties(IPAIRs)%n
+              do j = 1,  T1%properties(IPAIRs)%n
+                 ! Delta^+_i = c^+_i,up * c^+_i,dn 
+                 ! So rules for value1 --> value2:
+                 ! upt0 <--> -up0t, dnt0 <--> -dn0t
+                 k = T1%properties(IPAIRs)%D(i,j)
+                 value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) *0.5_wp 
+                 value2(k)  = value2(k) + up0t(i,j)*dn0t(i,j) *0.5_wp
+                 
+                 T1%Pstau(dt1, T1%tmp) = T1%Pstau(dt1, T1%tmp) + upt0(i,j)*dnt0(i,j) *0.5_wp 
+                 T1%Pstau(dt2, T1%tmp) = T1%Pstau(dt2, T1%tmp) + up0t(i,j)*dn0t(i,j) *0.5_wp
+              end do
+           end do
+       endif
      endif
 
      if (T1%flags(IPAIRd) == 1) then
@@ -2044,19 +2137,76 @@ contains
      if (T1%flags(IPAIRs) == 1) then
        value1  => T1%properties(IPAIRs)%values(:, dt1, T1%tmp)
        valueL  => T1%properties(IPAIRs)%values(:, L,   T1%tmp)
-       do i = 1,  T1%properties(IPAIRs)%n
-          do j = 1,  T1%properties(IPAIRs)%n
-             ! k is the distance index of site i and site j
-             k = T1%properties(IPAIRs)%D(i,j)
-             value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
+       
+       ! Sept.8,2023:
+       ! for the model for bilayer 2orb of La3Ni2O7 
+       ! dx2y2-dz2-dz2-dx2y2 model, similar to stacked two PAM model: c1-f1-f2-c2
+       ! change to compute interlayer dz2-dz2 s-wave pairing, 
+       ! which is Gup(1i,1j)*Gup(2i,2j), where i and j denote site in each layer
+       ! and 1 and 2 are layer index
+       
+       if (model==4) then
+           do i = 1,  T1%properties(IPAIRs)%n
+              do j = 1,  T1%properties(IPAIRs)%n
+                 ! Delta^+_i = c^+_i,up * c^+_i,dn 
+                 ! So rules for value1 --> value2:
+                 ! upt0 <--> -up0t, dnt0 <--> -dn0t
+                 
+                 ! Need to first get the site index of i and j in the other dz2 layer
+                 ! from our* file, the site cycles frist in z direction
+                 ! so that the other dz2 layer's index is the current index +- 1
+                 
+                 ! get the cartesian coordinates of site i
+                 ! Note i-1 accounts for the different convention of labeling sites  
+                 z1 = T1%cartpos(3,i-1)
+                 z2 = T1%cartpos(3,j-1)
+                 
+                 k = T1%properties(IPAIRs)%D(i,j)
+             
+                 if ( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     value1(k)  = value1(k) + upt0(i,j)*dnt0(i+1,j+1) 
+                     T1%Pstau(dt1, T1%tmp) = T1%Pstau(dt1, T1%tmp) + upt0(i,j)*dnt0(i+1,j+1)
+                     
+                 else if ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                     value1(k)  = value1(k) + upt0(i,j)*dnt0(i-1,j-1)  
+                     T1%Pstau(dt1, T1%tmp) = T1%Pstau(dt1, T1%tmp) + upt0(i,j)*dnt0(i-1,j-1)
+                 endif
+                 
+                 ! For tau=beta, see Ben's notes and email on May.14, 2021
+                 ! one_G function defined in dqmc_util.F90
+                 val1 = one_G(up00(i,j), i, j)
+                 
+                 if ( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                     val2 = one_G(dn00(i+1,j+1), i, j)
+                     val3 = val1*val2
+                     valueL(k) = valueL(k) + val3
+                     T1%Pstau(L, T1%tmp) = T1%Pstau(L, T1%tmp) + val3
+                 else if ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                     val2 = one_G(dn00(i-1,j-1), i, j)
+                     val3 = val1*val2
+                     valueL(k) = valueL(k) + val3
+                     T1%Pstau(L, T1%tmp) = T1%Pstau(L, T1%tmp) + val3
+                 endif 
+                 
+              end do
+           end do
+           
+       else
+       
+           do i = 1,  T1%properties(IPAIRs)%n
+              do j = 1,  T1%properties(IPAIRs)%n
+                 ! k is the distance index of site i and site j
+                 k = T1%properties(IPAIRs)%D(i,j)
+                 value1(k)  = value1(k) + upt0(i,j)*dnt0(i,j) 
 
-             ! For tau=beta, see Ben's notes and email on May.14, 2021
-             ! one_G function defined in dqmc_util.F90
-             val1 = one_G(up00(i,j), i, j)
-             val2 = one_G(dn00(i,j), i, j)
-             valueL(k) = valueL(k) + val1*val2
-          end do
-       end do
+                 ! For tau=beta, see Ben's notes and email on May.14, 2021
+                 ! one_G function defined in dqmc_util.F90
+                 val1 = one_G(up00(i,j), i, j)
+                 val2 = one_G(dn00(i,j), i, j)
+                 valueL(k) = valueL(k) + val1*val2
+              end do
+           end do
+        endif
      endif
 
      if (T1%flags(IPAIRd) == 1) then
@@ -2507,9 +2657,84 @@ contains
             T1%swaveAvg(j, T1%idx) = T1%swaveAvg(j, T1%idx) &
                    + T1%properties(IPAIRs)%values(k,j,idx) / T1%properties(IPAIRs)%n
          end do
-      enddo
+      end do
     endif
 
+    ! for La3Ni2O7 bilayer two-orbital model, dz2-dz2 interlayer pairing
+    ! Uncorrelated s+--wave susceptibility Ps0 within each MC bin
+    if (T1%flags(IPAIRs) == 1 .and. model==4) then
+       T1%Pstau(0:T1%L, T1%idx) = T1%Pstau(0:T1%L, T1%idx) * fac
+       T1%Ps(T1%idx) = T1%Ps(T1%idx) * fac
+
+       ! compute uncorrelated or non-vertex d-wave susceptibility Pd^bar
+       ! D_i*D_j = sum_{dd'} <Gup(i,j)>*<Gdn(i+d,j+d')>
+       ! Pd0 = int^beta_0 sum_ij D_i*D_j
+       do it = 0, T1%L
+         ! Note that precisely value1 (value2) should use
+         ! Gup and Gdn respectively. Because sometimes the code
+         ! input file does not specify computing them
+         ! Here assume that G = Gup = Gdn
+
+         ! Mi: May 19, 2021
+         ! here /sgn becasue previously in DQMC_TDM_Meas
+         ! all quantities are multiplied by sgn, so here temporarily
+         ! divide it again to obtain the signed average 
+         ! see 2011 CT-QMC review Eq.(41)
+         if (it<T1%L) then
+           value1 = T1%properties(IGFUP)%values(:, it, idx)/T1%sgn(idx)
+           value2 = T1%properties(IGFDN)%values(:, it, idx)/T1%sgn(idx)
+           value1 = T1%properties(IGFUN)%values(:, it, idx)/T1%sgn(idx)
+           value2 = T1%properties(IGFUN)%values(:, it, idx)/T1%sgn(idx)
+         else
+           ! tau=beta: G_ij(beta) = delta_ij*(1-G_ij(0))
+           do i = 1, T1%properties(IPAIRs)%n
+             do j = 1, T1%properties(IPAIRs)%n  
+                k = T1%properties(IPAIRs)%D(i,j)
+                value1(k) = one_G(T1%properties(IGFUN)%values(k,0,idx)/T1%sgn(idx), i, j)
+                value2(k) = one_G(T1%properties(IGFUN)%values(k,0,idx)/T1%sgn(idx), i, j)
+             end do
+           end do
+         endif
+
+         a = 0.0_wp
+         do i = 1,  T1%properties(IPAIRs)%n
+            do j = 1,  T1%properties(IPAIRs)%n
+               ! get the cartesian coordinates of site i
+               ! Note i-1 accounts for the different convention of labelling sites
+               z1 = T1%cartpos(3,i-1)
+               z2 = T1%cartpos(3,j-1)
+               
+               ! similar to other quantites, MC average needs *sgn factor
+               ! All future quantities calculated directly using binned values
+               ! of (for example G) in DQMC_TDM_Avg need do like this !!!
+               tmp = 1.0/(T1%properties(IPAIRs)%n/4.0)*T1%sgn(idx)
+               
+               k = T1%properties(IPAIRs)%D(i, j)
+               a = value1(k)
+                    
+               if ( abs(z1-1.d0)<1.d-6 .and. abs(z2-1.d0)<1.d-6) then
+                   k = T1%properties(IPAIRs)%D(i+1, j+1)
+                   T1%Ps0tau(it, idx) = T1%Ps0tau(it, idx) + a*value2(k) *tmp
+                     
+               else if ( abs(z1-2.d0)<1.d-6 .and. abs(z2-2.d0)<1.d-6) then
+                   k = T1%properties(IPAIRs)%D(i-1, j-1)
+                   T1%Ps0tau(it, idx) = T1%Ps0tau(it, idx) + a*value2(k) *tmp
+               endif
+                 
+            end do
+         end do
+        ! write(*,*) "T1%Ps0tau(it)=", T1%Ps0tau(it,idx)
+       end do
+
+      call convert_to_iw0_PsPd(T1%Ps0tau(0:T1%L, idx), T1%Ps0(idx), T1%L, T1%dtau)
+
+      ! calculate the s-wave pairing vertex Gammas
+      T1%Gammas(T1%idx) = 1.0/T1%Ps(T1%idx) - 1.0/T1%Ps0(idx)
+      T1%Gd_Ps0(T1%idx) = T1%Gammas(T1%idx)*T1%Ps0(idx)
+    endif
+    
+ 
+    
     ! Uncorrelated d-wave susceptibility Pd0 within each MC bin
     if (T1%flags(IPAIRd) == 1) then
        T1%Pdtau(0:T1%L, T1%idx, :) = T1%Pdtau(0:T1%L, T1%idx, :) * fac
@@ -2706,7 +2931,7 @@ contains
             end do
          end do
          !write(*,*) T1%Pd0tau(it)
-       enddo
+       end do
 
        do i = 1,T1%NPd
          call convert_to_iw0_PsPd(T1%Pd0tau(0:T1%L, idx, i), T1%Pd0(idx, i), T1%L, T1%dtau)
@@ -2718,7 +2943,7 @@ contains
          ! superconducting instability is signified by Gd_Pd0 -> -1
          ! See PRB 86, 184506 (2012)
          T1%Gd_Pd0(T1%idx,i) = T1%Gammad(T1%idx,i)*T1%Pd0(idx,i)
-       enddo
+       end do
     endif
 
 !    T1%sgn(idx) = T1%sgn(idx)*factor
@@ -2951,6 +3176,43 @@ contains
          enddo
        endif
 
+
+       if (T1%flags(IPAIRs) == 1) then
+         do j = 0, T1%L
+             data =  T1%Pstau(j, 1:n)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%Pstau(j, avg) = average
+             T1%Pstau(j, err) = error
+         end do
+         do j = 0, T1%L
+             data =  T1%Ps0tau(j, 1:n)
+             call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+             T1%Ps0tau(j, avg) = average
+             T1%Ps0tau(j, err) = error
+         end do
+
+           data =  T1%Ps(1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Ps(avg) = average
+           T1%Ps(err) = error
+
+           data =  T1%Ps0(1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Ps0(avg) = average
+           T1%Ps0(err) = error
+
+           data =  T1%Gammas(1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Gammas(avg) = average
+           T1%Gammas(err) = error
+
+           data =  T1%Gd_Ps0(1:n)
+           call DQMC_SignJackKnife(n, average, error, data, y, sgn, sum_sgn)
+           T1%Gd_Ps0(avg) = average
+           T1%Gd_Ps0(err) = error
+       endif
+       
+       
        if (T1%flags(IPAIRd) == 1) then
          do j = 0, T1%L
            do i = 1,T1%NPd
@@ -3694,8 +3956,48 @@ contains
           enddo
         endif
       endif
-    enddo
+    end do
 
+
+    if (T1%flags(IPAIRs) == 1) then
+       ! Ps and Ps0
+         write(OPT,"(a20,4(e16.8))") 'Ps and Ps0 = ',          &
+                            T1%Ps (T1%avg), T1%Ps (T1%err), &
+                            T1%Ps0(T1%avg), T1%Ps0(T1%err)
+         write(OPT,"(a20,2(e16.8))") 'accumulated Gammas = ',  &
+                           T1%Gammas(T1%avg), T1%Gammas(T1%err)
+
+         x = 1.0/T1%Ps(T1%avg) - 1.0/T1%Ps0(T1%avg)
+         write(OPT,"(a20,e16.8)") 'calculated Gammas = ', x
+
+         write(OPT,"(a20,2(e16.8))") 'accumulated Gs*Ps0 = ', &
+                          T1%Gd_Ps0(T1%avg), T1%Gd_Ps0(T1%err)
+
+         y = x*T1%Ps0(T1%avg)
+         write(OPT,"(a20,e16.8)") 'calculated Gd*Ps0 = ', y
+
+       write(OPT,FMT_DBLINE)
+
+         write(OPT,"(a10)") 'component'
+         ! Ps(tau)
+         do j = 0, T1%L
+            tmp(j+1, 1:2) = T1%Pstau(j, T1%avg:T1%err)
+         enddo
+         title="Ps(tau)"
+         call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+         write(OPT,'(1x)')
+
+         ! Ps0(tau) 
+         do j = 0, T1%L
+            tmp(j+1, 1:2) = T1%Ps0tau(j, T1%avg:T1%err)
+         enddo
+         title="Ps0 (nonvertex) (tau)"
+         call DQMC_Print_Array(0, T1%L+1, title, label, tmp(:, 1:1), tmp(:, 2:2), OPT)
+         write(OPT,'(1x)')
+         write(OPT,FMT_DBLINE)
+   endif
+   
+   
     if (T1%flags(IPAIRd) == 1) then
        ! Pd and Pd0
        do i = 1,T1%NPd
